@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body {
+    font-family: 'IBM Plex Sans Arabic', 'Readex Pro', 'Tajawal', 'Cairo', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-feature-settings: "tnum" 1, "ss01" 1, "cv01" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Numeric values formatting: clean, standard digits, proportional and elegant */
+  .font-numbers, .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    font-weight: 500;
+  }
+}
+
+/* =========================================================
+   ORBIX ERP - DEDICATED PRINT STYLESHEET FOR POS & INVOICES
+   ========================================================= */
+
+@media print {
+  /* Hide all standard web app containers, navigation, and modals */
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-family: 'IBM Plex Sans Arabic', 'Readex Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+  }
+
+  /* Hide everything on the page by default when printing */
+  body > * {
+    visibility: hidden !important;
+  }
+
+  /* Display only the target printable receipt */
+  #pos-printable-receipt,
+  #pos-printable-receipt * {
+    visibility: visible !important;
+  }
+
+  #pos-printable-receipt {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 16px !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Thermal roll receipt optimization (80mm width standard) */
+  .receipt-thermal {
+    max-width: 80mm !important;
+    width: 80mm !important;
+    padding: 4mm !important;
+    font-size: 11px !important;
+    margin: 0 auto !important;
+  }
+
+  /* A4 Invoice format optimization */
+  .receipt-a4 {
+    max-width: 210mm !important;
+    width: 100% !important;
+    padding: 12mm !important;
+    font-size: 13px !important;
+  }
+
+  /* Hide non-printable interactive elements inside the modal */
+  .no-print,
+  button,
+  .print\\:hidden {
+    display: none !important;
+  }
+
+  /* Ensure table borders and headers print with high contrast */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px 8px !important;
+  }
+
+  thead th {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-weight: bold !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Page setup for crisp margins */
+  @page {
+    size: auto;
+    margin: 6mm;
+  }
+}
