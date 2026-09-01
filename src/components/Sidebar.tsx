@@ -37,8 +37,11 @@ import {
   Laptop,
   ChevronDown,
   ChevronLeft,
+  FileBadge,
+  ClipboardList,
 } from 'lucide-react';
 import { useErp } from '../context/ErpContext';
+import { OrbixLogo } from './OrbixLogo';
 
 export type ActiveTab =
   | 'dashboard'
@@ -84,6 +87,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     accounts,
     journalEntries,
     salesInvoices,
+    quotations,
+    salesOrders,
     salesReturns,
     purchaseInvoices,
     vendors,
@@ -132,56 +137,59 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     }));
   };
 
-  const menuItems: MenuItem[] = [
+  const pinnedItems: MenuItem[] = [
     {
       id: 'dashboard',
-      label: 'لوحة القيادة والملخصات',
+      label: 'الرئيسية',
       icon: LayoutDashboard,
       badge: 'مباشر',
     },
     {
       id: 'quick_pos',
-      label: 'فاتورة سريعة / كاشير POS',
+      label: 'الكاشير',
       icon: Zap,
       badge: 'سريع',
       posHighlight: true,
     },
+  ];
+
+  const serviceItems: MenuItem[] = [
     {
       id: 'accounts',
-      label: 'الحسابات والتحصيلات والعمولات',
+      label: 'الحسابات',
       icon: BookOpenCheck,
       badge: 'مالي',
       subItems: [
         {
           id: 'chart',
-          label: 'شجرة ودليل الحسابات',
+          label: 'الدليل',
           icon: FolderTree,
           badge: accounts.length,
         },
         {
           id: 'journal',
-          label: 'سجل قيود اليومية',
+          label: 'القيود',
           icon: FileText,
           badge: journalEntries.length,
         },
         {
           id: 'collections',
-          label: 'التحصيلات وسندات القبض',
+          label: 'القبض',
           icon: Receipt,
         },
         {
           id: 'commissions',
-          label: 'عمولات المناديب وسندات الصرف',
+          label: 'العمولات',
           icon: CreditCard,
         },
         {
           id: 'loyalty',
-          label: 'نقاط الولاء والمكافآت',
+          label: 'الولاء',
           icon: Award,
         },
         {
           id: 'pricelists',
-          label: 'قوائم الأسعار وتخصيص التسعير',
+          label: 'الأسعار',
           icon: Tag,
           badge: priceLists.length,
         },
@@ -189,18 +197,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     },
     {
       id: 'sales',
-      label: 'المبيعات والفواتير الضريبية',
+      label: 'المبيعات',
       icon: Receipt,
       subItems: [
         {
+          id: 'quotes',
+          label: 'العروض',
+          icon: FileBadge,
+          badge: quotations.length > 0 ? quotations.length : undefined,
+        },
+        {
+          id: 'orders',
+          label: 'الطلبيات',
+          icon: ClipboardList,
+          badge: salesOrders.length > 0 ? salesOrders.length : undefined,
+        },
+        {
           id: 'invoices',
-          label: 'فواتير المبيعات الضريبية',
+          label: 'الفواتير',
           icon: FileSpreadsheet,
           badge: salesInvoices.length,
         },
         {
           id: 'returns',
-          label: 'مردودات ومرتجع المبيعات',
+          label: 'المردودات',
           icon: RotateCcw,
           badge: salesReturns.length > 0 ? salesReturns.length : undefined,
         },
@@ -208,18 +228,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     },
     {
       id: 'purchases',
-      label: 'المشتريات والموردين',
+      label: 'المشتريات',
       icon: ShoppingCart,
       subItems: [
         {
           id: 'bills',
-          label: 'فواتير المشتريات والمصروفات',
+          label: 'الفواتير',
           icon: FileSpreadsheet,
           badge: purchaseInvoices.length,
         },
         {
           id: 'vendors',
-          label: 'دليل الموردين والشركات',
+          label: 'الموردين',
           icon: Building,
           badge: vendors.length,
         },
@@ -227,64 +247,64 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     },
     {
       id: 'inventory',
-      label: 'المخازن وحركة المخزون',
+      label: 'المخزون',
       icon: Package,
-      badge: lowStockCount > 0 ? `${lowStockCount} ناقص` : undefined,
+      badge: lowStockCount > 0 ? `${lowStockCount}` : undefined,
       badgeColor: lowStockCount > 0 ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : undefined,
       subItems: [
         {
           id: 'all',
-          label: 'قائمة الأصناف والمخزون',
+          label: 'الأصناف',
           icon: Layers,
           badge: products.length,
         },
         {
           id: 'low_stock',
-          label: 'تنبيهات النواقص والحد الأدنى',
+          label: 'النواقص',
           icon: AlertTriangle,
           badge: lowStockCount > 0 ? lowStockCount : undefined,
           badgeColor: 'bg-rose-500/30 text-rose-300',
         },
         {
           id: 'adjust',
-          label: 'تسوية وتعديل كميات المخزون',
+          label: 'التسوية',
           icon: ArrowDownUp,
         },
       ],
     },
     {
       id: 'crm_collections',
-      label: 'إدارة علاقات العملاء CRM 360',
+      label: 'العملاء',
       icon: Users2,
-      badge: 'مبيعات',
+      badge: 'CRM',
       subItems: [
         {
           id: 'customers',
-          label: 'دليل وملفات العملاء 360',
+          label: 'الدليل',
           icon: UserCheck,
           badge: customers.length,
         },
         {
           id: 'pipeline',
-          label: 'مسار الفرص البيعية Pipeline',
+          label: 'الفرص',
           icon: Target,
           badge: crmLeads.length,
         },
         {
           id: 'interactions',
-          label: 'سجل المكالمات والزيارات',
+          label: 'المتابعات',
           icon: PhoneCall,
           badge: crmInteractions.length,
         },
         {
           id: 'tickets',
-          label: 'تذاكر الدعم والشكاوى',
+          label: 'التذاكر',
           icon: LifeBuoy,
           badge: crmTickets.length,
         },
         {
           id: 'sales_reps',
-          label: 'لوحة مناديب ومسؤولي المبيعات',
+          label: 'المناديب',
           icon: TrendingUp,
           badge: salesReps.length,
         },
@@ -292,17 +312,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     },
     {
       id: 'hr_payroll',
-      label: 'الموارد البشرية والرواتب',
+      label: 'الموظفين',
       icon: BadgeDollarSign,
       subItems: [
         {
           id: 'payroll',
-          label: 'مسير الرواتب والأجور الشهرية',
+          label: 'الرواتب',
           icon: Calendar,
         },
         {
           id: 'employees',
-          label: 'سجل وملفات الموظفين',
+          label: 'الموظفين',
           icon: Users,
           badge: employees.length,
         },
@@ -310,84 +330,85 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     },
     {
       id: 'financial_reports',
-      label: 'التقارير والقوائم المالية',
+      label: 'التقارير',
       icon: PieChart,
       subItems: [
         {
           id: 'income',
-          label: 'قائمة الدخل والأرباح والخسائر',
+          label: 'الأرباح',
           icon: TrendingUp,
         },
         {
           id: 'balance_sheet',
-          label: 'الميزانية العمومية والمركز المالي',
+          label: 'الميزانية',
           icon: Building2,
         },
         {
           id: 'trial_balance',
-          label: 'ميزان المراجعة بالأرصدة',
+          label: 'المراجعة',
           icon: Scale,
         },
         {
           id: 'statement',
-          label: 'كشف حساب الأستاذ العام',
+          label: 'الأستاذ',
           icon: FileText,
         },
       ],
     },
     {
       id: 'settings',
-      label: 'الإعدادات والصلاحيات والأمان',
+      label: 'الإعدادات',
       icon: Sliders,
       badge: 'أدمن',
       subItems: [
         {
           id: 'company',
-          label: 'بيانات المنشأة والشعار والضريبة',
+          label: 'المنشأة',
           icon: Building2,
         },
         {
           id: 'currencies',
-          label: 'إدارة العملات وأسعار الصرف',
+          label: 'العملات',
           icon: Coins,
           badge: currencies.length,
         },
         {
           id: 'users_rbac',
-          label: 'المستخدمين والمجموعات والصلاحيات',
+          label: 'المستخدمين',
           icon: ShieldCheck,
           badge: users.length,
         },
         {
           id: 'database_backup',
-          label: 'النسخ الاحتياطي وقاعدة البيانات',
+          label: 'النسخ',
           icon: Database,
         },
         {
           id: 'gsheets',
-          label: 'المزامنة مع Google Sheets',
+          label: 'Sheets',
           icon: FileSpreadsheet,
         },
         {
           id: 'desktop_exe',
-          label: 'تصدير نسخة سطح المكتب EXE',
+          label: 'EXE',
           icon: Laptop,
         },
       ],
     },
     {
       id: 'erp_blueprint',
-      label: 'دليل متطلبات بناء نظام ERP',
+      label: 'الدليل',
       icon: Lightbulb,
       highlight: true,
     },
   ];
 
   return (
-    <div className="w-full bg-slate-900 text-slate-300 rounded-3xl flex flex-col justify-between p-3.5 border border-slate-800 shadow-md">
-      <div>
+    <div className="w-full h-full bg-slate-900 text-slate-300 rounded-none flex flex-col justify-between border-0 shadow-none overflow-hidden select-none">
+      {/* 1. TOP PINNED SECTION: Header + الرئيسية + الكاشير */}
+      <div className="shrink-0 p-3 pb-2.5 bg-slate-900 border-b border-slate-800/90 space-y-2">
         {/* Navigation Header */}
-        <div className="mb-3 px-3 flex items-center justify-between">
+        <div className="px-1 flex items-center justify-between">
           <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
             وحدات وخدمات النظام
           </p>
@@ -396,9 +417,63 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           </span>
         </div>
 
-        {/* Navigation Menu List */}
+        {/* Pinned Primary Navigation Items (الرئيسية & الكاشير) */}
+        <div className="space-y-1.5">
+          {pinnedItems.map((item) => {
+            const Icon = item.icon;
+            const isMainActive = activeTab === item.id;
+
+            return (
+              <div
+                key={item.id}
+                id={`nav-tab-${item.id}`}
+                onClick={() => navigateTo(item.id)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all text-right cursor-pointer select-none ${
+                  isMainActive
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/30 font-bold'
+                    : item.posHighlight
+                    ? 'bg-emerald-950/60 text-emerald-300 hover:bg-emerald-900/60 border border-emerald-500/40'
+                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Icon
+                    className={`w-4 h-4 sm:w-4.5 sm:h-4.5 shrink-0 ${
+                      isMainActive
+                        ? 'text-white'
+                        : item.posHighlight
+                        ? 'text-emerald-400'
+                        : 'text-slate-400'
+                    }`}
+                  />
+                  <span className="truncate">{item.label}</span>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0 mr-2">
+                  {item.badge && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
+                        isMainActive
+                          ? 'bg-white/20 text-white'
+                          : item.badge === 'سريع'
+                          ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'
+                          : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 2. SCROLLABLE SERVICES LIST: الحسابات، المبيعات، المشتريات، المخزون، العملاء، الموظفين، التقارير، الإعدادات، الدليل */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 py-2 space-y-1.5 sidebar-scrollbar">
         <nav className="space-y-1.5" role="menu">
-          {menuItems.map((item) => {
+          {serviceItems.map((item) => {
             const Icon = item.icon;
             const isMainActive = activeTab === item.id;
             const hasSub = item.subItems && item.subItems.length > 0;
@@ -406,13 +481,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
 
             return (
               <div key={item.id} className="rounded-2xl overflow-hidden">
-                {/* Main Menu Button */}
+                {/* Service Menu Button */}
                 <div
                   id={`nav-tab-${item.id}`}
                   onClick={() => {
                     if (hasSub) {
                       setExpandedMenus((prev) => ({ ...prev, [item.id]: true }));
-                      // If clicking main tab, choose first sub-item or default
                       const firstSub = item.subItems![0]?.id;
                       navigateTo(item.id, firstSub);
                     } else {
@@ -422,8 +496,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all text-right cursor-pointer select-none ${
                     isMainActive
                       ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/20 font-semibold'
-                      : item.posHighlight
-                      ? 'bg-emerald-950/60 text-emerald-300 hover:bg-emerald-900/60 border border-emerald-500/30'
                       : item.highlight
                       ? 'bg-slate-800/80 text-amber-300 hover:bg-slate-800 hover:text-amber-200 border border-amber-500/20'
                       : 'text-slate-300 hover:bg-slate-800/70 hover:text-white'
@@ -434,8 +506,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                       className={`w-4 h-4 sm:w-4.5 sm:h-4.5 shrink-0 ${
                         isMainActive
                           ? 'text-white'
-                          : item.posHighlight
-                          ? 'text-emerald-400'
                           : item.highlight
                           ? 'text-amber-400'
                           : 'text-slate-400'
@@ -450,7 +520,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                         className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${
                           item.badgeColor
                             ? item.badgeColor
-                            : item.badge === 'جديد' || item.badge === 'سريع'
+                            : item.badge === 'جديد'
                             ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'
                             : item.badge === 'تحصيل'
                             ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
@@ -535,17 +605,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
         </nav>
       </div>
 
-      {/* Footer Info Box */}
-      <div className="mt-6 p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-xs space-y-1.5">
-        <div className="flex items-center justify-between text-slate-200 font-semibold">
-          <span className="truncate max-w-[140px] text-[11px] font-bold text-emerald-400">
-            {companyProfile.nameAr}
-          </span>
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      {/* 3. BOTTOM PINNED FOOTER */}
+      <div className="shrink-0 p-3 bg-slate-900 border-t border-slate-800">
+        <div className="p-2.5 rounded-xl bg-slate-800/70 border border-slate-700/50 text-xs space-y-1">
+          <div className="flex items-center justify-between text-slate-200 font-semibold">
+            <span className="truncate max-w-[140px] text-[11px] font-bold text-emerald-400">
+              {companyProfile.nameAr}
+            </span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          </div>
+          <p className="text-[10px] text-slate-400 leading-relaxed">
+            قيد مزدوج آلي • ضريبة {companyProfile.defaultVatRate || 14}%
+          </p>
         </div>
-        <p className="text-[10px] text-slate-400 leading-relaxed">
-          قيد مزدوج آلي • ضريبة {companyProfile.defaultVatRate || 14}% • أرقام قياسية
-        </p>
       </div>
     </div>
   );

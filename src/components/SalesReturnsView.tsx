@@ -37,9 +37,13 @@ export const SalesReturnsView: React.FC = () => {
     editSalesReturn,
     deleteSalesReturn,
     getNextSequenceCode,
+    hasPermission,
     showAlert,
     showConfirm,
   } = useErp();
+
+  const canEdit = hasPermission ? hasPermission('edit_invoices') : true;
+  const canDelete = hasPermission ? hasPermission('delete_invoices') : true;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -422,7 +426,7 @@ export const SalesReturnsView: React.FC = () => {
               handleSelectInvoice(salesInvoices[0].id);
             }
           }}
-          className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer"
+          className="inline-flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-rose-600/20 cursor-pointer active:scale-95"
         >
           <PlusCircle className="w-4 h-4" />
           إصدار إشعار مرتجع جديد
@@ -502,34 +506,46 @@ export const SalesReturnsView: React.FC = () => {
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={() => setStatementCustomerId(ret.customerId)}
-                          className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
-                          title="كشف حساب العميل"
-                        >
-                          <FileSpreadsheet className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenEdit(ret)}
-                          className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                          title="تعديل بيانات المرتجع"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
+                        {/* Print / Preview */}
                         <button
                           onClick={() => {
                             setSelectedReturn(ret);
                             setShowPrintModal(true);
                           }}
-                          className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                          title="طباعة ومعاينة الإشعار"
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                          title="طباعة ومعاينة إشعار المرتجع"
                         >
-                          <Printer className="w-4 h-4" />
+                          <Printer className="w-3.5 h-3.5" />
                         </button>
+
+                        {/* Customer Statement */}
+                        <button
+                          onClick={() => setStatementCustomerId(ret.customerId)}
+                          className="bg-purple-50 hover:bg-purple-100 text-purple-700 p-1.5 rounded-lg border border-purple-200 transition-colors cursor-pointer"
+                          title="كشف حساب العميل"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Edit Button */}
+                        <button
+                          onClick={() => handleOpenEdit(ret)}
+                          disabled={!canEdit}
+                          className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                            canEdit
+                              ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                              : 'opacity-40 bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                          }`}
+                          title={canEdit ? 'تعديل بيانات المرتجع' : 'ليس لديك صلاحية التعديل'}
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Delete Button */}
                         <button
                           onClick={() => {
                             showConfirm(
-                              `هل أنت متأكد من حذف إشعار المرتجع رقم ${ret.returnNumber}؟`,
+                              `هل أنت متأكد من حذف إشعار المرتجع رقم ${ret.returnNumber}؟ سيتم إلغاء تأثيره المخزني والمالي.`,
                               () => {
                                 deleteSalesReturn(ret.id);
                               },
@@ -537,10 +553,15 @@ export const SalesReturnsView: React.FC = () => {
                               'حذف المرتجع'
                             );
                           }}
-                          className="p-1.5 text-rose-400 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="حذف المرتجع"
+                          disabled={!canDelete}
+                          className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                            canDelete
+                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                              : 'opacity-40 bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                          }`}
+                          title={canDelete ? 'حذف المرتجع' : 'ليس لديك صلاحية الحذف'}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -555,7 +576,7 @@ export const SalesReturnsView: React.FC = () => {
       {/* CREATE RETURN MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 my-auto max-h-[95vh] overflow-y-auto text-slate-900">
+          <div className="bg-white rounded-2xl max-w-6xl w-full p-6 shadow-2xl border border-slate-200 my-auto max-h-[95vh] overflow-y-auto text-slate-900">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-4">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
@@ -1000,7 +1021,7 @@ export const SalesReturnsView: React.FC = () => {
       {/* EDIT RETURN MODAL */}
       {showEditModal && editingReturn && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 my-auto max-h-[95vh] overflow-y-auto text-slate-900">
+          <div className="bg-white rounded-2xl max-w-6xl w-full p-6 shadow-2xl border border-slate-200 my-auto max-h-[95vh] overflow-y-auto text-slate-900">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-4">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">

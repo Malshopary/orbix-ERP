@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Orbix Hexagonal Emblem -->
+  <g fill="#07215C">
+    <!-- Top-Left Segment -->
+    <path d="M 45 6 L 18 22 C 14 24.5 14 28 14 33 L 14 42 L 31 32 C 33 30.8 35.5 31 37 32.5 L 45 40.5 Z" />
+    <!-- Top-Right Segment -->
+    <path d="M 55 6 L 82 22 C 86 24.5 86 28 86 33 L 86 42 L 69 32 C 67 30.8 64.5 31 63 32.5 L 55 40.5 Z" />
+    <!-- Bottom-Left Segment -->
+    <path d="M 45 94 L 18 78 C 14 75.5 14 72 14 67 L 14 58 L 31 68 C 33 69.2 35.5 69 37 67.5 L 45 59.5 Z" />
+    <!-- Bottom-Right Segment -->
+    <path d="M 55 94 L 82 78 C 86 75.5 86 72 86 67 L 86 58 L 69 68 C 67 69.2 64.5 69 63 67.5 L 55 59.5 Z" />
+  </g>
+  <!-- Central Green Orb -->
+  <circle cx="50" cy="50" r="14.5" fill="#00C078" />
+</svg>

@@ -21,6 +21,7 @@ export const ProductSelectSearch: React.FC<ProductSelectSearchProps> = ({
   const { products, formatMoney } = useErp();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [openUpwards, setOpenUpwards] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,6 +53,21 @@ export const ProductSelectSearch: React.FC<ProductSelectSearchProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Detect position when opening
+  const toggleDropdown = () => {
+    if (!isOpen && wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      // If space below is less than 260px and space above is bigger, open upwards
+      if (spaceBelow < 260 && rect.top > 260) {
+        setOpenUpwards(true);
+      } else {
+        setOpenUpwards(false);
+      }
+    }
+    setIsOpen(!isOpen);
+  };
+
   // Auto focus input on open
   useEffect(() => {
     if (isOpen) {
@@ -76,11 +92,11 @@ export const ProductSelectSearch: React.FC<ProductSelectSearchProps> = ({
         id={id}
         tabIndex={0}
         role="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleDropdown}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            setIsOpen(!isOpen);
+            toggleDropdown();
           }
         }}
         className="w-full flex items-center justify-between p-2 rounded-xl border border-slate-300 bg-white hover:border-slate-400 transition-all text-xs cursor-pointer shadow-2xs gap-2 min-h-[38px]"
@@ -123,7 +139,11 @@ export const ProductSelectSearch: React.FC<ProductSelectSearchProps> = ({
 
       {/* Popover Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 right-0 left-0 top-full mt-1.5 bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div
+          className={`absolute z-[100] right-0 left-0 ${
+            openUpwards ? 'bottom-full mb-1.5 shadow-2xl origin-bottom' : 'top-full mt-1.5 shadow-2xl origin-top'
+          } bg-white rounded-2xl border border-slate-300 overflow-hidden animate-in fade-in zoom-in-95 duration-150 min-w-[280px]`}
+        >
           {/* Quick Search Header */}
           <div className="p-2 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
             <Search className="w-4 h-4 text-slate-400 shrink-0" />
@@ -147,7 +167,7 @@ export const ProductSelectSearch: React.FC<ProductSelectSearchProps> = ({
           </div>
 
           {/* Results List */}
-          <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 text-xs">
+          <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 text-xs">
             {filteredProducts.length === 0 ? (
               <div className="p-4 text-center text-slate-400 text-xs">
                 لا يوجد صنف مطابق للبحث "{searchQuery}"

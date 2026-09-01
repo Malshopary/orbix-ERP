@@ -98,7 +98,7 @@ export const GlobalAlertModal: React.FC<GlobalAlertModalProps> = ({ data, onClos
   const currentTheme = typeConfigs[type] || typeConfigs.warning;
 
   // Split lines to detect structured sections if message contains newlines or emojis
-  const cleanMessage = message.trim();
+  const cleanMessage = typeof message === 'string' ? message.trim() : (typeof message === 'object' && message ? (message as any).message || JSON.stringify(message) : String(message || ''));
 
   return (
     <div 

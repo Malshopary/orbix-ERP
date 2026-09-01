@@ -40,6 +40,12 @@ export interface SequenceConfig {
   returnPrefix: string;
   returnNextNumber: number;
   returnPadding: number;
+  quotationPrefix?: string;
+  quotationNextNumber?: number;
+  quotationPadding?: number;
+  orderPrefix?: string;
+  orderNextNumber?: number;
+  orderPadding?: number;
   productPrefix: string;
   productNextNumber: number;
   productPadding: number;
@@ -63,6 +69,12 @@ export const DEFAULT_SEQUENCE_CONFIG: SequenceConfig = {
   returnPrefix: 'RET-2026-',
   returnNextNumber: 101,
   returnPadding: 3,
+  quotationPrefix: 'QUO-2026-',
+  quotationNextNumber: 1001,
+  quotationPadding: 4,
+  orderPrefix: 'SO-2026-',
+  orderNextNumber: 1001,
+  orderPadding: 4,
   productPrefix: 'PRD-',
   productNextNumber: 101,
   productPadding: 3,

@@ -11,7 +11,9 @@ import {
   PriceList,
   Product,
   PurchaseInvoice,
+  Quotation,
   SalesInvoice,
+  SalesOrder,
   SalesRep,
   SalesReturn,
   SystemSequenceSettings,
@@ -66,16 +68,16 @@ export const INITIAL_CURRENCIES: ExchangeCurrency[] = [
 ];
 
 export const INITIAL_COMPANY_PROFILE: CompanyProfile = {
-  nameAr: 'مؤسسة الأعمال الحديثة للتجارة والحلول المتكاملة',
-  nameEn: 'Modern Business Solutions & Trading Co.',
-  taxNumber: '',
-  commercialRegister: '',
+  nameAr: 'شركة أوربكس للحلول المتكاملة والتجارة',
+  nameEn: 'ORBIX Integrated Solutions & Trading Co.',
+  taxNumber: '30045678900003',
+  commercialRegister: '1010456789',
   address: 'المقر الرئيسي - الإدارة العامة',
   city: 'القاهرة',
-  phone: '',
-  mobile: '',
-  email: 'info@company.com',
-  website: '',
+  phone: '0223456789',
+  mobile: '01001234567',
+  email: 'info@orbix-erp.com',
+  website: 'www.orbix-erp.com',
   logoWidth: 160,
   logoHeight: 50,
   invoiceFooterNotes: 'شكراً لتعاملكم معنا. تخضع جميع التعاملات للوائح والأنظمة التجارية والضريبية المعمول بها.',
@@ -220,6 +222,10 @@ export const INITIAL_JOURNAL_ENTRIES: JournalEntry[] = [];
 
 export const INITIAL_SALES_RETURNS: SalesReturn[] = [];
 
+export const INITIAL_QUOTATIONS: Quotation[] = [];
+
+export const INITIAL_SALES_ORDERS: SalesOrder[] = [];
+
 export const INITIAL_SEQUENCE_SETTINGS: SystemSequenceSettings = {
   invoices: {
     prefix: 'INV-2026-',
@@ -277,6 +283,18 @@ export const INITIAL_SEQUENCE_SETTINGS: SystemSequenceSettings = {
   },
   salesReturns: {
     prefix: 'RET-2026-',
+    nextNumber: 1,
+    padLength: 4,
+    autoIncrement: true,
+  },
+  quotations: {
+    prefix: 'QUO-2026-',
+    nextNumber: 1,
+    padLength: 4,
+    autoIncrement: true,
+  },
+  salesOrders: {
+    prefix: 'SO-2026-',
     nextNumber: 1,
     padLength: 4,
     autoIncrement: true,

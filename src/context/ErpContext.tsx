@@ -3,6 +3,7 @@ import {
   Account,
   AppUser,
   AuditLog,
+  BrowserTab,
   CompanyProfile,
   Currency,
   Customer,
@@ -17,7 +18,9 @@ import {
   PriceList,
   Product,
   PurchaseInvoice,
+  Quotation,
   SalesInvoice,
+  SalesOrder,
   SalesRep,
   SalesReturn,
   Vendor,
@@ -41,7 +44,9 @@ import {
   INITIAL_PRICE_LISTS,
   INITIAL_PRODUCTS,
   INITIAL_PURCHASES,
+  INITIAL_QUOTATIONS,
   INITIAL_RECEIPTS,
+  INITIAL_SALES_ORDERS,
   INITIAL_SALES_REPS,
   INITIAL_SALES_RETURNS,
   INITIAL_USERS,
@@ -76,6 +81,15 @@ interface ErpContextType {
   activeSubTab: string;
   setActiveSubTab: (subTab: string) => void;
   navigateTo: (tab: string, subTab?: string) => void;
+
+  // Browser Multi-Tabs System
+  openTabs: BrowserTab[];
+  activeTabId: string;
+  openBrowserTab: (tab: string, subTab?: string) => void;
+  switchBrowserTab: (tabId: string) => void;
+  closeBrowserTab: (tabId: string) => void;
+  closeOtherBrowserTabs: (tabId: string) => void;
+  closeAllBrowserTabs: () => void;
 
   currency: Currency;
   setCurrency: (c: Currency) => void;
@@ -171,6 +185,23 @@ interface ErpContextType {
   editVendor: (id: string, data: Partial<Vendor>) => void;
   deleteVendor: (id: string) => void;
 
+  // Quotations (عروض الأسعار)
+  quotations: Quotation[];
+  addQuotation: (quotation: Omit<Quotation, 'id' | 'quotationNumber' | 'createdAt'>) => Quotation;
+  editQuotation: (id: string, data: Partial<Quotation>) => void;
+  deleteQuotation: (id: string) => void;
+  updateQuotationStatus: (id: string, status: Quotation['status']) => void;
+  convertQuotationToOrder: (quotationId: string, customData?: Partial<SalesOrder>) => SalesOrder;
+  convertQuotationToInvoice: (quotationId: string, customData?: Partial<SalesInvoice>) => SalesInvoice;
+
+  // Sales Orders (أوامر البيع والتوريد)
+  salesOrders: SalesOrder[];
+  addSalesOrder: (order: Omit<SalesOrder, 'id' | 'orderNumber' | 'createdAt'>) => SalesOrder;
+  editSalesOrder: (id: string, data: Partial<SalesOrder>) => void;
+  deleteSalesOrder: (id: string) => void;
+  updateSalesOrderStatus: (id: string, status: SalesOrder['status']) => void;
+  convertSalesOrderToInvoice: (orderId: string, customData?: Partial<SalesInvoice>) => SalesInvoice;
+
   // Sales & Invoices
   salesInvoices: SalesInvoice[];
   addSalesInvoice: (invoice: Omit<SalesInvoice, 'id' | 'invoiceNumber' | 'paidAmount' | 'remainingAmount' | 'status'>) => SalesInvoice;
@@ -219,7 +250,7 @@ interface ErpContextType {
   // Smart Sequencing & Auto-Increment Config
   sequenceConfig: SequenceConfig;
   updateSequenceConfig: (config: Partial<SequenceConfig>) => void;
-  getNextSequenceCode: (type: 'invoice' | 'return' | 'product' | 'customer' | 'vendor' | 'employee' | 'account') => string;
+  getNextSequenceCode: (type: 'invoice' | 'return' | 'quotation' | 'sales_order' | 'product' | 'customer' | 'vendor' | 'employee' | 'account') => string;
 
   // Customer Account Statements Generator
   getCustomerStatement: (customerId: string, startDate?: string, endDate?: string) => {
@@ -315,12 +346,193 @@ const CURRENCY_SYMBOLS: Record<Currency, string> = {
 
 const STORAGE_PREFIX = 'orbix_erp_v2_';
 
-export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Navigation State
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [activeSubTab, setActiveSubTab] = useState<string>('');
+export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
+  if (tab === 'dashboard') {
+    return { id: 'dashboard', tab: 'dashboard', subTab: '', title: 'الرئيسية', iconName: 'LayoutDashboard', isPinned: true };
+  }
+  if (tab === 'quick_pos') {
+    return { id: 'quick_pos', tab: 'quick_pos', subTab: '', title: 'الكاشير السريع', iconName: 'Zap' };
+  }
+  if (tab === 'sales') {
+    if (subTab === 'quotes') return { id: 'sales_quotes', tab: 'sales', subTab: 'quotes', title: 'عروض الأسعار', iconName: 'FileBadge' };
+    if (subTab === 'orders') return { id: 'sales_orders', tab: 'sales', subTab: 'orders', title: 'أوامر البيع والتوريد', iconName: 'ClipboardList' };
+    if (subTab === 'returns') return { id: 'sales_returns', tab: 'sales', subTab: 'returns', title: 'مردودات المبيعات', iconName: 'RotateCcw' };
+    return { id: 'sales_invoices', tab: 'sales', subTab: 'invoices', title: 'فواتير المبيعات الضريبية', iconName: 'FileSpreadsheet' };
+  }
+  if (tab === 'purchases') {
+    if (subTab === 'vendors') return { id: 'purchases_vendors', tab: 'purchases', subTab: 'vendors', title: 'سجل الموردين', iconName: 'Building' };
+    return { id: 'purchases_bills', tab: 'purchases', subTab: 'bills', title: 'فواتير المشتريات', iconName: 'ShoppingCart' };
+  }
+  if (tab === 'accounts') {
+    if (subTab === 'journal') return { id: 'accounts_journal', tab: 'accounts', subTab: 'journal', title: 'سجل قيود اليومية', iconName: 'FileText' };
+    if (subTab === 'collections') return { id: 'accounts_collections', tab: 'accounts', subTab: 'collections', title: 'التحصيلات وسندات القبض', iconName: 'Receipt' };
+    if (subTab === 'commissions') return { id: 'accounts_commissions', tab: 'accounts', subTab: 'commissions', title: 'عمولات المناديب', iconName: 'CreditCard' };
+    if (subTab === 'loyalty') return { id: 'accounts_loyalty', tab: 'accounts', subTab: 'loyalty', title: 'نقاط الولاء والمكافآت', iconName: 'Award' };
+    if (subTab === 'pricelists') return { id: 'accounts_pricelists', tab: 'accounts', subTab: 'pricelists', title: 'قوائم الأسعار وتسعير العملاء', iconName: 'Tag' };
+    return { id: 'accounts_chart', tab: 'accounts', subTab: 'chart', title: 'شجرة ودليل الحسابات', iconName: 'FolderTree' };
+  }
+  if (tab === 'inventory') {
+    if (subTab === 'low_stock') return { id: 'inventory_low_stock', tab: 'inventory', subTab: 'low_stock', title: 'نواقص وتنبيهات المخزون', iconName: 'AlertTriangle' };
+    if (subTab === 'adjust') return { id: 'inventory_adjust', tab: 'inventory', subTab: 'adjust', title: 'التسوية الجردية', iconName: 'ArrowDownUp' };
+    return { id: 'inventory_all', tab: 'inventory', subTab: 'all', title: 'الأصناف والمخزون', iconName: 'Layers' };
+  }
+  if (tab === 'crm_collections') {
+    if (subTab === 'pipeline') return { id: 'crm_pipeline', tab: 'crm_collections', subTab: 'pipeline', title: 'مسار المبيعات والفرص', iconName: 'TrendingUp' };
+    if (subTab === 'interactions') return { id: 'crm_interactions', tab: 'crm_collections', subTab: 'interactions', title: 'سجل المتابعات والاتصالات', iconName: 'PhoneCall' };
+    if (subTab === 'tickets') return { id: 'crm_tickets', tab: 'crm_collections', subTab: 'tickets', title: 'تذاكر الدعم والشكاوى', iconName: 'LifeBuoy' };
+    if (subTab === 'sales_reps') return { id: 'crm_sales_reps', tab: 'crm_collections', subTab: 'sales_reps', title: 'مناديب المبيعات والأهداف', iconName: 'Target' };
+    return { id: 'crm_customers', tab: 'crm_collections', subTab: 'customers', title: 'دليل وسجل العملاء', iconName: 'Users2' };
+  }
+  if (tab === 'hr_payroll') {
+    if (subTab === 'employees') return { id: 'hr_employees', tab: 'hr_payroll', subTab: 'employees', title: 'سجل الموظفين', iconName: 'Users' };
+    return { id: 'hr_payroll', tab: 'hr_payroll', subTab: 'payroll', title: 'مسير الرواتب الشهري', iconName: 'Calendar' };
+  }
+  if (tab === 'financial_reports') {
+    if (subTab === 'balance_sheet') return { id: 'reports_balance_sheet', tab: 'financial_reports', subTab: 'balance_sheet', title: 'الميزانية العمومية', iconName: 'Scale' };
+    if (subTab === 'trial_balance') return { id: 'reports_trial_balance', tab: 'financial_reports', subTab: 'trial_balance', title: 'ميزان المراجعة', iconName: 'FileSpreadsheet' };
+    if (subTab === 'statement') return { id: 'reports_statement', tab: 'financial_reports', subTab: 'statement', title: 'كشف حساب تفصيلي', iconName: 'BookOpenCheck' };
+    return { id: 'reports_income', tab: 'financial_reports', subTab: 'income', title: 'قائمة الدخل والأرباح', iconName: 'PieChart' };
+  }
+  if (tab === 'settings') {
+    if (subTab === 'currencies') return { id: 'settings_currencies', tab: 'settings', subTab: 'currencies', title: 'العملات وأسعار الصرف', iconName: 'Coins' };
+    if (subTab === 'users_rbac') return { id: 'settings_users', tab: 'settings', subTab: 'users_rbac', title: 'المستخدمين والصلاحيات', iconName: 'ShieldCheck' };
+    if (subTab === 'database_backup') return { id: 'settings_database', tab: 'settings', subTab: 'database_backup', title: 'قاعدة البيانات والنسخ', iconName: 'Database' };
+    if (subTab === 'gsheets') return { id: 'settings_gsheets', tab: 'settings', subTab: 'gsheets', title: 'الربط مع Google Sheets', iconName: 'FileSpreadsheet' };
+    if (subTab === 'desktop_exe') return { id: 'settings_desktop', tab: 'settings', subTab: 'desktop_exe', title: 'تثبيت البرنامج EXE', iconName: 'Laptop' };
+    return { id: 'settings_company', tab: 'settings', subTab: 'company', title: 'بروفايل الشركة والشعار', iconName: 'Building2' };
+  }
+  if (tab === 'erp_blueprint') {
+    return { id: 'erp_blueprint', tab: 'erp_blueprint', subTab: '', title: 'دليل ومرجع النظام', iconName: 'Lightbulb' };
+  }
+  return { id: `${tab}${subTab ? `_${subTab}` : ''}`, tab, subTab: subTab || '', title: tab, iconName: 'FolderTree' };
+};
 
-  // Global Centralized Formatted Alert & Confirmation Modal
+export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Multi-Tab Browser State - allows starting empty or closing all tabs freely
+  const [openTabs, setOpenTabs] = useState<BrowserTab[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_PREFIX}open_tabs`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return [];
+  });
+
+  const [activeTabId, setActiveTabId] = useState<string>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}active_tab_id`);
+    return saved || '';
+  });
+
+  // Navigation State
+  const [activeTab, setActiveTabState] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_PREFIX}open_tabs`);
+      const activeId = localStorage.getItem(`${STORAGE_PREFIX}active_tab_id`);
+      if (saved && activeId) {
+        const parsed: BrowserTab[] = JSON.parse(saved);
+        const match = parsed.find((t) => t.id === activeId);
+        if (match) return match.tab;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return '';
+  });
+
+  const [activeSubTab, setActiveSubTab] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_PREFIX}open_tabs`);
+      const activeId = localStorage.getItem(`${STORAGE_PREFIX}active_tab_id`);
+      if (saved && activeId) {
+        const parsed: BrowserTab[] = JSON.parse(saved);
+        const match = parsed.find((t) => t.id === activeId);
+        if (match) return match.subTab || '';
+      }
+    } catch (e) {
+      // ignore
+    }
+    return '';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`${STORAGE_PREFIX}open_tabs`, JSON.stringify(openTabs));
+      localStorage.setItem(`${STORAGE_PREFIX}active_tab_id`, activeTabId);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [openTabs, activeTabId]);
+
+  const openBrowserTab = (tab: string, subTab?: string) => {
+    const tabInfo = getTabInfo(tab, subTab);
+    setOpenTabs((prev) => {
+      const exists = prev.find((t) => t.id === tabInfo.id);
+      if (exists) return prev;
+      return [...prev, tabInfo];
+    });
+    setActiveTabId(tabInfo.id);
+    setActiveTabState(tabInfo.tab);
+    setActiveSubTab(tabInfo.subTab || '');
+  };
+
+  const switchBrowserTab = (tabId: string) => {
+    const target = openTabs.find((t) => t.id === tabId);
+    if (target) {
+      setActiveTabId(target.id);
+      setActiveTabState(target.tab);
+      setActiveSubTab(target.subTab || '');
+    }
+  };
+
+  const closeBrowserTab = (tabId: string) => {
+    const index = openTabs.findIndex((t) => t.id === tabId);
+    const newTabs = openTabs.filter((t) => t.id !== tabId);
+    setOpenTabs(newTabs);
+
+    if (newTabs.length === 0) {
+      setActiveTabId('');
+      setActiveTabState('');
+      setActiveSubTab('');
+      return;
+    }
+
+    if (activeTabId === tabId) {
+      const nextTab = newTabs[Math.min(index, newTabs.length - 1)] || newTabs[0];
+      if (nextTab) {
+        setActiveTabId(nextTab.id);
+        setActiveTabState(nextTab.tab);
+        setActiveSubTab(nextTab.subTab || '');
+      }
+    }
+  };
+
+  const closeOtherBrowserTabs = (tabId: string) => {
+    const target = openTabs.find((t) => t.id === tabId);
+    if (!target) return;
+    setOpenTabs([target]);
+    setActiveTabId(target.id);
+    setActiveTabState(target.tab);
+    setActiveSubTab(target.subTab || '');
+  };
+
+  const closeAllBrowserTabs = () => {
+    setOpenTabs([]);
+    setActiveTabId('');
+    setActiveTabState('');
+    setActiveSubTab('');
+  };
+
+  const setActiveTab = (tab: string) => {
+    openBrowserTab(tab);
+  };
+
+  const navigateTo = (tab: string, subTab?: string) => {
+    openBrowserTab(tab, subTab);
+  };
   const [alertModal, setAlertModal] = useState<AlertModalData | null>(null);
 
   const closeAlertModal = () => {
@@ -374,39 +586,47 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         type,
         confirmText: 'فهمت',
       });
-    } else {
+    } else if (options && typeof options === 'object') {
       setAlertModal({
         type: options.type || 'warning',
         title: options.title || (options.type === 'error' ? 'تنبيه أمان وحماية البيانات' : 'تنبيه من النظام'),
         confirmText: options.isConfirm ? (options.confirmText || 'تأكيد') : (options.confirmText || 'فهمت'),
+        message: typeof options.message === 'string' ? options.message : String(options.message || ''),
         ...options,
       });
     }
   };
 
   const showConfirm = (
-    message: string,
-    onConfirm: () => void,
+    messageOrOptions: string | any,
+    onConfirm?: () => void,
     title?: string,
     options?: Partial<AlertModalData>
   ) => {
-    setAlertModal({
-      title: title || 'تأكيد الإجراء',
-      message,
-      type: options?.type || 'warning',
-      isConfirm: true,
-      confirmText: options?.confirmText || 'نعم، متابعة',
-      cancelText: options?.cancelText || 'إلغاء الأمر',
-      onConfirm,
-      onCancel: options?.onCancel,
-      ...options,
-    });
-  };
-
-  const navigateTo = (tab: string, subTab?: string) => {
-    setActiveTab(tab);
-    if (subTab !== undefined) {
-      setActiveSubTab(subTab);
+    if (typeof messageOrOptions === 'object' && messageOrOptions !== null) {
+      setAlertModal({
+        title: messageOrOptions.title || 'تأكيد الإجراء',
+        message: typeof messageOrOptions.message === 'string' ? messageOrOptions.message : String(messageOrOptions.message || ''),
+        type: messageOrOptions.type || 'warning',
+        isConfirm: true,
+        confirmText: messageOrOptions.confirmText || 'نعم، متابعة',
+        cancelText: messageOrOptions.cancelText || 'إلغاء الأمر',
+        onConfirm: messageOrOptions.onConfirm || onConfirm,
+        onCancel: messageOrOptions.onCancel,
+        ...messageOrOptions,
+      });
+    } else {
+      setAlertModal({
+        title: title || 'تأكيد الإجراء',
+        message: typeof messageOrOptions === 'string' ? messageOrOptions : String(messageOrOptions || ''),
+        type: options?.type || 'warning',
+        isConfirm: true,
+        confirmText: options?.confirmText || 'نعم، متابعة',
+        cancelText: options?.cancelText || 'إلغاء الأمر',
+        onConfirm,
+        onCancel: options?.onCancel,
+        ...options,
+      });
     }
   };
 
@@ -589,6 +809,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_INVOICES;
   });
 
+  const [quotations, setQuotations] = useState<Quotation[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}quotations`);
+    return saved ? JSON.parse(saved) : INITIAL_QUOTATIONS;
+  });
+
+  const [salesOrders, setSalesOrders] = useState<SalesOrder[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}sales_orders`);
+    return saved ? JSON.parse(saved) : INITIAL_SALES_ORDERS;
+  });
+
   const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoice[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}purchase_invoices`);
     return saved ? JSON.parse(saved) : INITIAL_PURCHASES;
@@ -683,6 +913,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_PREFIX}customers`, JSON.stringify(customers));
     localStorage.setItem(`${STORAGE_PREFIX}vendors`, JSON.stringify(vendors));
     localStorage.setItem(`${STORAGE_PREFIX}sales_invoices`, JSON.stringify(salesInvoices));
+    localStorage.setItem(`${STORAGE_PREFIX}quotations`, JSON.stringify(quotations));
+    localStorage.setItem(`${STORAGE_PREFIX}sales_orders`, JSON.stringify(salesOrders));
     localStorage.setItem(`${STORAGE_PREFIX}purchase_invoices`, JSON.stringify(purchaseInvoices));
     localStorage.setItem(`${STORAGE_PREFIX}receipts`, JSON.stringify(receipts));
     localStorage.setItem(`${STORAGE_PREFIX}employees`, JSON.stringify(employees));
@@ -712,6 +944,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     customers,
     vendors,
     salesInvoices,
+    quotations,
+    salesOrders,
     purchaseInvoices,
     receipts,
     employees,
@@ -1560,11 +1794,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getNextSequenceCode = (
-    type: 'invoice' | 'return' | 'product' | 'customer' | 'vendor' | 'employee' | 'account'
+    type: 'invoice' | 'return' | 'quotation' | 'sales_order' | 'product' | 'customer' | 'vendor' | 'employee' | 'account'
   ): string => {
     if (!sequenceConfig.autoGenerateCodes) {
       if (type === 'invoice') return `INV-${new Date().getFullYear()}-${String(salesInvoices.length + 1).padStart(3, '0')}`;
       if (type === 'return') return `RET-${new Date().getFullYear()}-${String(salesReturns.length + 1).padStart(3, '0')}`;
+      if (type === 'quotation') return `QUO-${new Date().getFullYear()}-${String(quotations.length + 1).padStart(3, '0')}`;
+      if (type === 'sales_order') return `SO-${new Date().getFullYear()}-${String(salesOrders.length + 1).padStart(3, '0')}`;
       if (type === 'product') return `PRD-${String(products.length + 1).padStart(3, '0')}`;
       if (type === 'customer') return `CUST-${String(customers.length + 1).padStart(3, '0')}`;
       if (type === 'vendor') return `VEND-${String(vendors.length + 1).padStart(3, '0')}`;
@@ -1577,6 +1813,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return formatSequenceCode(sequenceConfig.invoicePrefix, sequenceConfig.invoiceNextNumber, sequenceConfig.invoicePadding);
       case 'return':
         return formatSequenceCode(sequenceConfig.returnPrefix, sequenceConfig.returnNextNumber, sequenceConfig.returnPadding);
+      case 'quotation':
+        return formatSequenceCode(sequenceConfig.quotationPrefix || 'QUO-2026-', sequenceConfig.quotationNextNumber || 1001, sequenceConfig.quotationPadding || 4);
+      case 'sales_order':
+        return formatSequenceCode(sequenceConfig.orderPrefix || 'SO-2026-', sequenceConfig.orderNextNumber || 1001, sequenceConfig.orderPadding || 4);
       case 'product':
         return formatSequenceCode(sequenceConfig.productPrefix, sequenceConfig.productNextNumber, sequenceConfig.productPadding);
       case 'customer':
@@ -2338,6 +2578,350 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAuditEvent('حذف مورد', 'المشتريات والموردين', `تم حذف المورد ${target?.name || id}`);
   };
 
+  // ==========================================
+  // Quotations Management (عروض الأسعار)
+  // ==========================================
+  const addQuotation = (
+    quotationData: Omit<Quotation, 'id' | 'quotationNumber' | 'createdAt'>
+  ): Quotation => {
+    let quotationNumber = getNextSequenceCode('quotation');
+    if (!quotationNumber) {
+      quotationNumber = `QUO-${new Date().getFullYear()}-${String(quotations.length + 1).padStart(4, '0')}`;
+    }
+
+    const newQuotation: Quotation = {
+      ...quotationData,
+      id: `quo-${Date.now()}`,
+      quotationNumber,
+      createdAt: new Date().toISOString(),
+      status: quotationData.status || 'pending',
+    };
+
+    setQuotations((prev) => [newQuotation, ...prev]);
+
+    setSequenceConfig((prev) => ({
+      ...prev,
+      quotationNextNumber: (prev.quotationNextNumber || 1001) + 1,
+    }));
+
+    logAuditEvent(
+      'إنشاء عرض سعر',
+      'المبيعات',
+      `عرض سعر رقم ${quotationNumber} للعميل ${quotationData.customerName} بقيمة ${quotationData.grandTotal} ${currency}`
+    );
+    return newQuotation;
+  };
+
+  const editQuotation = (id: string, data: Partial<Quotation>) => {
+    setQuotations((prev) =>
+      prev.map((q) => (q.id === id ? { ...q, ...data } : q))
+    );
+    logAuditEvent('تعديل عرض سعر', 'المبيعات', `تم تعديل عرض السعر ${id}`);
+  };
+
+  const deleteQuotation = (id: string) => {
+    const target = quotations.find((q) => q.id === id);
+    setQuotations((prev) => prev.filter((q) => q.id !== id));
+    logAuditEvent('حذف عرض سعر', 'المبيعات', `تم حذف عرض السعر ${target?.quotationNumber || id}`);
+  };
+
+  const updateQuotationStatus = (id: string, status: Quotation['status']) => {
+    setQuotations((prev) =>
+      prev.map((q) => (q.id === id ? { ...q, status } : q))
+    );
+    logAuditEvent('تحديث حالة عرض سعر', 'المبيعات', `تم تغيير حالة عرض السعر ${id} إلى ${status}`);
+  };
+
+  const convertQuotationToOrder = (quotationId: string, customData?: Partial<SalesOrder>): SalesOrder => {
+    const quo = quotations.find((q) => q.id === quotationId);
+    if (!quo) {
+      throw new Error('عرض السعر غير موجود');
+    }
+
+    const orderData: Omit<SalesOrder, 'id' | 'orderNumber' | 'createdAt'> = {
+      quotationId: quo.id,
+      quotationNumber: quo.quotationNumber,
+      customerId: quo.customerId,
+      customerName: quo.customerName,
+      customerPhone: quo.customerPhone,
+      customerTaxNumber: quo.customerTaxNumber,
+      salesRepId: quo.salesRepId,
+      salesRepName: quo.salesRepName,
+      date: new Date().toISOString().split('T')[0],
+      deliveryDate: customData?.deliveryDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      status: 'confirmed',
+      items: quo.items.map((it) => ({
+        id: `so-item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        productId: it.productId,
+        productName: it.productName,
+        sku: it.sku,
+        unit: it.unit,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        discount: it.discount,
+        subtotal: it.subtotal,
+        vatAmount: it.vatAmount,
+        total: it.total,
+        notes: it.notes,
+      })),
+      subtotal: quo.subtotal,
+      discountTotal: quo.discountTotal,
+      vatRate: quo.vatRate,
+      vatTotal: quo.vatTotal,
+      grandTotal: quo.grandTotal,
+      notes: quo.notes ? `محول من عرض سعر ${quo.quotationNumber}: ${quo.notes}` : `محول من عرض سعر ${quo.quotationNumber}`,
+      paymentTerms: quo.paymentTerms,
+      shippingAddress: customData?.shippingAddress || '',
+      ...customData,
+    };
+
+    const newOrder = addSalesOrder(orderData);
+
+    // Update Quotation Status
+    setQuotations((prev) =>
+      prev.map((q) =>
+        q.id === quotationId
+          ? {
+              ...q,
+              status: 'converted_to_order',
+              convertedToOrderId: newOrder.id,
+              convertedToOrderNumber: newOrder.orderNumber,
+            }
+          : q
+      )
+    );
+
+    logAuditEvent(
+      'تحويل عرض سعر إلى أمر بيع',
+      'المبيعات',
+      `تم تحويل عرض السعر ${quo.quotationNumber} إلى أمر البيع ${newOrder.orderNumber}`
+    );
+
+    return newOrder;
+  };
+
+  const convertQuotationToInvoice = (quotationId: string, customData?: Partial<SalesInvoice>): SalesInvoice => {
+    const quo = quotations.find((q) => q.id === quotationId);
+    if (!quo) {
+      throw new Error('عرض السعر غير موجود');
+    }
+
+    const invoiceData: Omit<SalesInvoice, 'id' | 'invoiceNumber' | 'paidAmount' | 'remainingAmount' | 'status'> = {
+      quotationId: quo.id,
+      quotationNumber: quo.quotationNumber,
+      customerId: quo.customerId,
+      customerName: quo.customerName,
+      customerTaxNumber: quo.customerTaxNumber,
+      salesRepId: quo.salesRepId,
+      salesRepName: quo.salesRepName,
+      date: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      items: quo.items.map((it) => ({
+        id: `inv-item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        productId: it.productId,
+        productName: it.productName,
+        sku: it.sku,
+        unit: it.unit,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        discount: it.discount,
+        subtotal: it.subtotal,
+        vatAmount: it.vatAmount,
+        total: it.total,
+      })),
+      subtotal: quo.subtotal,
+      discountTotal: quo.discountTotal,
+      vatRate: quo.vatRate,
+      vatTotal: quo.vatTotal,
+      grandTotal: quo.grandTotal,
+      paymentMethod: 'credit',
+      notes: quo.notes ? `مفوترة من عرض سعر ${quo.quotationNumber}: ${quo.notes}` : `مفوترة من عرض سعر ${quo.quotationNumber}`,
+      ...customData,
+    };
+
+    const newInvoice = addSalesInvoice(invoiceData);
+
+    // Update quotation status
+    setQuotations((prev) =>
+      prev.map((q) =>
+        q.id === quotationId
+          ? {
+              ...q,
+              status: 'converted_to_invoice',
+              convertedToInvoiceId: newInvoice.id,
+              convertedToInvoiceNumber: newInvoice.invoiceNumber,
+            }
+          : q
+      )
+    );
+
+    logAuditEvent(
+      'تحويل عرض سعر إلى فاتورة مبيعات',
+      'المبيعات',
+      `تم تحويل عرض السعر ${quo.quotationNumber} إلى فاتورة مبيعات ${newInvoice.invoiceNumber}`
+    );
+
+    return newInvoice;
+  };
+
+  // ==========================================
+  // Sales Orders Management (أوامر البيع والتوريد)
+  // ==========================================
+  const addSalesOrder = (
+    orderData: Omit<SalesOrder, 'id' | 'orderNumber' | 'createdAt'>
+  ): SalesOrder => {
+    let orderNumber = getNextSequenceCode('sales_order');
+    if (!orderNumber) {
+      orderNumber = `SO-${new Date().getFullYear()}-${String(salesOrders.length + 1).padStart(4, '0')}`;
+    }
+
+    const newOrder: SalesOrder = {
+      ...orderData,
+      id: `so-${Date.now()}`,
+      orderNumber,
+      createdAt: new Date().toISOString(),
+      status: orderData.status || 'pending',
+    };
+
+    setSalesOrders((prev) => [newOrder, ...prev]);
+
+    setSequenceConfig((prev) => ({
+      ...prev,
+      orderNextNumber: (prev.orderNextNumber || 1001) + 1,
+    }));
+
+    // If order was created from quotation, update the quotation
+    if (orderData.quotationId || orderData.quotationNumber) {
+      setQuotations((prev) =>
+        prev.map((q) =>
+          q.id === orderData.quotationId || (orderData.quotationNumber && q.quotationNumber === orderData.quotationNumber)
+            ? {
+                ...q,
+                status: 'converted_to_order',
+                convertedToOrderId: newOrder.id,
+                convertedToOrderNumber: orderNumber,
+              }
+            : q
+        )
+      );
+    }
+
+    logAuditEvent(
+      'إنشاء أمر بيع',
+      'المبيعات',
+      `أمر بيع رقم ${orderNumber} للعميل ${orderData.customerName} بقيمة ${orderData.grandTotal} ${currency}`
+    );
+    return newOrder;
+  };
+
+  const editSalesOrder = (id: string, data: Partial<SalesOrder>) => {
+    setSalesOrders((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, ...data } : o))
+    );
+    logAuditEvent('تعديل أمر بيع', 'المبيعات', `تم تعديل أمر البيع ${id}`);
+  };
+
+  const deleteSalesOrder = (id: string) => {
+    const target = salesOrders.find((o) => o.id === id);
+    if (!target) return;
+
+    // Revert linked quotation if this order was converted from a quotation
+    setQuotations((prev) =>
+      prev.map((q) => {
+        if (
+          q.convertedToOrderId === id ||
+          q.convertedToOrderNumber === target.orderNumber ||
+          (target.quotationId && q.id === target.quotationId) ||
+          (target.quotationNumber && q.quotationNumber === target.quotationNumber)
+        ) {
+          return {
+            ...q,
+            status: 'approved',
+            convertedToOrderId: undefined,
+            convertedToOrderNumber: undefined,
+          };
+        }
+        return q;
+      })
+    );
+
+    setSalesOrders((prev) => prev.filter((o) => o.id !== id));
+    logAuditEvent('حذف أمر بيع', 'المبيعات', `تم حذف أمر البيع ${target?.orderNumber || id} وفك ارتباط عرض السعر`);
+  };
+
+  const updateSalesOrderStatus = (id: string, status: SalesOrder['status']) => {
+    setSalesOrders((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, status } : o))
+    );
+    logAuditEvent('تحديث حالة أمر بيع', 'المبيعات', `تم تغيير حالة أمر البيع ${id} إلى ${status}`);
+  };
+
+  const convertSalesOrderToInvoice = (orderId: string, customData?: Partial<SalesInvoice>): SalesInvoice => {
+    const order = salesOrders.find((o) => o.id === orderId);
+    if (!order) {
+      throw new Error('أمر البيع غير موجود');
+    }
+
+    const invoiceData: Omit<SalesInvoice, 'id' | 'invoiceNumber' | 'paidAmount' | 'remainingAmount' | 'status'> = {
+      salesOrderId: order.id,
+      salesOrderNumber: order.orderNumber,
+      quotationId: order.quotationId,
+      quotationNumber: order.quotationNumber,
+      customerId: order.customerId,
+      customerName: order.customerName,
+      customerTaxNumber: order.customerTaxNumber,
+      salesRepId: order.salesRepId,
+      salesRepName: order.salesRepName,
+      date: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      items: order.items.map((it) => ({
+        id: `inv-item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        productId: it.productId,
+        productName: it.productName,
+        sku: it.sku,
+        unit: it.unit,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        discount: it.discount,
+        subtotal: it.subtotal,
+        vatAmount: it.vatAmount,
+        total: it.total,
+      })),
+      subtotal: order.subtotal,
+      discountTotal: order.discountTotal,
+      vatRate: order.vatRate,
+      vatTotal: order.vatTotal,
+      grandTotal: order.grandTotal,
+      paymentMethod: 'credit',
+      notes: order.notes ? `مفوترة من أمر بيع ${order.orderNumber}: ${order.notes}` : `مفوترة من أمر بيع ${order.orderNumber}`,
+      ...customData,
+    };
+
+    const newInvoice = addSalesInvoice(invoiceData);
+
+    // Update order status to invoiced
+    setSalesOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              status: 'invoiced',
+              convertedToInvoiceId: newInvoice.id,
+              convertedToInvoiceNumber: newInvoice.invoiceNumber,
+            }
+          : o
+      )
+    );
+
+    logAuditEvent(
+      'تحويل أمر بيع إلى فاتورة مبيعات',
+      'المبيعات',
+      `تم تحويل أمر البيع ${order.orderNumber} إلى فاتورة مبيعات ${newInvoice.invoiceNumber}`
+    );
+
+    return newInvoice;
+  };
+
   // Sales Invoices & Quick POS
   const addSalesInvoice = (
     invoiceData: Omit<SalesInvoice, 'id' | 'invoiceNumber' | 'paidAmount' | 'remainingAmount' | 'status'>
@@ -2380,6 +2964,58 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setSalesInvoices((prev) => [newInvoice, ...prev]);
     setSequenceConfig((prev) => ({ ...prev, invoiceNextNumber: prev.invoiceNextNumber + 1 }));
+
+    // Link and update Quotation status if present
+    if (invoiceData.quotationId || invoiceData.quotationNumber) {
+      setQuotations((prev) =>
+        prev.map((q) =>
+          q.id === invoiceData.quotationId || (invoiceData.quotationNumber && q.quotationNumber === invoiceData.quotationNumber)
+            ? {
+                ...q,
+                status: 'converted_to_invoice',
+                convertedToInvoiceId: newInvoice.id,
+                convertedToInvoiceNumber: invoiceNumber,
+              }
+            : q
+        )
+      );
+    }
+
+    // Link and update Sales Order status if present
+    if (invoiceData.salesOrderId || invoiceData.salesOrderNumber) {
+      setSalesOrders((prev) =>
+        prev.map((o) =>
+          o.id === invoiceData.salesOrderId || (invoiceData.salesOrderNumber && o.orderNumber === invoiceData.salesOrderNumber)
+            ? {
+                ...o,
+                status: 'invoiced',
+                convertedToInvoiceId: newInvoice.id,
+                convertedToInvoiceNumber: invoiceNumber,
+                invoiceId: newInvoice.id,
+                invoiceNumber: invoiceNumber,
+              }
+            : o
+        )
+      );
+
+      // Also if sales order was derived from a quotation, ensure the quotation is also marked as converted to invoice
+      const targetOrder = salesOrders.find(
+        (o) => o.id === invoiceData.salesOrderId || (invoiceData.salesOrderNumber && o.orderNumber === invoiceData.salesOrderNumber)
+      );
+      if (targetOrder?.quotationId || targetOrder?.quotationNumber) {
+        setQuotations((prev) =>
+          prev.map((q) =>
+            q.id === targetOrder.quotationId || (targetOrder.quotationNumber && q.quotationNumber === targetOrder.quotationNumber)
+              ? {
+                  ...q,
+                  convertedToInvoiceId: newInvoice.id,
+                  convertedToInvoiceNumber: invoiceNumber,
+                }
+              : q
+          )
+        );
+      }
+    }
 
     // 1. Update Customer Balance & Loyalty Points
     setCustomers((prev) =>
@@ -2895,8 +3531,53 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
+    // Revert linked Quotation if this invoice was converted from a quotation
+    setQuotations((prev) =>
+      prev.map((q) => {
+        if (
+          q.convertedToInvoiceId === id ||
+          q.convertedToInvoiceNumber === target.invoiceNumber ||
+          (target.quotationId && q.id === target.quotationId) ||
+          (target.quotationNumber && q.quotationNumber === target.quotationNumber)
+        ) {
+          const hasLinkedOrder = Boolean(q.convertedToOrderId || q.convertedToOrderNumber);
+          return {
+            ...q,
+            status: hasLinkedOrder ? 'converted_to_order' : 'approved',
+            convertedToInvoiceId: undefined,
+            convertedToInvoiceNumber: undefined,
+          };
+        }
+        return q;
+      })
+    );
+
+    // Revert linked Sales Order if this invoice was converted from a sales order
+    setSalesOrders((prev) =>
+      prev.map((so) => {
+        if (
+          so.convertedToInvoiceId === id ||
+          so.convertedToInvoiceNumber === target.invoiceNumber ||
+          (target.salesOrderId && so.id === target.salesOrderId) ||
+          (target.salesOrderNumber && so.orderNumber === target.salesOrderNumber) ||
+          so.invoiceId === id ||
+          (target.invoiceNumber && so.invoiceNumber === target.invoiceNumber)
+        ) {
+          return {
+            ...so,
+            status: 'confirmed',
+            convertedToInvoiceId: undefined,
+            convertedToInvoiceNumber: undefined,
+            invoiceId: undefined,
+            invoiceNumber: undefined,
+          };
+        }
+        return so;
+      })
+    );
+
     setSalesInvoices((prev) => prev.filter((i) => i.id !== id));
-    logAuditEvent('حذف فاتورة مبيعات', 'المبيعات', `تم حذف الفاتورة رقم ${target.invoiceNumber} واسترجاع المخزون وتسوية رصيد العميل`);
+    logAuditEvent('حذف فاتورة مبيعات', 'المبيعات', `تم حذف الفاتورة رقم ${target.invoiceNumber} واسترجاع المخزون وتسوية رصيد العميل وفك ارتباط عروض الأسعار وأوامر البيع`);
   };
 
   // Quick POS Sales Transaction (Immediate Sale + Stock Deduct + Payment + Receipt + Cash Box JE)
@@ -4365,6 +5046,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeSubTab,
         setActiveSubTab,
         navigateTo,
+        openTabs,
+        activeTabId,
+        openBrowserTab,
+        switchBrowserTab,
+        closeBrowserTab,
+        closeOtherBrowserTabs,
+        closeAllBrowserTabs,
         currency,
         setCurrency,
         formatMoney,
@@ -4446,6 +5134,19 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addVendor,
         editVendor,
         deleteVendor,
+        quotations,
+        addQuotation,
+        editQuotation,
+        deleteQuotation,
+        updateQuotationStatus,
+        convertQuotationToOrder,
+        convertQuotationToInvoice,
+        salesOrders,
+        addSalesOrder,
+        editSalesOrder,
+        deleteSalesOrder,
+        updateSalesOrderStatus,
+        convertSalesOrderToInvoice,
         salesInvoices,
         addSalesInvoice,
         editSalesInvoice,

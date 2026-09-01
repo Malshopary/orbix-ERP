@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useErp } from '../context/ErpContext';
 import { PaymentReceipt, PurchaseInvoice, Vendor } from '../types';
 import { ProductSelectSearch } from './ProductSelectSearch';
@@ -13,6 +13,15 @@ import {
   Package,
   Edit3,
   Trash2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Calendar,
+  Filter,
+  RefreshCw,
+  Undo2,
+  FileSpreadsheet,
+  Printer,
 } from 'lucide-react';
 
 export const PurchasesView: React.FC = () => {
@@ -51,6 +60,65 @@ export const PurchasesView: React.FC = () => {
     setGlobalSubTab(tab);
   };
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid' | 'paid'>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [vendorFilter, setVendorFilter] = useState('');
+  const [sortField, setSortField] = useState<'invoiceNumber' | 'vendorName' | 'date' | 'grandTotal' | 'remainingAmount' | 'status'>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (field: 'invoiceNumber' | 'vendorName' | 'date' | 'grandTotal' | 'remainingAmount' | 'status') => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const filteredBills = useMemo(() => {
+    return purchaseInvoices
+      .filter((bill) => {
+        // Search
+        const matchesSearch =
+          searchQuery === '' ||
+          bill.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          bill.vendorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (bill.notes && bill.notes.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        // Status
+        let matchesStatus = true;
+        if (statusFilter === 'unpaid') {
+          matchesStatus = bill.remainingAmount > 0;
+        } else if (statusFilter === 'paid') {
+          matchesStatus = bill.remainingAmount <= 0;
+        }
+
+        // Date range
+        let matchesDate = true;
+        if (dateFrom && bill.date < dateFrom) matchesDate = false;
+        if (dateTo && bill.date > dateTo) matchesDate = false;
+
+        // Vendor
+        let matchesVendor = true;
+        if (vendorFilter && bill.vendorId !== vendorFilter) matchesVendor = false;
+
+        return matchesSearch && matchesStatus && matchesDate && matchesVendor;
+      })
+      .sort((a, b) => {
+        let valA: any = a[sortField as keyof PurchaseInvoice] ?? '';
+        let valB: any = b[sortField as keyof PurchaseInvoice] ?? '';
+
+        if (typeof valA === 'string') {
+          const comp = valA.localeCompare(valB);
+          return sortDirection === 'asc' ? comp : -comp;
+        }
+
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+  }, [purchaseInvoices, searchQuery, statusFilter, dateFrom, dateTo, vendorFilter, sortField, sortDirection]);
 
   // Modals
   const [showAddVendorModal, setShowAddVendorModal] = useState(false);
@@ -58,6 +126,7 @@ export const PurchasesView: React.FC = () => {
   const [showCreateBillModal, setShowCreateBillModal] = useState(false);
   const [showEditBillModal, setShowEditBillModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState<PurchaseInvoice | null>(null);
 
   // New Vendor Form
@@ -390,6 +459,32 @@ export const PurchasesView: React.FC = () => {
     setSelectedBill(null);
   };
 
+  const handleRevertTransaction = (bill: PurchaseInvoice) => {
+    if (!canDeleteBill) {
+      showAlert({
+        title: 'صلاحيات غير كافية',
+        message: 'عذراً: ليس لديك صلاحية للرجوع عن حركات فواتير المشتريات.',
+        type: 'error',
+        confirmText: 'فهمت',
+      });
+      return;
+    }
+    showConfirm(
+      `تنبيه أمان وحركة محاسبية: هل أنت متأكد من الرجوع عن حركة فاتورة المشتريات رقم (${bill.invoiceNumber}) للمورد "${bill.vendorName}"؟\n\nالآثار المترتبة على الرجوع:\n1. إلغاء قيد استحقاق المشتريات وضريبة المدخلات من دفتر اليومية.\n2. خصم الكميات المشتراة من رصيد المستودعات والمخزون.\n3. إلغاء أي مديونية أو استحقاقات مسجلة للمورد.\n\nهل ترغب بالاستمرار والتراجع عن الحركة؟`,
+      () => {
+        deletePurchaseInvoice(bill.id);
+        showAlert({
+          title: 'تم التراجع عن الحركة بنجاح',
+          message: `تم إلغاء فاتورة الشراء (${bill.invoiceNumber}) وعكس كافة القيود المحاسبية وحركات المخزون بنجاح.`,
+          type: 'success',
+          confirmText: 'حسناً',
+        });
+      },
+      `تأكيد الرجوع عن حركة فاتورة الشراء (${bill.invoiceNumber})`,
+      'تراجع عن الحركة'
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -405,29 +500,6 @@ export const PurchasesView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
-            <button
-              onClick={() => setActiveSubTab('bills')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                activeSubTab === 'bills'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              فواتير المشتريات ({purchaseInvoices.length})
-            </button>
-            <button
-              onClick={() => setActiveSubTab('vendors')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                activeSubTab === 'vendors'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              سجل الموردين ({vendors.length})
-            </button>
-          </div>
-
           <button
             onClick={() => setShowAddVendorModal(true)}
             className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-2 rounded-xl transition-all border border-slate-300"
@@ -448,87 +520,282 @@ export const PurchasesView: React.FC = () => {
 
       {/* Subtab 1: Bills */}
       {activeSubTab === 'bills' && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                  <th className="py-3 px-4">رقم الفاتورة</th>
-                  <th className="py-3 px-4">اسم المورد</th>
-                  <th className="py-3 px-4">تاريخ التوريد</th>
-                  <th className="py-3 px-4">تاريخ الاستحقاق</th>
-                  <th className="py-3 px-4">المبلغ قبل الضريبة</th>
-                  <th className="py-3 px-4">ضريبة المدخلات {defaultVat}%</th>
-                  <th className="py-3 px-4">إجمالي الفاتورة</th>
-                  <th className="py-3 px-4">المسدد</th>
-                  <th className="py-3 px-4">المتبقي للدفع</th>
-                  <th className="py-3 px-4">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {purchaseInvoices.map((bill) => (
-                  <tr key={bill.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-slate-800">
-                      {bill.invoiceNumber}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-slate-900">{bill.vendorName}</td>
-                    <td className="py-3 px-4 text-slate-600">{bill.date}</td>
-                    <td className="py-3 px-4 text-slate-600">{bill.dueDate}</td>
-                    <td className="py-3 px-4 font-semibold text-slate-800">{formatMoney(bill.subtotal)}</td>
-                    <td className="py-3 px-4 text-slate-600">{formatMoney(bill.vatTotal)}</td>
-                    <td className="py-3 px-4 font-extrabold text-slate-900 text-sm">
-                      {formatMoney(bill.grandTotal)}
-                    </td>
-                    <td className="py-3 px-4 text-emerald-700 font-bold">{formatMoney(bill.paidAmount)}</td>
-                    <td className="py-3 px-4 text-rose-700 font-extrabold">{formatMoney(bill.remainingAmount)}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5">
-                        {bill.remainingAmount > 0 ? (
-                          <button
-                            onClick={() => {
-                              setSelectedBill(bill);
-                              setPayAmount(bill.remainingAmount);
-                              setShowPayModal(true);
-                            }}
-                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-2.5 py-1 rounded-lg text-[11px] cursor-pointer"
-                          >
-                            سداد دفعة
-                          </button>
+        <div className="space-y-4">
+          {/* Search and Filters Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="relative flex-1 min-w-[240px]">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="البحث برقم فاتورة الشراء، اسم المورد، أو الملاحظات..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full text-xs pr-9 pl-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:outline-hidden focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Status Filter Tabs */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${
+                    statusFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  جميع الفواتير ({purchaseInvoices.length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('unpaid')}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${
+                    statusFilter === 'unpaid' ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  مستحقة / غير مسددة
+                </button>
+                <button
+                  onClick={() => setStatusFilter('paid')}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${
+                    statusFilter === 'paid' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  مسددة بالكامل
+                </button>
+              </div>
+            </div>
+
+            {/* Advanced Filters: Date Range + Vendor */}
+            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-3 text-xs">
+              <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                <span className="font-semibold text-slate-600">الفترة: من</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs"
+                />
+                <span className="font-semibold text-slate-600">إلى</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                <Filter className="w-3.5 h-3.5 text-slate-500" />
+                <span className="font-semibold text-slate-600">تصفية المورد:</span>
+                <select
+                  value={vendorFilter}
+                  onChange={(e) => setVendorFilter(e.target.value)}
+                  className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-medium"
+                >
+                  <option value="">جميع الموردين</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(dateFrom || dateTo || vendorFilter || searchQuery || statusFilter !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDateFrom('');
+                    setDateTo('');
+                    setVendorFilter('');
+                    setSearchQuery('');
+                    setStatusFilter('all');
+                  }}
+                  className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  إعادة ضبط الفلاتر
+                </button>
+              )}
+
+              <div className="mr-auto text-[11px] text-slate-400 font-medium">
+                تم العثور على {filteredBills.length} من أصل {purchaseInvoices.length} فاتورة
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 select-none">
+                    <th
+                      onClick={() => handleSort('invoiceNumber')}
+                      className="py-3 px-4 cursor-pointer hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>رقم الفاتورة</span>
+                        {sortField === 'invoiceNumber' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-600" /> : <ArrowDown className="w-3 h-3 text-emerald-600" />
                         ) : (
-                          <span className="text-emerald-600 font-bold text-[11px]">تم السداد</span>
+                          <ArrowUpDown className="w-3 h-3 text-slate-300" />
                         )}
-
-                        <button
-                          onClick={() => handleOpenEditBill(bill)}
-                          disabled={!canEditBill}
-                          className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-                            canEditBill
-                              ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
-                              : 'opacity-40 bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                          }`}
-                          title={canEditBill ? 'تعديل فاتورة المشتريات' : 'ليس لديك صلاحية تعديل فواتير المشتريات'}
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          onClick={() => handleDeleteBill(bill)}
-                          disabled={!canDeleteBill}
-                          className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-                            canDeleteBill
-                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
-                              : 'opacity-40 bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                          }`}
-                          title={canDeleteBill ? 'حذف فاتورة المشتريات' : 'ليس لديك صلاحية حذف فواتير المشتريات'}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
                       </div>
-                    </td>
+                    </th>
+                    <th
+                      onClick={() => handleSort('vendorName')}
+                      className="py-3 px-4 cursor-pointer hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>اسم المورد</span>
+                        {sortField === 'vendorName' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-600" /> : <ArrowDown className="w-3 h-3 text-emerald-600" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('date')}
+                      className="py-3 px-4 cursor-pointer hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>تاريخ التوريد</span>
+                        {sortField === 'date' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-600" /> : <ArrowDown className="w-3 h-3 text-emerald-600" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="py-3 px-4">تاريخ الاستحقاق</th>
+                    <th className="py-3 px-4">المبلغ قبل الضريبة</th>
+                    <th className="py-3 px-4">ضريبة المدخلات {defaultVat}%</th>
+                    <th
+                      onClick={() => handleSort('grandTotal')}
+                      className="py-3 px-4 cursor-pointer hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>إجمالي الفاتورة</span>
+                        {sortField === 'grandTotal' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-600" /> : <ArrowDown className="w-3 h-3 text-emerald-600" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="py-3 px-4">المسدد</th>
+                    <th
+                      onClick={() => handleSort('remainingAmount')}
+                      className="py-3 px-4 cursor-pointer hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>المتبقي للدفع</span>
+                        {sortField === 'remainingAmount' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-600" /> : <ArrowDown className="w-3 h-3 text-emerald-600" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="py-3 px-4 text-center">إجراءات</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredBills.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-8 text-center text-slate-400">
+                        لا توجد فواتير مشتريات مطابقة للبحث أو التصفية الحالية
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredBills.map((bill) => (
+                      <tr key={bill.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-slate-800">
+                          {bill.invoiceNumber}
+                        </td>
+                        <td className="py-3 px-4 font-bold text-slate-900">{bill.vendorName}</td>
+                        <td className="py-3 px-4 text-slate-600">{bill.date}</td>
+                        <td className="py-3 px-4 text-slate-600">{bill.dueDate}</td>
+                        <td className="py-3 px-4 font-semibold text-slate-800">{formatMoney(bill.subtotal)}</td>
+                        <td className="py-3 px-4 text-slate-600">{formatMoney(bill.vatTotal)}</td>
+                        <td className="py-3 px-4 font-extrabold text-slate-900 text-sm">
+                          {formatMoney(bill.grandTotal)}
+                        </td>
+                        <td className="py-3 px-4 text-emerald-700 font-bold">{formatMoney(bill.paidAmount)}</td>
+                        <td className="py-3 px-4 text-rose-700 font-extrabold">{formatMoney(bill.remainingAmount)}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {/* Print / Preview */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedBill(bill);
+                                setShowPrintModal(true);
+                              }}
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                              title="معاينة وطباعة فاتورة المشتريات"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Pay button */}
+                            {bill.remainingAmount > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedBill(bill);
+                                  setPayAmount(bill.remainingAmount);
+                                  setShowPayModal(true);
+                                }}
+                                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-2 py-1 rounded-lg border border-emerald-200 text-[11px] transition-colors cursor-pointer"
+                                title="سداد دفعة أو تصفية المستحقات"
+                              >
+                                سداد
+                              </button>
+                            ) : (
+                              <span className="text-emerald-600 font-bold text-[11px] bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
+                                تم السداد
+                              </span>
+                            )}
+
+                            {/* Edit Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditBill(bill)}
+                              disabled={!canEditBill}
+                              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                canEditBill
+                                  ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                                  : 'opacity-40 bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                              }`}
+                              title={canEditBill ? 'تعديل فاتورة المشتريات' : 'ليس لديك صلاحية تعديل فواتير المشتريات'}
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Delete Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteBill(bill)}
+                              disabled={!canDeleteBill}
+                              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                canDeleteBill
+                                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                  : 'opacity-40 bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                              }`}
+                              title={canDeleteBill ? 'حذف فاتورة المشتريات' : 'ليس لديك صلاحية حذف فواتير المشتريات'}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -751,7 +1018,7 @@ export const PurchasesView: React.FC = () => {
       {/* Modal 2.5: Edit Purchase Bill */}
       {showEditBillModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-6xl w-full p-6 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
               <div>
                 <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
@@ -1007,7 +1274,7 @@ export const PurchasesView: React.FC = () => {
       {/* Modal 2: Create Bill */}
       {showCreateBillModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-6xl w-full p-6 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
               <div>
                 <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
@@ -1303,6 +1570,116 @@ export const PurchasesView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 4: Print Purchase Invoice Modal */}
+      {showPrintModal && selectedBill && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
+              <div>
+                <h3 className="font-extrabold text-lg text-slate-900">فاتورة مشتريات وتوريد</h3>
+                <p className="text-xs text-slate-500 font-mono">رقم الفاتورة: {selectedBill.invoiceNumber}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>طباعة</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPrintModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Content */}
+            <div className="space-y-6">
+              {/* Header Info */}
+              <div className="flex justify-between items-start bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm">{companyProfile.nameAr}</h4>
+                  <p className="text-xs text-slate-500">{companyProfile.address}</p>
+                  <p className="text-xs text-slate-500 font-mono">الرقم الضريبي: {companyProfile.taxNumber}</p>
+                </div>
+                <div className="text-left">
+                  <div className="text-xs text-slate-500">التاريخ: <span className="font-bold text-slate-800 font-mono">{selectedBill.date}</span></div>
+                  <div className="text-xs text-slate-500">تاريخ الاستحقاق: <span className="font-bold text-slate-800 font-mono">{selectedBill.dueDate}</span></div>
+                  <div className="text-xs text-slate-500">حالة السداد: <span className="font-bold text-emerald-600">{selectedBill.status === 'paid' || selectedBill.remainingAmount <= 0 ? 'خالصة ومسددة' : 'غير مسددة'}</span></div>
+                </div>
+              </div>
+
+              {/* Vendor Info */}
+              <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex justify-between items-center">
+                <div>
+                  <span className="text-[11px] text-emerald-800 font-bold uppercase">بيانات المورد</span>
+                  <div className="font-extrabold text-slate-900 text-base">{selectedBill.vendorName}</div>
+                </div>
+                <div className="text-left text-xs text-slate-600 space-y-0.5">
+                  <div>كود الفاتورة: <span className="font-mono font-bold text-slate-800">{selectedBill.invoiceNumber}</span></div>
+                  <div>المتبقي: <span className="font-mono font-bold text-rose-700">{formatMoney(selectedBill.remainingAmount)}</span></div>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <table className="w-full text-xs text-right">
+                  <thead className="bg-slate-100 text-slate-700 font-bold">
+                    <tr>
+                      <th className="p-3">#</th>
+                      <th className="p-3">الصنف / البيان</th>
+                      <th className="p-3 text-center">الكمية</th>
+                      <th className="p-3 text-center">سعر الوحدة</th>
+                      <th className="p-3 text-left">الإجمالي</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono">
+                    {selectedBill.items.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="p-3 text-slate-400 font-sans">{idx + 1}</td>
+                        <td className="p-3 font-sans font-medium text-slate-900">{item.productName}</td>
+                        <td className="p-3 text-center font-bold">{item.quantity}</td>
+                        <td className="p-3 text-center">{formatMoney(item.unitCost)}</td>
+                        <td className="p-3 text-left font-bold text-slate-900">{formatMoney(item.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Totals Summary */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
+                <div className="flex justify-between text-slate-600">
+                  <span>المجموع الفرعي (قبل الضريبة):</span>
+                  <span className="font-mono font-bold">{formatMoney(selectedBill.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>ضريبة القيمة المضافة:</span>
+                  <span className="font-mono font-bold">{formatMoney(selectedBill.vatTotal)}</span>
+                </div>
+                <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-2 border-t border-slate-200">
+                  <span>الإجمالي النهائي:</span>
+                  <span className="font-mono text-emerald-700">{formatMoney(selectedBill.grandTotal)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600 pt-1">
+                  <span>المسدد:</span>
+                  <span className="font-mono font-bold text-emerald-600">{formatMoney(selectedBill.paidAmount)}</span>
+                </div>
+                <div className="flex justify-between text-rose-700 font-bold pt-1">
+                  <span>المتبقي للمورد:</span>
+                  <span className="font-mono font-extrabold">{formatMoney(selectedBill.remainingAmount)}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

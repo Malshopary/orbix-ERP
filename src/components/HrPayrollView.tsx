@@ -45,6 +45,7 @@ export const HrPayrollView: React.FC = () => {
     setActiveSubTab,
     showAlert,
     showConfirm,
+    companyProfile,
   } = useErp();
 
   const [activeTab, setActiveTabLocal] = useState<'payroll' | 'employees'>('payroll');
@@ -308,29 +309,6 @@ export const HrPayrollView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
-            <button
-              onClick={() => setActiveTab('payroll')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                activeTab === 'payroll'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              مسير الرواتب الشهري
-            </button>
-            <button
-              onClick={() => setActiveTab('employees')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                activeTab === 'employees'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              سجل الموظفين ({employees.length})
-            </button>
-          </div>
-
           <button
             onClick={() => setShowAddEmployeeModal(true)}
             className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs"
@@ -1149,7 +1127,7 @@ export const HrPayrollView: React.FC = () => {
             <div className="border border-slate-300 rounded-xl p-5 space-y-4 text-xs">
               <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                 <div>
-                  <div className="font-bold text-sm text-slate-900">شركة التقنيات الحديثة للتجارة</div>
+                  <div className="font-bold text-sm text-slate-900">{companyProfile.nameAr}</div>
                   <div className="text-[11px] text-slate-500">إشعار تحويل الراتب الشهري (Payslip)</div>
                 </div>
                 <div className="bg-slate-100 px-2.5 py-1 rounded-md font-bold font-mono">

@@ -56,6 +56,15 @@ export interface GoogleSheetConfig {
   lastErrorMessage?: string;
 }
 
+export interface BrowserTab {
+  id: string; // unique ID, e.g. "dashboard", "sales_invoices", "accounts_chart"
+  tab: string;
+  subTab?: string;
+  title: string;
+  iconName: string;
+  isPinned?: boolean;
+}
+
 export interface AuditLog {
   id: string;
   userId: string;
@@ -263,9 +272,101 @@ export interface SalesReturn {
   createdAt: string;
 }
 
+export interface QuotationItem {
+  id?: string;
+  productId: string;
+  productName: string;
+  sku?: string;
+  unit?: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number;
+  subtotal: number;
+  vatAmount: number;
+  total: number;
+}
+
+export interface Quotation {
+  id: string;
+  quotationNumber: string; // e.g. "QUO-2026-001"
+  customerId: string;
+  customerName: string;
+  customerPhone?: string;
+  customerTaxNumber?: string;
+  salesRepId?: string;
+  salesRepName?: string;
+  date: string;
+  validUntil: string; // تاريخ انتهاء سريان العرض
+  items: QuotationItem[];
+  subtotal: number;
+  discountTotal: number;
+  vatRate: number;
+  vatTotal: number;
+  grandTotal: number;
+  status: 'draft' | 'sent' | 'pending' | 'approved' | 'rejected' | 'converted_to_order' | 'converted_to_invoice' | 'expired';
+  terms?: string; // شروط العرض والدفع والتسليم
+  paymentTerms?: string;
+  deliveryTerms?: string;
+  notes?: string;
+  convertedToOrderId?: string;
+  convertedToOrderNumber?: string;
+  convertedToInvoiceId?: string;
+  convertedToInvoiceNumber?: string;
+  createdAt: string;
+}
+
+export interface SalesOrderItem {
+  id?: string;
+  productId: string;
+  productName: string;
+  sku?: string;
+  unit?: string;
+  quantity: number;
+  deliveredQuantity?: number;
+  unitPrice: number;
+  discount: number;
+  subtotal: number;
+  vatAmount: number;
+  total: number;
+}
+
+export interface SalesOrder {
+  id: string;
+  orderNumber: string; // e.g. "SO-2026-001"
+  quotationId?: string;
+  quotationNumber?: string;
+  customerId: string;
+  customerName: string;
+  customerPhone?: string;
+  customerTaxNumber?: string;
+  salesRepId?: string;
+  salesRepName?: string;
+  date: string;
+  deliveryDate?: string;
+  expectedDeliveryDate?: string;
+  items: SalesOrderItem[];
+  subtotal: number;
+  discountTotal: number;
+  vatRate: number;
+  vatTotal: number;
+  grandTotal: number;
+  status: 'pending' | 'confirmed' | 'processing' | 'partially_delivered' | 'delivered' | 'completed' | 'invoiced' | 'cancelled';
+  shippingAddress?: string;
+  paymentTerms?: string;
+  deliveryNotes?: string;
+  notes?: string;
+  convertedToInvoiceId?: string;
+  convertedToInvoiceNumber?: string;
+  createdAt: string;
+}
+
 export interface SalesInvoice {
   id: string;
   invoiceNumber: string;
+  quotationId?: string;
+  quotationNumber?: string;
+  salesOrderId?: string;
+  salesOrderNumber?: string;
   customerId: string;
   customerName: string;
   customerTaxNumber?: string;
@@ -287,8 +388,10 @@ export interface SalesInvoice {
   paidAmount: number;
   remainingAmount: number;
   status: 'draft' | 'unpaid' | 'partially_paid' | 'paid' | 'overdue';
+  paymentMethod?: string;
   notes?: string;
   qrData?: string;
+  createdAt?: string;
 }
 
 export interface PurchaseInvoice {
@@ -517,5 +620,7 @@ export interface SystemSequenceSettings {
   journalEntries: SequenceConfig;
   accounts: SequenceConfig;
   salesReturns: SequenceConfig;
+  quotations?: SequenceConfig;
+  salesOrders?: SequenceConfig;
 }
 

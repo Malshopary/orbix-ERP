@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export const FinancialReportsView: React.FC = () => {
-  const { accounts, journalEntries, formatMoney, activeSubTab, setActiveSubTab } = useErp();
+  const { accounts, journalEntries, formatMoney, activeSubTab, setActiveSubTab, companyProfile } = useErp();
   const [reportType, setReportTypeLocal] = useState<'income' | 'balance_sheet' | 'trial_balance' | 'statement'>('income');
   const [activeDocViewer, setActiveDocViewer] = useState<DocumentViewerTarget | null>(null);
 
@@ -114,43 +114,7 @@ export const FinancialReportsView: React.FC = () => {
           </p>
         </div>
 
-        {/* Report Selector Tabs */}
         <div className="flex items-center gap-2">
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold overflow-x-auto">
-            <button
-              onClick={() => setReportType('income')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                reportType === 'income' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              قائمة الدخل (P&L)
-            </button>
-            <button
-              onClick={() => setReportType('balance_sheet')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                reportType === 'balance_sheet' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              الميزانية العمومية
-            </button>
-            <button
-              onClick={() => setReportType('trial_balance')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                reportType === 'trial_balance' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              ميزان المراجعة
-            </button>
-            <button
-              onClick={() => setReportType('statement')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                reportType === 'statement' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              كشف حساب تفصيلي
-            </button>
-          </div>
-
           <button
             onClick={() => window.print()}
             className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-xl inline-flex items-center gap-1 shadow-xs"
@@ -165,7 +129,7 @@ export const FinancialReportsView: React.FC = () => {
       {reportType === 'income' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 max-w-4xl mx-auto space-y-6">
           <div className="text-center border-b border-slate-200 pb-4">
-            <h3 className="text-lg font-bold text-slate-900">شركة التقنيات الحديثة للتجارة</h3>
+            <h3 className="text-lg font-bold text-slate-900">{companyProfile.nameAr}</h3>
             <p className="text-sm font-semibold text-slate-700">قائمة الدخل والأرباح والخسائر (Income Statement)</p>
             <p className="text-xs text-slate-500 mt-0.5">عن الفترة المالية المنتهية في {new Date().toISOString().split('T')[0]}</p>
           </div>
@@ -230,7 +194,7 @@ export const FinancialReportsView: React.FC = () => {
       {reportType === 'balance_sheet' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 max-w-4xl mx-auto space-y-6">
           <div className="text-center border-b border-slate-200 pb-4">
-            <h3 className="text-lg font-bold text-slate-900">شركة التقنيات الحديثة للتجارة</h3>
+            <h3 className="text-lg font-bold text-slate-900">{companyProfile.nameAr}</h3>
             <p className="text-sm font-semibold text-slate-700">قائمة المركز المالي / الميزانية العمومية (Balance Sheet)</p>
             <p className="text-xs text-slate-500 mt-0.5">كما في تاريخ {new Date().toISOString().split('T')[0]}</p>
           </div>
@@ -328,8 +292,9 @@ export const FinancialReportsView: React.FC = () => {
       {/* Report 3: Trial Balance / ميزان المراجعة */}
       {reportType === 'trial_balance' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 overflow-hidden space-y-4">
-          <div className="text-center pb-2">
-            <h3 className="text-base font-bold text-slate-900">ميزان المراجعة بالأرصدة (Trial Balance)</h3>
+          <div className="text-center pb-2 border-b border-slate-100">
+            <h3 className="text-lg font-bold text-slate-900">{companyProfile.nameAr}</h3>
+            <p className="text-sm font-semibold text-slate-700">ميزان المراجعة بالأرصدة (Trial Balance)</p>
             <p className="text-xs text-slate-500">التحقق من توازن الأرصدة المدينة والدائنة لجميع الحسابات</p>
           </div>
 
@@ -377,7 +342,8 @@ export const FinancialReportsView: React.FC = () => {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
             <div>
-              <h3 className="font-bold text-base text-slate-900">كشف حساب الأستاذ التفصيلي (Account Ledger)</h3>
+              <h2 className="text-lg font-bold text-slate-900">{companyProfile.nameAr}</h2>
+              <h3 className="font-semibold text-sm text-slate-700">كشف حساب الأستاذ التفصيلي (Account Ledger)</h3>
               <p className="text-xs text-slate-500">استعراض كافة الحركات والقيود المؤثرة على الحساب</p>
             </div>
 
