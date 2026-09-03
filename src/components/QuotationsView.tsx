@@ -4,6 +4,10 @@ import { Quotation, QuotationItem } from '../types';
 import { ProductSelectSearch } from './ProductSelectSearch';
 import { MathQuantityInput } from './MathQuantityInput';
 import { OrbixLogo } from './OrbixLogo';
+import { PrintPreviewModal } from './PrintPreviewModal';
+import { PrintHeader } from './PrintHeader';
+import { PrintFooter } from './PrintFooter';
+import { SearchableSelect } from './SearchableSelect';
 import {
   FileBadge,
   PlusCircle,
@@ -908,36 +912,37 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     العميل <span className="text-rose-500">*</span>
                   </label>
-                  <select
+                  <SearchableSelect
                     value={customerId}
-                    onChange={(e) => setCustomerId(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-amber-500"
-                    required
-                  >
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.companyName ? `(${c.companyName})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setCustomerId(val)}
+                    placeholder="اختر العميل..."
+                    searchPlaceholder="ابحث باسم العميل أو الشركة..."
+                    options={customers.map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                      subLabel: c.companyName || c.phone,
+                    }))}
+                  />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     مندوب المبيعات
                   </label>
-                  <select
+                  <SearchableSelect
                     value={salesRepId}
-                    onChange={(e) => setSalesRepId(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-amber-500"
-                  >
-                    <option value="">-- بدون مندوب محدد --</option>
-                    {salesReps.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} ({r.code})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSalesRepId(val)}
+                    placeholder="-- بدون مندوب محدد --"
+                    searchPlaceholder="ابحث باسم المندوب..."
+                    options={[
+                      { value: '', label: '-- بدون مندوب محدد --' },
+                      ...salesReps.map((r) => ({
+                        value: r.id,
+                        label: `${r.name} (${r.code})`,
+                        subLabel: r.phone,
+                      })),
+                    ]}
+                  />
                 </div>
 
                 <div>
@@ -1217,36 +1222,37 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     العميل <span className="text-rose-500">*</span>
                   </label>
-                  <select
+                  <SearchableSelect
                     value={editCustomerId}
-                    onChange={(e) => setEditCustomerId(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-amber-500"
-                    required
-                  >
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEditCustomerId(val)}
+                    placeholder="اختر العميل..."
+                    searchPlaceholder="ابحث باسم العميل..."
+                    options={customers.map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                      subLabel: c.phone,
+                    }))}
+                  />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     مندوب المبيعات
                   </label>
-                  <select
+                  <SearchableSelect
                     value={editSalesRepId}
-                    onChange={(e) => setEditSalesRepId(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-amber-500"
-                  >
-                    <option value="">-- بدون مندوب --</option>
-                    {salesReps.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEditSalesRepId(val)}
+                    placeholder="-- بدون مندوب --"
+                    searchPlaceholder="ابحث باسم المندوب..."
+                    options={[
+                      { value: '', label: '-- بدون مندوب --' },
+                      ...salesReps.map((r) => ({
+                        value: r.id,
+                        label: r.name,
+                        subLabel: r.phone,
+                      })),
+                    ]}
+                  />
                 </div>
 
                 <div>
@@ -1500,62 +1506,35 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
 
       {/* PRINT / PREVIEW MODAL */}
       {showPrintModal && selectedQuotation && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-3xl w-full max-w-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 max-h-[92vh] flex flex-col my-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 no-print">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-slate-800">
-                  معاينة عرض السعر الرسمي ({selectedQuotation.quotationNumber})
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  طباعة / PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPrintModal(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+        <PrintPreviewModal
+          isOpen={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          title="معاينة عرض السعر الرسمي"
+          docNumber={selectedQuotation.quotationNumber}
+          badgeText="عرض سعر معتمد"
+          badgeColor="bg-amber-50 text-amber-800 border-amber-200"
+          elementId="quotation-print-canvas-sheet"
+        >
+          {({ orientation }) => (
+            <div className="space-y-6 text-xs text-slate-800">
+              {/* Standardized Header with Logo & Business Details */}
+              <PrintHeader
+                docTitle="عرض أسعار رسمي (QUOTATION)"
+                docNumber={selectedQuotation.quotationNumber}
+                date={selectedQuotation.date}
+                dueDate={selectedQuotation.validUntil ? `صالح حتى: ${selectedQuotation.validUntil}` : undefined}
+                badgeColor="bg-amber-600 text-white"
+                additionalMeta={[
+                  { label: 'العميل', value: selectedQuotation.customerName },
+                  { label: 'المسؤول', value: selectedQuotation.salesRepName || 'قسم المبيعات' },
+                ]}
+                orientation={orientation}
+              />
 
-            {/* Printable Document Area */}
-            <div className="flex-1 overflow-y-auto py-6 space-y-6 text-slate-800 text-sm printable-area">
-              {/* Header */}
-              <div className="flex items-start justify-between border-b pb-6 border-slate-200">
-                <div className="flex items-center gap-3">
-                  <OrbixLogo size="md" variant="full" />
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">{companyProfile.nameAr}</h2>
-                    <p className="text-xs text-slate-500">{companyProfile.address}</p>
-                    <p className="text-xs text-slate-500 font-mono">الرقم الضريبي: {companyProfile.taxNumber}</p>
-                  </div>
-                </div>
-
-                <div className="text-left font-mono">
-                  <span className="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                    عرض سعر (Quotation)
-                  </span>
-                  <p className="text-base font-bold text-slate-900 mt-2">{selectedQuotation.quotationNumber}</p>
-                  <p className="text-xs text-slate-500 font-sans">التاريخ: {selectedQuotation.date}</p>
-                  {selectedQuotation.validUntil && (
-                    <p className="text-xs text-slate-500 font-sans">صالح حتى: {selectedQuotation.validUntil}</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Customer Information */}
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
+              {/* Customer Information Box */}
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
                 <div>
-                  <span className="text-slate-400 font-bold block mb-1">مقدم إلى العميل (Customer):</span>
+                  <span className="text-slate-500 font-semibold block mb-1">مقدم إلى العميل (Customer):</span>
                   <p className="text-sm font-bold text-slate-900">{selectedQuotation.customerName}</p>
                   {selectedQuotation.customerPhone && (
                     <p className="text-slate-600 font-mono mt-0.5">الهاتف: {selectedQuotation.customerPhone}</p>
@@ -1565,42 +1544,47 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
                   )}
                 </div>
 
-                <div>
-                  <span className="text-slate-400 font-bold block mb-1">بيانات العرض والتوريد:</span>
-                  <p className="text-slate-700">مندوب المبيعات: <strong>{selectedQuotation.salesRepName || 'الإدارة'}</strong></p>
-                  <p className="text-slate-700 mt-0.5">شروط الدفع: {selectedQuotation.paymentTerms || 'حسب الاتفاق'}</p>
+                <div className="text-left space-y-1">
+                  <div>
+                    <span className="text-slate-500">مندوب المبيعات: </span>
+                    <strong className="text-slate-900">{selectedQuotation.salesRepName || 'الإدارة'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">شروط الدفع والتسليم: </span>
+                    <span className="font-semibold text-slate-800">{selectedQuotation.paymentTerms || 'حسب الاتفاق'}</span>
+                  </div>
                 </div>
               </div>
 
               {/* Line Items Table */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                <table className="w-full text-right text-xs">
-                  <thead className="bg-slate-100 font-bold text-slate-700 border-b border-slate-200">
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs border border-slate-200">
+                  <thead className="bg-slate-100 font-bold text-slate-700 border-b border-slate-300">
                     <tr>
-                      <th className="p-3">#</th>
-                      <th className="p-3">بيان الصنف والخدمة</th>
-                      <th className="p-3 text-center">الكمية</th>
-                      <th className="p-3 text-center">سعر الوحدة</th>
-                      <th className="p-3 text-center">الخصم</th>
-                      <th className="p-3 text-center">الصافي</th>
-                      <th className="p-3 text-center">الضريبة</th>
-                      <th className="p-3 text-left">الإجمالي ({currency})</th>
+                      <th className="p-2.5">#</th>
+                      <th className="p-2.5">بيان الصنف والخدمة</th>
+                      <th className="p-2.5 text-center">الكمية</th>
+                      <th className="p-2.5 text-center">سعر الوحدة</th>
+                      <th className="p-2.5 text-center">الخصم</th>
+                      <th className="p-2.5 text-center">الصافي</th>
+                      <th className="p-2.5 text-center">الضريبة</th>
+                      <th className="p-2.5 text-left">الإجمالي ({currency})</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-200">
                     {selectedQuotation.items.map((it, idx) => (
                       <tr key={it.id || idx}>
-                        <td className="p-3 font-mono text-slate-400">{idx + 1}</td>
-                        <td className="p-3">
+                        <td className="p-2.5 font-mono text-slate-400">{idx + 1}</td>
+                        <td className="p-2.5">
                           <p className="font-bold text-slate-900">{it.productName}</p>
                           {it.sku && <span className="text-[10px] text-slate-400 font-mono">SKU: {it.sku}</span>}
                         </td>
-                        <td className="p-3 text-center font-mono">{it.quantity} {it.unit || ''}</td>
-                        <td className="p-3 text-center font-mono">{formatMoney(it.unitPrice)}</td>
-                        <td className="p-3 text-center font-mono">{formatMoney(it.discount || 0)}</td>
-                        <td className="p-3 text-center font-mono">{formatMoney(it.subtotal)}</td>
-                        <td className="p-3 text-center font-mono">{formatMoney(it.vatAmount)}</td>
-                        <td className="p-3 text-left font-mono font-bold text-slate-900">{formatMoney(it.total)}</td>
+                        <td className="p-2.5 text-center font-mono font-bold">{it.quantity} {it.unit || ''}</td>
+                        <td className="p-2.5 text-center font-mono">{formatMoney(it.unitPrice)}</td>
+                        <td className="p-2.5 text-center font-mono">{formatMoney(it.discount || 0)}</td>
+                        <td className="p-2.5 text-center font-mono">{formatMoney(it.subtotal)}</td>
+                        <td className="p-2.5 text-center font-mono">{formatMoney(it.vatAmount)}</td>
+                        <td className="p-2.5 text-left font-mono font-bold text-slate-900">{formatMoney(it.total)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1609,7 +1593,7 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
 
               {/* Financial Totals */}
               <div className="flex justify-end">
-                <div className="w-72 bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
+                <div className="w-72 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>إجمالي القيمة:</span>
                     <span className="font-mono font-bold">{formatMoney(selectedQuotation.subtotal)} {currency}</span>
@@ -1624,34 +1608,23 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
                     <span>ضريبة القيمة المضافة ({selectedQuotation.vatRate}%):</span>
                     <span className="font-mono font-bold">{formatMoney(selectedQuotation.vatTotal)} {currency}</span>
                   </div>
-                  <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
+                  <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-300">
                     <span>صافي العرض النهائي:</span>
-                    <span className="font-mono text-amber-700 text-base">{formatMoney(selectedQuotation.grandTotal)} {currency}</span>
+                    <span className="font-mono text-amber-700 text-base font-black">{formatMoney(selectedQuotation.grandTotal)} {currency}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Terms & Signatures */}
-              {selectedQuotation.notes && (
-                <div className="bg-amber-50/50 p-3.5 rounded-xl border border-amber-200/60 text-xs text-amber-900">
-                  <span className="font-bold block mb-0.5">شروط وأحكام العرض:</span>
-                  <p>{selectedQuotation.notes}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-8 pt-8 border-t border-slate-200 text-center text-xs">
-                <div>
-                  <p className="font-bold text-slate-700 mb-8">اعتماد المنشأة / المبيعات</p>
-                  <p className="text-slate-400">................................................</p>
-                </div>
-                <div>
-                  <p className="font-bold text-slate-700 mb-8">موافقة وتوقيع العميل</p>
-                  <p className="text-slate-400">................................................</p>
-                </div>
-              </div>
+              {/* Standardized Footer */}
+              <PrintFooter
+                preparedByTitle="إعداد / قسم المبيعات"
+                approvedByTitle="اعتماد إدارة المنشأة"
+                receivedByTitle="موافقة وتوقيع العميل"
+                terms={selectedQuotation.notes || 'العرض ساري للمدة المحددة أعلاه، والأسعار خاضعة للشروط المتفق عليها.'}
+              />
             </div>
-          </div>
-        </div>
+          )}
+        </PrintPreviewModal>
       )}
     </div>
   );

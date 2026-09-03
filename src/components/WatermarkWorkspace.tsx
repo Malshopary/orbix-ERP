@@ -33,13 +33,13 @@ export const WatermarkWorkspace: React.FC<WatermarkWorkspaceProps> = ({ setActiv
   ];
 
   return (
-    <div className="relative w-full min-h-[calc(100vh-12rem)] flex flex-col items-center justify-center p-6 select-none overflow-hidden">
+    <div className="relative w-full h-full min-h-[380px] flex-1 flex flex-col items-center justify-center p-4 sm:p-6 select-none overflow-hidden my-auto">
       {/* Background Giant Watermark from /img/ folder filling the entire page */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.06] select-none z-0">
         <img
           src="/img/watermark.svg"
           alt="Orbix ERP Watermark"
-          className="w-[85vw] max-w-[820px] max-h-[75vh] object-contain filter grayscale"
+          className="w-[85vw] max-w-[760px] max-h-[65vh] object-contain filter grayscale"
         />
       </div>
 

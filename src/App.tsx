@@ -59,22 +59,22 @@ const MainAppContent: React.FC = () => {
   const isPermitted = canAccessTab(activeTab);
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 font-sans flex flex-col antialiased selection:bg-emerald-500 selection:text-white" dir="rtl">
+    <div className="h-screen w-screen bg-slate-100 text-slate-900 font-sans flex flex-col antialiased selection:bg-emerald-500 selection:text-white overflow-hidden" dir="rtl">
       <Navbar onOpenLoginModal={() => setIsLoginModalOpen(true)} setActiveTab={setActiveTab} />
 
-      <div className="flex-1 flex flex-col lg:flex-row w-full min-h-[calc(100vh-6.5rem)] pb-10 items-stretch">
+      <div className="flex-1 flex flex-col lg:flex-row w-full min-h-0 overflow-hidden items-stretch">
         {/* Sidebar Navigation - Fixed full-height docked on Right side in RTL, No border-radius */}
-        <aside className="w-full lg:w-60 xl:w-64 shrink-0 lg:sticky lg:top-16 lg:h-[calc(100vh-6.5rem)] z-30 bg-slate-900 border-l border-slate-800 flex flex-col">
+        <aside className="w-full lg:w-60 xl:w-64 shrink-0 h-auto lg:h-full z-30 bg-slate-900 border-l border-slate-800 flex flex-col overflow-hidden print:hidden print-hide">
           <Sidebar activeTab={activeTab as ActiveTab} setActiveTab={setActiveTab} />
         </aside>
 
         {/* Main Content with Browser Tabs Navigation */}
-        <div className="flex-1 min-w-0 w-full flex flex-col">
+        <div className="flex-1 min-w-0 w-full h-full flex flex-col overflow-hidden">
           {/* Browser Multi-Tabs Bar */}
           <BrowserTabBar />
 
           {/* Active Module Content */}
-          <main className="flex-1 min-w-0 w-full p-3 sm:p-4 lg:p-6">
+          <main className="flex-1 min-w-0 w-full overflow-y-auto p-3 sm:p-4 lg:p-6">
             {!activeTab ? (
               <WatermarkWorkspace setActiveTab={setActiveTab} />
             ) : !isPermitted ? (

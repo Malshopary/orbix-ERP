@@ -38,92 +38,196 @@
 }
 
 /* =========================================================
-   ORBIX ERP - DEDICATED PRINT STYLESHEET FOR POS & INVOICES
+   ORBIX ERP - UNIVERSAL HIGH-PRECISION PRINT STYLESHEET
    ========================================================= */
 
 @media print {
-  /* Hide all standard web app containers, navigation, and modals */
+  /* 1. Global Box-Shadow & Page Reset */
+  *, *::before, *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  @page {
+    size: auto;
+    margin: 8mm 8mm;
+  }
+
+  @page :landscape {
+    margin: 6mm 8mm;
+  }
+
   html, body {
     background: #ffffff !important;
-    color: #000000 !important;
+    color: #0f172a !important;
     margin: 0 !important;
     padding: 0 !important;
-    font-family: 'IBM Plex Sans Arabic', 'Readex Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
-  }
-
-  /* Hide everything on the page by default when printing */
-  body > * {
-    visibility: hidden !important;
-  }
-
-  /* Display only the target printable receipt */
-  #pos-printable-receipt,
-  #pos-printable-receipt * {
-    visibility: visible !important;
-  }
-
-  #pos-printable-receipt {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
     width: 100% !important;
-    margin: 0 !important;
-    padding: 16px !important;
-    background: #ffffff !important;
-    color: #000000 !important;
-    border: none !important;
-    box-shadow: none !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    font-family: 'IBM Plex Sans Arabic', 'Readex Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
 
-  /* Thermal roll receipt optimization (80mm width standard) */
-  .receipt-thermal {
+  /* 2. Hide all interactive shell components, navigation bars, buttons, and alerts */
+  header,
+  aside,
+  footer,
+  nav,
+  button,
+  input,
+  select,
+  textarea,
+  .print\:hidden,
+  .no-print,
+  .print-hidden,
+  .print-hide,
+  #toast-container,
+  .backdrop-blur-xs,
+  .modal-backdrop,
+  .app-sidebar,
+  .app-navbar {
+    display: none !important;
+  }
+
+  /* 3. When a print modal is open, ensure root and layout containers do not clip */
+  body.print-modal-open,
+  body.print-modal-open #root,
+  body.print-modal-open .h-screen,
+  body.print-modal-open .w-screen,
+  body.print-modal-open .flex.h-screen,
+  body.print-modal-open .flex-1,
+  body.print-modal-open main,
+  body.print-modal-open .print-preview-modal-layer,
+  body.print-modal-open .print-modal-card,
+  body.print-modal-open .print-canvas-viewport {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    inset: auto !important;
+  }
+
+  /* 4. Hide underlying page view content when print modal is open */
+  body.print-modal-open main > *:not(.print-preview-modal-layer) {
+    display: none !important;
+  }
+
+  /* 5. Force printable sheet container to expand completely with crisp borders and colors */
+  .printable-sheet,
+  .printable-page,
+  .printable-area,
+  .printable-report-canvas,
+  #printable-canvas-sheet,
+  #single-document-canvas-sheet,
+  #customer-statement-sheet,
+  #pos-printable-receipt,
+  #financial-report-sheet,
+  #financial-report-print-sheet,
+  #sales-order-print-sheet,
+  #sales-return-document-sheet,
+  #purchase-invoice-document-sheet,
+  #sales-invoice-print-sheet,
+  #payslip-print-sheet,
+  #quotation-print-canvas-sheet,
+  #quotation-document-sheet {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    overflow: visible !important;
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  /* 6. Ensure all elements inside printable sheets are visible and preserve exact background & colors */
+  .printable-sheet *,
+  .printable-page *,
+  .printable-area *,
+  .printable-report-canvas * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* 7. Thermal roll receipt optimization (80mm width standard) */
+  .receipt-thermal,
+  #pos-printable-receipt.receipt-thermal {
     max-width: 80mm !important;
     width: 80mm !important;
-    padding: 4mm !important;
+    padding: 2mm !important;
     font-size: 11px !important;
     margin: 0 auto !important;
   }
 
-  /* A4 Invoice format optimization */
-  .receipt-a4 {
-    max-width: 210mm !important;
+  /* 8. A4 & Orientation specifics */
+  .receipt-a4,
+  .print-portrait {
     width: 100% !important;
-    padding: 12mm !important;
-    font-size: 13px !important;
+    max-width: 100% !important;
+    padding: 0 !important;
   }
 
-  /* Hide non-printable interactive elements inside the modal */
-  .no-print,
-  button,
-  .print-hidden {
-    display: none !important;
+  .print-landscape {
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
-  /* Ensure table borders and headers print with high contrast */
+  /* 9. Tables layout and page breaks */
   table {
     border-collapse: collapse !important;
     width: 100% !important;
+    page-break-inside: auto !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
   }
 
   th, td {
     border: 1px solid #cbd5e1 !important;
-    padding: 6px 8px !important;
+    padding: 4px 6px !important;
+    font-size: 11px !important;
+  }
+
+  thead {
+    display: table-header-group !important;
   }
 
   thead th {
     background-color: #f1f5f9 !important;
     color: #0f172a !important;
-    font-weight: bold !important;
+    font-weight: 800 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* Page setup for crisp margins */
-  @page {
-    size: auto;
-    margin: 6mm;
+  /* Prevent awkward page breaks in headers, footers and summary blocks */
+  .break-inside-avoid,
+  .print-header,
+  .print-footer {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 }
 

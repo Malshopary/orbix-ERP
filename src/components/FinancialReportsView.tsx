@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useErp } from '../context/ErpContext';
 import { DocumentViewerModal, DocumentViewerTarget } from './DocumentViewerModal';
+import { PrintPreviewModal } from './PrintPreviewModal';
+import { PrintHeader } from './PrintHeader';
+import { PrintFooter } from './PrintFooter';
 import {
   PieChart,
   FileSpreadsheet,
@@ -17,6 +20,7 @@ export const FinancialReportsView: React.FC = () => {
   const { accounts, journalEntries, formatMoney, activeSubTab, setActiveSubTab, companyProfile } = useErp();
   const [reportType, setReportTypeLocal] = useState<'income' | 'balance_sheet' | 'trial_balance' | 'statement'>('income');
   const [activeDocViewer, setActiveDocViewer] = useState<DocumentViewerTarget | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState(false);
 
   const handleOpenDoc = (refOrEntry: string, isEntryNum: boolean = false) => {
     if (!refOrEntry || refOrEntry === '-') return;
@@ -116,11 +120,11 @@ export const FinancialReportsView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => window.print()}
-            className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-xl inline-flex items-center gap-1 shadow-xs"
+            onClick={() => setShowPrintModal(true)}
+            className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
           >
-            <Printer className="w-3.5 h-3.5" />
-            طباعة
+            <Printer className="w-3.5 h-3.5 text-emerald-400" />
+            معاينة وطباعة التقرير
           </button>
         </div>
       </div>
@@ -451,6 +455,287 @@ export const FinancialReportsView: React.FC = () => {
           documentTarget={activeDocViewer}
           onClose={() => setActiveDocViewer(null)}
         />
+      )}
+
+      {/* Financial Statement Print Preview Modal */}
+      {showPrintModal && (
+        <PrintPreviewModal
+          isOpen={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          title={`معاينة ${
+            reportType === 'income'
+              ? 'قائمة الدخل والأرباح'
+              : reportType === 'balance_sheet'
+              ? 'الميزانية العمومية والمركز المالي'
+              : reportType === 'trial_balance'
+              ? 'ميزان المراجعة بالأرصدة'
+              : 'كشف حساب الأستاذ التفصيلي'
+          }`}
+          docNumber={
+            reportType === 'statement'
+              ? `${targetAccount?.code || ''}`
+              : `REP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
+          }
+          badgeText="تقرير مالي ختامي معتمد"
+          badgeColor="bg-emerald-50 text-emerald-800 border-emerald-200"
+          elementId="financial-report-print-sheet"
+        >
+          {({ orientation }) => (
+            <div className="space-y-6 text-xs text-slate-800">
+              {/* Standardized Header */}
+              <PrintHeader
+                docTitle={
+                  reportType === 'income'
+                    ? 'قائمة الدخل والأرباح والخسائر (INCOME STATEMENT)'
+                    : reportType === 'balance_sheet'
+                    ? 'قائمة المركز المالي / الميزانية العمومية (BALANCE SHEET)'
+                    : reportType === 'trial_balance'
+                    ? 'ميزان المراجعة بالأرصدة (TRIAL BALANCE)'
+                    : `كشف حساب أستاذ: ${targetAccount?.name || ''} (${targetAccount?.code || ''})`
+                }
+                docNumber={
+                  reportType === 'statement'
+                    ? `ACC-${targetAccount?.code || ''}`
+                    : `FS-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`
+                }
+                date={new Date().toISOString().split('T')[0]}
+                badgeColor="bg-slate-900 text-white"
+                additionalMeta={[
+                  { label: 'العملة', value: companyProfile.currency || 'SAR' },
+                  { label: 'الفترة', value: `حتى ${new Date().toISOString().split('T')[0]}` },
+                ]}
+                orientation={orientation}
+              />
+
+              {/* Report 1: Income Statement Content */}
+              {reportType === 'income' && (
+                <div className="space-y-4 text-xs">
+                  <div>
+                    <div className="bg-slate-100 p-2.5 rounded-lg font-bold text-slate-900 flex justify-between border border-slate-200">
+                      <span>1. الإيرادات التشغيلية والمبيعات:</span>
+                      <span className="font-mono">{formatMoney(totalRevenue)}</span>
+                    </div>
+                    <div className="divide-y divide-slate-200 pr-4 mt-1">
+                      {revenues.map((r) => (
+                        <div key={r.id} className="py-1.5 flex justify-between text-slate-700">
+                          <span>{r.code} - {r.name}</span>
+                          <span className="font-mono font-bold">{formatMoney(r.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-200 pt-2">
+                    <div className="flex justify-between text-slate-700 py-1 font-semibold">
+                      <span>2. تكلفة البضاعة المباعة (COGS):</span>
+                      <span className="text-rose-700 font-mono">({formatMoney(cogsTotal)})</span>
+                    </div>
+                    <div className="bg-emerald-50 text-emerald-950 p-2.5 rounded-lg font-extrabold flex justify-between text-sm mt-1 border border-emerald-300">
+                      <span>مجمل الربح التجاري (Gross Profit):</span>
+                      <span className="font-mono">{formatMoney(grossProfit)}</span>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-200 pt-2">
+                    <div className="bg-slate-100 p-2.5 rounded-lg font-bold text-slate-900 flex justify-between border border-slate-200">
+                      <span>3. المصروفات التشغيلية والإدارية والعمومية:</span>
+                      <span className="text-rose-700 font-mono">({formatMoney(totalOperatingExpenses)})</span>
+                    </div>
+                    <div className="divide-y divide-slate-200 pr-4 mt-1">
+                      {operatingExpenses.map((exp) => (
+                        <div key={exp.id} className="py-1.5 flex justify-between text-slate-700">
+                          <span>{exp.code} - {exp.name}</span>
+                          <span className="font-mono font-bold">{formatMoney(exp.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border-t-2 border-slate-900 pt-3">
+                    <div className="bg-slate-900 text-white p-3.5 rounded-xl font-extrabold text-sm flex justify-between items-center">
+                      <span>صافي أرباح النشاط للفترة (Net Income):</span>
+                      <span className="text-emerald-400 text-base font-mono font-black">{formatMoney(netIncome)} {companyProfile.currency || 'SAR'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Report 2: Balance Sheet Content */}
+              {reportType === 'balance_sheet' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs">
+                  {/* Assets */}
+                  <div className="space-y-3">
+                    <div className="bg-blue-50 text-blue-950 p-2.5 rounded-lg font-extrabold flex justify-between border border-blue-200">
+                      <span>الأصول (Assets)</span>
+                      <span className="font-mono">{formatMoney(totalAssets)}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="font-bold text-slate-700 block">الأصول المتداولة:</span>
+                      <div className="divide-y divide-slate-200 pr-2">
+                        {currentAssets.map((a) => (
+                          <div key={a.id} className="py-1 flex justify-between text-slate-700">
+                            <span>{a.name}</span>
+                            <span className="font-mono font-bold">{formatMoney(a.balance)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1 pt-2 border-t border-slate-200">
+                      <span className="font-bold text-slate-700 block">الأصول الثابتة وغير المتداولة:</span>
+                      <div className="divide-y divide-slate-200 pr-2">
+                        {fixedAssets.map((a) => (
+                          <div key={a.id} className="py-1 flex justify-between text-slate-700">
+                            <span>{a.name}</span>
+                            <span className="font-mono font-bold">{formatMoney(a.balance)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="bg-slate-900 text-white p-3 rounded-xl font-bold flex justify-between mt-4">
+                      <span>إجمالي الأصول:</span>
+                      <span className="text-emerald-400 font-mono font-black">{formatMoney(totalAssets)}</span>
+                    </div>
+                  </div>
+
+                  {/* Liabilities & Equity */}
+                  <div className="space-y-3">
+                    <div className="bg-amber-50 text-amber-950 p-2.5 rounded-lg font-extrabold flex justify-between border border-amber-200">
+                      <span>الخصوم وحقوق الملكية</span>
+                      <span className="font-mono">{formatMoney(totalLiabilities + totalEquity)}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="font-bold text-slate-700 block">الخصوم والالتزامات المتداولة:</span>
+                      <div className="divide-y divide-slate-200 pr-2">
+                        {currentLiabilities.map((l) => (
+                          <div key={l.id} className="py-1 flex justify-between text-slate-700">
+                            <span>{l.name}</span>
+                            <span className="font-mono font-bold">{formatMoney(l.balance)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1 pt-2 border-t border-slate-200">
+                      <span className="font-bold text-slate-700 block">حقوق الملكية ورأس المال:</span>
+                      <div className="divide-y divide-slate-200 pr-2">
+                        {equityAccounts.map((e) => (
+                          <div key={e.id} className="py-1 flex justify-between text-slate-700">
+                            <span>{e.name}</span>
+                            <span className="font-mono font-bold">{formatMoney(e.balance)}</span>
+                          </div>
+                        ))}
+                        <div className="py-1 flex justify-between text-emerald-800 font-bold">
+                          <span>صافي أرباح الفترة الحالية:</span>
+                          <span className="font-mono">{formatMoney(netIncome)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-slate-900 text-white p-3 rounded-xl font-bold flex justify-between mt-4">
+                      <span>إجمالي الخصوم وحقوق الملكية:</span>
+                      <span className="text-emerald-400 font-mono font-black">{formatMoney(totalLiabilities + totalEquity)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Report 3: Trial Balance Content */}
+              {reportType === 'trial_balance' && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs border border-slate-200">
+                    <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+                      <tr>
+                        <th className="py-2 px-3">كود الحساب</th>
+                        <th className="py-2 px-3">اسم الحساب</th>
+                        <th className="py-2 px-3">طبيعة الحساب</th>
+                        <th className="py-2 px-3 text-emerald-700">الرصيد المدين (Debit)</th>
+                        <th className="py-2 px-3 text-rose-700">الرصيد الدائن (Credit)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {accounts
+                        .filter((a) => !a.isHeader)
+                        .map((acc) => {
+                          const isDebitNature = acc.type === 'asset' || acc.type === 'expense';
+                          const debitVal = isDebitNature && acc.balance >= 0 ? acc.balance : 0;
+                          const creditVal = !isDebitNature && acc.balance >= 0 ? acc.balance : 0;
+
+                          return (
+                            <tr key={acc.id}>
+                              <td className="py-2 px-3 font-mono font-bold text-slate-700">{acc.code}</td>
+                              <td className="py-2 px-3 font-semibold text-slate-900">{acc.name}</td>
+                              <td className="py-2 px-3 text-slate-500">{acc.type}</td>
+                              <td className="py-2 px-3 font-mono font-bold text-emerald-800">
+                                {debitVal > 0 ? formatMoney(debitVal) : '-'}
+                              </td>
+                              <td className="py-2 px-3 font-mono font-bold text-rose-800">
+                                {creditVal > 0 ? formatMoney(creditVal) : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Report 4: Ledger Statement Content */}
+              {reportType === 'statement' && targetAccount && (
+                <div className="space-y-4">
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
+                    <div>
+                      <span className="text-slate-500 block">الحساب:</span>
+                      <span className="font-bold text-sm text-slate-900">{targetAccount.code} - {targetAccount.name}</span>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-slate-500 block">الرصيد الدفتري الحالي:</span>
+                      <span className="font-extrabold text-sm text-slate-900 font-mono">{formatMoney(targetAccount.balance)} {companyProfile.currency || 'SAR'}</span>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-right text-xs border border-slate-200">
+                      <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+                        <tr>
+                          <th className="py-2 px-3">التاريخ</th>
+                          <th className="py-2 px-3">رقم القيد</th>
+                          <th className="py-2 px-3">المرجع</th>
+                          <th className="py-2 px-3">البيان / الشرح</th>
+                          <th className="py-2 px-3 text-emerald-700">مدين (+)</th>
+                          <th className="py-2 px-3 text-rose-700">دائن (-)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {accountEntries.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-6 text-center text-slate-400">لا توجد حركات مسجلة</td>
+                          </tr>
+                        ) : (
+                          accountEntries.map((ent, idx) => (
+                            <tr key={idx}>
+                              <td className="py-2 px-3 text-slate-600 font-mono">{ent.date}</td>
+                              <td className="py-2 px-3 font-mono font-bold text-slate-900">{ent.entryNumber}</td>
+                              <td className="py-2 px-3 font-mono text-slate-600">{ent.reference || '-'}</td>
+                              <td className="py-2 px-3 text-slate-800">{ent.description}</td>
+                              <td className="py-2 px-3 font-mono font-bold text-emerald-700">{ent.debit > 0 ? formatMoney(ent.debit) : '-'}</td>
+                              <td className="py-2 px-3 font-mono font-bold text-rose-700">{ent.credit > 0 ? formatMoney(ent.credit) : '-'}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Standardized Footer */}
+              <PrintFooter
+                preparedByTitle="المحاسب المالي"
+                approvedByTitle="المدير المالي / مراجع الحسابات"
+                receivedByTitle="اعتماد الإدارة العامة"
+                notes="تعتبر هذه القائمة / الكشف المالي وثيقة رسمية معتمدة مستخرجة آلياً من النظام المحاسبي."
+              />
+            </div>
+          )}
+        </PrintPreviewModal>
       )}
     </div>
   );

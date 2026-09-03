@@ -5,8 +5,12 @@ import { SalesReturnsView } from './SalesReturnsView';
 import { QuotationsView } from './QuotationsView';
 import { SalesOrdersView } from './SalesOrdersView';
 import { CustomerStatementModal } from './CustomerStatementModal';
+import { PrintPreviewModal } from './PrintPreviewModal';
+import { PrintHeader } from './PrintHeader';
+import { PrintFooter } from './PrintFooter';
 import { ProductSelectSearch } from './ProductSelectSearch';
 import { MathQuantityInput } from './MathQuantityInput';
+import { SearchableSelect } from './SearchableSelect';
 import {
   Receipt,
   PlusCircle,
@@ -838,18 +842,22 @@ export const SalesView: React.FC = () => {
               <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
                 <Filter className="w-3.5 h-3.5 text-slate-500" />
                 <span className="font-semibold text-slate-600">تصفية العميل:</span>
-                <select
-                  value={customerFilter}
-                  onChange={(e) => setCustomerFilter(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-medium"
-                >
-                  <option value="">جميع العملاء</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-48">
+                  <SearchableSelect
+                    value={customerFilter}
+                    onChange={(val) => setCustomerFilter(val)}
+                    placeholder="جميع العملاء"
+                    searchPlaceholder="ابحث باسم العميل..."
+                    options={[
+                      { value: '', label: 'جميع العملاء' },
+                      ...customers.map((c) => ({
+                        value: c.id,
+                        label: c.name,
+                        subLabel: c.phone,
+                      })),
+                    ]}
+                  />
+                </div>
               </div>
 
               {(dateFrom || dateTo || customerFilter || searchQuery || statusFilter !== 'all') && (
@@ -1293,17 +1301,19 @@ export const SalesView: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
                 <div className="sm:col-span-1">
                   <label className="block font-semibold text-slate-700 mb-1">العميل المستفيد</label>
-                  <select
+                  <SearchableSelect
                     value={customerId}
-                    onChange={(e) => setCustomerId(e.target.value)}
-                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-semibold"
-                  >
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.code})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setCustomerId(val)}
+                    placeholder="اختر العميل..."
+                    searchPlaceholder="ابحث باسم العميل أو الكود..."
+                    options={customers.map((c) => ({
+                      value: c.id,
+                      label: `${c.name} (${c.code})`,
+                      subLabel: c.phone,
+                      badge: c.currentBalance > 0 ? `مديونية: ${formatMoney(c.currentBalance)}` : undefined,
+                      badgeColor: 'bg-rose-50 text-rose-700',
+                    }))}
+                  />
                 </div>
 
                 <div>
@@ -1611,17 +1621,19 @@ export const SalesView: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
                 <div className="sm:col-span-1">
                   <label className="block font-semibold text-slate-700 mb-1">العميل المستفيد</label>
-                  <select
+                  <SearchableSelect
                     value={editCustomerId}
-                    onChange={(e) => setEditCustomerId(e.target.value)}
-                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-semibold"
-                  >
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.code})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEditCustomerId(val)}
+                    placeholder="اختر العميل..."
+                    searchPlaceholder="ابحث باسم العميل أو الكود..."
+                    options={customers.map((c) => ({
+                      value: c.id,
+                      label: `${c.name} (${c.code})`,
+                      subLabel: c.phone,
+                      badge: c.currentBalance > 0 ? `مديونية: ${formatMoney(c.currentBalance)}` : undefined,
+                      badgeColor: 'bg-rose-50 text-rose-700',
+                    }))}
+                  />
                 </div>
 
                 <div>
@@ -1885,220 +1897,207 @@ export const SalesView: React.FC = () => {
 
       {/* Modal 2: Official Printable Invoice Preview */}
       {showPrintModal && selectedInvoice && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl border border-slate-200 max-h-[95vh] overflow-y-auto text-slate-900">
-            {/* Action Bar */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-6 print:hidden">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-800 text-sm">معاينة الفاتورة الضريبية</span>
-                <span className="bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded-md font-bold">
-                  جاهزة للطباعة
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  طباعة الفاتورة
-                </button>
-                <button
-                  onClick={() => setShowPrintModal(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl border border-slate-200"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+        <PrintPreviewModal
+          isOpen={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          title="معاينة الفاتورة الضريبية"
+          docNumber={selectedInvoice.invoiceNumber}
+          badgeText={
+            selectedInvoice.status === 'paid'
+              ? 'فاتورة مسددة بالكامل'
+              : selectedInvoice.status === 'partially_paid'
+              ? 'فاتورة مسددة جزئياً'
+              : 'فاتورة غير مسددة'
+          }
+          badgeColor={
+            selectedInvoice.status === 'paid'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : selectedInvoice.status === 'partially_paid'
+              ? 'bg-amber-50 text-amber-800 border-amber-200'
+              : 'bg-rose-50 text-rose-800 border-rose-200'
+          }
+          elementId="sales-invoice-print-sheet"
+        >
+          {({ orientation }) => {
+            const isVatZero = (selectedInvoice.vatRate === 0 || selectedInvoice.vatRate === undefined || selectedInvoice.vatRate === null) && (!selectedInvoice.vatTotal || selectedInvoice.vatTotal === 0);
+            const itemsGrossTotal = selectedInvoice.items.reduce((s, it) => s + (it.quantity * it.unitPrice), 0);
 
-            {/* Official Invoice Sheet */}
-            <div className="border border-slate-300 p-6 rounded-xl space-y-6">
-              {/* Header */}
-              <div className="flex justify-between items-start border-b border-slate-200 pb-4">
-                <div>
-                  <h1 className="text-xl font-extrabold text-slate-900">{companyProfile.nameAr}</h1>
-                  {companyProfile.address && <p className="text-xs text-slate-500 mt-0.5">{companyProfile.address} {companyProfile.phone ? `| هاتف: ${companyProfile.phone}` : ''}</p>}
-                  <p className="text-xs font-mono font-bold text-slate-700 mt-1">
-                    {companyProfile.taxNumber ? `الرقم الضريبي للمنشأة: ${companyProfile.taxNumber}` : ''} {companyProfile.commercialRegister ? `| س.ت: ${companyProfile.commercialRegister}` : ''}
-                  </p>
-                </div>
-                <div className="text-left">
-                  {((selectedInvoice.vatRate && selectedInvoice.vatRate > 0) || (selectedInvoice.vatTotal && selectedInvoice.vatTotal > 0)) ? (
-                    <div className="inline-block bg-slate-900 text-white text-xs font-bold px-3 py-1 rounded-md mb-1">
-                      فاتورة ضريبية TAX INVOICE
-                    </div>
-                  ) : (
-                    <div className="inline-block bg-emerald-800 text-white text-xs font-bold px-3 py-1 rounded-md mb-1">
-                      فاتورة مبيعات SALES INVOICE
-                    </div>
-                  )}
-                  <div className="font-mono font-extrabold text-sm text-slate-900">
-                    {selectedInvoice.invoiceNumber}
-                  </div>
-                </div>
-              </div>
+            return (
+              <div className="space-y-6 text-xs text-slate-800">
+                {/* Standardized Header */}
+                <PrintHeader
+                  docTitle={
+                    !isVatZero
+                      ? 'فاتورة ضريبية (TAX INVOICE)'
+                      : 'فاتورة مبيعات (SALES INVOICE)'
+                  }
+                  docNumber={selectedInvoice.invoiceNumber}
+                  date={selectedInvoice.date}
+                  dueDate={selectedInvoice.dueDate}
+                  badgeColor={!isVatZero ? 'bg-slate-900 text-white' : 'bg-emerald-800 text-white'}
+                  showQrCode={true}
+                  qrData={`فاتورة: ${selectedInvoice.invoiceNumber} | العميل: ${selectedInvoice.customerName} | الإجمالي: ${selectedInvoice.grandTotal} ${companyProfile.currency || 'SAR'} | الضريبة: ${selectedInvoice.vatTotal || 0}`}
+                  additionalMeta={[
+                    { label: 'حالة السداد', value: selectedInvoice.status === 'paid' ? 'مسدد بالكامل' : selectedInvoice.status === 'partially_paid' ? 'مسدد جزئياً' : 'غير مسدد' },
+                    { label: 'طريقة الدفع', value: selectedInvoice.paymentType === 'cash' ? 'نقدي' : selectedInvoice.paymentType === 'bank' ? 'تحويل بنكي' : selectedInvoice.paymentType === 'credit' ? 'آجل' : 'شبكة/مدى' },
+                  ]}
+                  orientation={orientation}
+                />
 
-              {/* Customer & Invoice Meta Grid */}
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
-                <div>
-                  <span className="text-slate-500 font-medium">بيانات العميل (المشتري):</span>
-                  <div className="font-bold text-slate-900 text-sm mt-0.5">{selectedInvoice.customerName}</div>
-                  {selectedInvoice.customerTaxNumber && (
-                    <div className="font-mono text-slate-600 mt-0.5">الرقم الضريبي: {selectedInvoice.customerTaxNumber}</div>
-                  )}
-                </div>
-                <div className="space-y-1 text-left">
+                {/* Customer Info Box */}
+                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
                   <div>
-                    <span className="text-slate-500">تاريخ الإصدار: </span>
-                    <span className="font-bold">{selectedInvoice.date}</span>
+                    <span className="text-slate-500 font-semibold block">بيانات العميل (المشتري):</span>
+                    <div className="font-extrabold text-slate-900 text-sm mt-0.5">{selectedInvoice.customerName}</div>
+                    {selectedInvoice.customerTaxNumber && (
+                      <div className="font-mono text-slate-600 mt-0.5">الرقم الضريبي: {selectedInvoice.customerTaxNumber}</div>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-slate-500">تاريخ الاستحقاق: </span>
-                    <span className="font-bold">{selectedInvoice.dueDate}</span>
+                  <div className="space-y-1 text-left">
+                    <div>
+                      <span className="text-slate-500">تاريخ الاستحقاق: </span>
+                      <span className="font-bold">{selectedInvoice.dueDate}</span>
+                    </div>
+                    {selectedInvoice.reference && (
+                      <div>
+                        <span className="text-slate-500">المرجع: </span>
+                        <span className="font-mono font-bold">{selectedInvoice.reference}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              {/* Items Table */}
-              {(() => {
-                const isVatZero = (selectedInvoice.vatRate === 0 || selectedInvoice.vatRate === undefined || selectedInvoice.vatRate === null) && (!selectedInvoice.vatTotal || selectedInvoice.vatTotal === 0);
-                const itemsGrossTotal = selectedInvoice.items.reduce((s, it) => s + (it.quantity * it.unitPrice), 0);
+                {/* Items Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs border border-slate-200">
+                    <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+                      {isVatZero ? (
+                        <tr>
+                          <th className="py-2.5 px-3">#</th>
+                          <th className="py-2.5 px-3">الصنف / الوصف</th>
+                          <th className="py-2.5 px-3 text-center">الكمية</th>
+                          <th className="py-2.5 px-3">سعر الوحدة</th>
+                          <th className="py-2.5 px-3">الخصم</th>
+                          <th className="py-2.5 px-3">بعد الخصم</th>
+                          <th className="py-2.5 px-3 font-bold">المجموع</th>
+                        </tr>
+                      ) : (
+                        <tr>
+                          <th className="py-2.5 px-3">#</th>
+                          <th className="py-2.5 px-3">الصنف / الوصف</th>
+                          <th className="py-2.5 px-3 text-center">الكمية</th>
+                          <th className="py-2.5 px-3">سعر الوحدة</th>
+                          <th className="py-2.5 px-3">الخصم</th>
+                          <th className="py-2.5 px-3">المجموع قبل الضريبة</th>
+                          <th className="py-2.5 px-3 text-center">نسبة الضريبة</th>
+                          <th className="py-2.5 px-3">مبلغ الضريبة</th>
+                          <th className="py-2.5 px-3 font-bold">المجموع شامل الضريبة</th>
+                        </tr>
+                      )}
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {selectedInvoice.items.map((it, idx) => {
+                        const lineGross = it.quantity * it.unitPrice;
+                        const lineDisc = it.discount || 0;
+                        const lineNet = Math.max(0, lineGross - lineDisc);
 
-                return (
-                  <>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-right text-xs border border-slate-200">
-                        <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-                          {isVatZero ? (
-                            <tr>
-                              <th className="py-2.5 px-3">#</th>
-                              <th className="py-2.5 px-3">الصنف / الوصف</th>
-                              <th className="py-2.5 px-3 text-center">الكمية</th>
-                              <th className="py-2.5 px-3">سعر الوحدة</th>
-                              <th className="py-2.5 px-3">الخصم</th>
-                              <th className="py-2.5 px-3">بعد الخصم</th>
-                              <th className="py-2.5 px-3 font-bold">المجموع</th>
-                            </tr>
-                          ) : (
-                            <tr>
-                              <th className="py-2.5 px-3">#</th>
-                              <th className="py-2.5 px-3">الصنف / الوصف</th>
-                              <th className="py-2.5 px-3 text-center">الكمية</th>
-                              <th className="py-2.5 px-3">سعر الوحدة</th>
-                              <th className="py-2.5 px-3">الخصم</th>
-                              <th className="py-2.5 px-3">المجموع قبل الضريبة</th>
-                              <th className="py-2.5 px-3 text-center">نسبة الضريبة</th>
-                              <th className="py-2.5 px-3">مبلغ الضريبة</th>
-                              <th className="py-2.5 px-3 font-bold">المجموع شامل الضريبة</th>
-                            </tr>
-                          )}
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
-                          {selectedInvoice.items.map((it, idx) => {
-                            const lineGross = it.quantity * it.unitPrice;
-                            const lineDisc = it.discount || 0;
-                            const lineNet = Math.max(0, lineGross - lineDisc);
+                        return isVatZero ? (
+                          <tr key={idx}>
+                            <td className="py-2.5 px-3 font-mono text-slate-500">{idx + 1}</td>
+                            <td className="py-2.5 px-3 font-semibold text-slate-900">{it.productName}</td>
+                            <td className="py-2.5 px-3 text-center font-bold font-mono">{it.quantity}</td>
+                            <td className="py-2.5 px-3 font-mono">{formatMoney(it.unitPrice)}</td>
+                            <td className="py-2.5 px-3 font-mono text-amber-700">
+                              {lineDisc > 0 ? `-${formatMoney(lineDisc)}` : '0.00'}
+                            </td>
+                            <td className="py-2.5 px-3 font-mono">{formatMoney(lineNet)}</td>
+                            <td className="py-2.5 px-3 font-mono font-extrabold text-slate-900">{formatMoney(lineNet)}</td>
+                          </tr>
+                        ) : (
+                          <tr key={idx}>
+                            <td className="py-2.5 px-3 font-mono text-slate-500">{idx + 1}</td>
+                            <td className="py-2.5 px-3 font-semibold text-slate-900">{it.productName}</td>
+                            <td className="py-2.5 px-3 text-center font-bold font-mono">{it.quantity}</td>
+                            <td className="py-2.5 px-3 font-mono">{formatMoney(it.unitPrice)}</td>
+                            <td className="py-2.5 px-3 font-mono text-amber-700">
+                              {lineDisc > 0 ? `-${formatMoney(lineDisc)}` : '0.00'}
+                            </td>
+                            <td className="py-2.5 px-3 font-mono">{formatMoney(it.subtotal)}</td>
+                            <td className="py-2.5 px-3 text-center font-mono">{selectedInvoice.vatRate ?? companyProfile.defaultVatRate}%</td>
+                            <td className="py-2.5 px-3 font-mono text-slate-600">{formatMoney(it.vatAmount)}</td>
+                            <td className="py-2.5 px-3 font-mono font-extrabold text-slate-900">{formatMoney(it.total)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-                            return isVatZero ? (
-                              <tr key={idx}>
-                                <td className="py-2.5 px-3 font-mono text-slate-500">{idx + 1}</td>
-                                <td className="py-2.5 px-3 font-semibold text-slate-900">{it.productName}</td>
-                                <td className="py-2.5 px-3 text-center font-bold">{it.quantity}</td>
-                                <td className="py-2.5 px-3 font-mono">{formatMoney(it.unitPrice)}</td>
-                                <td className="py-2.5 px-3 font-mono text-amber-700">
-                                  {lineDisc > 0 ? `-${formatMoney(lineDisc)}` : '0.00'}
-                                </td>
-                                <td className="py-2.5 px-3 font-mono">{formatMoney(lineNet)}</td>
-                                <td className="py-2.5 px-3 font-mono font-extrabold text-slate-900">{formatMoney(lineNet)}</td>
-                              </tr>
-                            ) : (
-                              <tr key={idx}>
-                                <td className="py-2.5 px-3 font-mono text-slate-500">{idx + 1}</td>
-                                <td className="py-2.5 px-3 font-semibold text-slate-900">{it.productName}</td>
-                                <td className="py-2.5 px-3 text-center font-bold">{it.quantity}</td>
-                                <td className="py-2.5 px-3 font-mono">{formatMoney(it.unitPrice)}</td>
-                                <td className="py-2.5 px-3 font-mono text-amber-700">
-                                  {lineDisc > 0 ? `-${formatMoney(lineDisc)}` : '0.00'}
-                                </td>
-                                <td className="py-2.5 px-3 font-mono">{formatMoney(it.subtotal)}</td>
-                                <td className="py-2.5 px-3 text-center font-mono">{selectedInvoice.vatRate ?? companyProfile.defaultVatRate}%</td>
-                                <td className="py-2.5 px-3 font-mono text-slate-600">{formatMoney(it.vatAmount)}</td>
-                                <td className="py-2.5 px-3 font-mono font-extrabold text-slate-900">{formatMoney(it.total)}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                {/* Calculation Breakdown & ZATCA notice */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                  <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div className="w-14 h-14 bg-white border border-slate-300 p-1 flex items-center justify-center rounded-lg">
+                      <QrCode className="w-12 h-12 text-slate-800" />
                     </div>
-
-                    {/* Summary & QR Code */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-                      {/* Simulated ZATCA QR Code */}
-                      <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <div className="w-16 h-16 bg-white border border-slate-300 p-1 flex items-center justify-center rounded-lg">
-                          <QrCode className="w-14 h-14 text-slate-800" />
-                        </div>
-                        <div className="text-[11px] text-slate-600 max-w-[200px]">
-                          <span className="font-bold block text-slate-900">رمز الاستجابة السريع ZATCA</span>
-                          مشفر وفق اشتراطات الفوترة الإلكترونية المرحلة الثانية
-                        </div>
-                      </div>
-
-                      {/* Calculation Breakdown */}
-                      <div className="w-full sm:w-80 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
-                        <div className="flex justify-between text-slate-600">
-                          <span>إجمالي الأصناف قبل الخصم:</span>
-                          <span className="font-bold">{formatMoney(itemsGrossTotal)}</span>
-                        </div>
-                        {selectedInvoice.discountTotal > 0 && (
-                          <div className="flex justify-between text-amber-700 font-bold">
-                            <span>إجمالي الخصم:</span>
-                            <span>-{formatMoney(selectedInvoice.discountTotal)}</span>
-                          </div>
-                        )}
-                        {selectedInvoice.discountTotal > 0 && !isVatZero && (
-                          <div className="flex justify-between text-slate-600">
-                            <span>المجموع بعد الخصم (قبل الضريبة):</span>
-                            <span className="font-bold">{formatMoney(selectedInvoice.subtotal)}</span>
-                          </div>
-                        )}
-                        {!isVatZero && (
-                          <div className="flex justify-between text-slate-600">
-                            <span>ضريبة القيمة المضافة ({selectedInvoice.vatRate ?? companyProfile.defaultVatRate}%):</span>
-                            <span className="font-bold text-emerald-700">+{formatMoney(selectedInvoice.vatTotal)}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between text-sm font-extrabold text-slate-900 border-t border-slate-300 pt-2">
-                          <span>إجمالي الفاتورة المستحق:</span>
-                          <span className="text-emerald-700 font-black text-base">{formatMoney(selectedInvoice.grandTotal)}</span>
-                        </div>
-                        {selectedInvoice.paidAmount > 0 && (
-                          <div className="flex justify-between text-xs text-slate-600 border-t border-slate-200 pt-1.5">
-                            <span>المدفوع:</span>
-                            <span className="font-bold text-emerald-700">{formatMoney(selectedInvoice.paidAmount)}</span>
-                          </div>
-                        )}
-                        {selectedInvoice.remainingAmount > 0 && (
-                          <div className="flex justify-between text-xs font-bold text-rose-600">
-                            <span>المتبقي:</span>
-                            <span>{formatMoney(selectedInvoice.remainingAmount)}</span>
-                          </div>
-                        )}
-                      </div>
+                    <div className="text-[11px] text-slate-600 max-w-[200px]">
+                      <span className="font-bold block text-slate-900">رمز الاستجابة السريع ZATCA</span>
+                      مشفر وفق متطلبات هيئة الزكاة والضريبة والجمارك
                     </div>
-                  </>
-                );
-              })()}
+                  </div>
 
-              {/* Notes */}
-              <div className="text-[11px] text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                <span className="font-bold text-slate-700">ملاحظات: </span>
-                {selectedInvoice.notes || 'سداد الفاتورة خلال المدة المحددة.'}
+                  <div className="w-full sm:w-80 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
+                    <div className="flex justify-between text-slate-600">
+                      <span>إجمالي الأصناف قبل الخصم:</span>
+                      <span className="font-bold font-mono">{formatMoney(itemsGrossTotal)}</span>
+                    </div>
+                    {selectedInvoice.discountTotal > 0 && (
+                      <div className="flex justify-between text-amber-700 font-bold">
+                        <span>إجمالي الخصم:</span>
+                        <span className="font-mono">-{formatMoney(selectedInvoice.discountTotal)}</span>
+                      </div>
+                    )}
+                    {selectedInvoice.discountTotal > 0 && !isVatZero && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>المجموع بعد الخصم (قبل الضريبة):</span>
+                        <span className="font-bold font-mono">{formatMoney(selectedInvoice.subtotal)}</span>
+                      </div>
+                    )}
+                    {!isVatZero && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>ضريبة القيمة المضافة ({selectedInvoice.vatRate ?? companyProfile.defaultVatRate}%):</span>
+                        <span className="font-bold text-emerald-700 font-mono">+{formatMoney(selectedInvoice.vatTotal)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm font-extrabold text-slate-900 border-t border-slate-300 pt-2">
+                      <span>إجمالي الفاتورة المستحق:</span>
+                      <span className="text-emerald-700 font-black text-base font-mono">{formatMoney(selectedInvoice.grandTotal)} {companyProfile.currency || 'SAR'}</span>
+                    </div>
+                    {selectedInvoice.paidAmount > 0 && (
+                      <div className="flex justify-between text-xs text-slate-600 border-t border-slate-200 pt-1.5">
+                        <span>المدفوع:</span>
+                        <span className="font-bold text-emerald-700 font-mono">{formatMoney(selectedInvoice.paidAmount)}</span>
+                      </div>
+                    )}
+                    {selectedInvoice.remainingAmount > 0 && (
+                      <div className="flex justify-between text-xs font-bold text-rose-600">
+                        <span>المتبقي:</span>
+                        <span className="font-mono">{formatMoney(selectedInvoice.remainingAmount)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Standardized Footer */}
+                <PrintFooter
+                  preparedByTitle="المبيعات / المحاسب"
+                  approvedByTitle="اعتماد الإدارة"
+                  receivedByTitle="توقيع واستلام العميل"
+                  notes={selectedInvoice.notes || 'البضاعة المباعة تخضع لسياسة الاستبدال والاسترجاع المعتمدة بالمنشأة.'}
+                />
               </div>
-            </div>
-          </div>
-        </div>
+            );
+          }}
+        </PrintPreviewModal>
       )}
 
       {/* Modal 3: Record Payment / Collection */}
@@ -2156,19 +2155,19 @@ export const SalesView: React.FC = () => {
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">الحساب المستلم (الخزينة أو البنك)</label>
-                <select
+                <SearchableSelect
                   value={paymentAccountId}
-                  onChange={(e) => setPaymentAccountId(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200"
-                >
-                  {accounts
+                  onChange={(val) => setPaymentAccountId(val)}
+                  placeholder="-- اختر الخزينة أو الحساب البنكي --"
+                  searchPlaceholder="ابحث باسم الحساب أو الكود..."
+                  options={accounts
                     .filter((a) => (a.code === '1110' || a.code === '1120') && !a.isHeader)
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.code} - {a.name}
-                      </option>
-                    ))}
-                </select>
+                    .map((a) => ({
+                      value: a.id,
+                      label: `${a.code} - ${a.name}`,
+                      subLabel: a.category,
+                    }))}
+                />
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">

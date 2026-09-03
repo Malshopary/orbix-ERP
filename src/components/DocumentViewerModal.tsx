@@ -7,10 +7,11 @@ import {
   PurchaseInvoice,
   JournalEntry,
 } from '../types';
-import { exportElementToPdf } from '../utils/pdfExport';
+import { printDocumentElement } from '../utils/printUtils';
+import { PrintHeader } from './PrintHeader';
+import { PrintFooter } from './PrintFooter';
 import {
   Printer,
-  Download,
   X,
   FileText,
   Receipt,
@@ -25,6 +26,9 @@ import {
   CheckCircle2,
   AlertCircle,
   ExternalLink,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
 } from 'lucide-react';
 
 export type DocumentType =
@@ -171,34 +175,40 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     IconComponent = BookOpen;
   }
 
-  const handleExportPdf = async () => {
-    setIsExportingPdf(true);
-    try {
-      await exportElementToPdf('single-document-canvas-sheet', {
-        filename: `${docTitle.replace(/\s+/g, '_')}_${docNumber || 'doc'}.pdf`,
-      });
-    } catch (e) {
-      console.error('PDF Export Error:', e);
-      showAlert({
-        title: 'تصدير المستند PDF',
-        message: 'حدث خطأ أثناء تصدير المستند كـ PDF، يمكنك استخدام زر الطباعة المباشرة من المتصفح.',
-        type: 'error',
-        confirmText: 'فهمت',
-      });
-    } finally {
-      setIsExportingPdf(false);
-    }
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [zoom, setZoom] = useState<number>(100);
+
+  const handlePrint = () => {
+    printDocumentElement('single-document-canvas-sheet', {
+      title: `${docTitle} - ${docNumber || ''}`,
+      orientation,
+    });
   };
 
   const getCustomer = (id?: string) => customers.find((c) => c.id === id);
   const getVendor = (id?: string) => vendors.find((v) => v.id === id);
   const getAccount = (id?: string) => accounts.find((a) => a.id === id || a.code === id);
 
+  const docDate =
+    resolvedInvoice?.date ||
+    resolvedReceipt?.date ||
+    resolvedReturn?.date ||
+    resolvedPurchase?.date ||
+    resolvedJournal?.date ||
+    documentTarget.data?.date ||
+    new Date().toISOString().split('T')[0];
+
+  const docDueDate = resolvedInvoice?.dueDate || resolvedPurchase?.dueDate;
+
   return (
-    <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-60 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-4xl w-full p-5 sm:p-7 shadow-2xl border border-slate-200 my-auto max-h-[96vh] flex flex-col text-slate-900">
+    <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 z-60 overflow-y-auto print-preview-modal-layer">
+      <div
+        className={`bg-white rounded-2xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 my-auto max-h-[96vh] flex flex-col text-slate-900 transition-all print-modal-card ${
+          orientation === 'landscape' ? 'max-w-6xl' : 'max-w-4xl'
+        }`}
+      >
         {/* Modal Top Action Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200 print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 print:hidden">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-800">
               <IconComponent className="w-5 h-5" />
@@ -210,25 +220,67 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                   {docNumber}
                 </span>
               </div>
-              <p className="text-xs text-slate-500">معاينة تفاصيل المستند الأصلي والقيود المرتبطة</p>
+              <p className="text-xs text-slate-500">معاينة الطباعة وتفاصيل المستند المحاسبي</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleExportPdf}
-              disabled={isExportingPdf}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-              {isExportingPdf ? 'جاري التصدير...' : 'تصدير PDF'}
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Orientation controls */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold text-slate-700">
+              <button
+                type="button"
+                onClick={() => setOrientation('portrait')}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                  orientation === 'portrait'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+                title="طباعة رأسية"
+              >
+                طولي (Portrait)
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrientation('landscape')}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                  orientation === 'landscape'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+                title="طباعة أفقية"
+              >
+                عرضي (Landscape)
+              </button>
+            </div>
+
+            {/* Zoom controls */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold text-slate-700">
+              <button
+                type="button"
+                onClick={() => setZoom((z) => Math.max(70, z - 10))}
+                disabled={zoom <= 70}
+                className="p-1 hover:bg-white rounded disabled:opacity-30 cursor-pointer"
+                title="تصغير"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <span className="px-1.5 font-mono text-[11px] min-w-[36px] text-center">{zoom}%</span>
+              <button
+                type="button"
+                onClick={() => setZoom((z) => Math.min(120, z + 10))}
+                disabled={zoom >= 120}
+                className="p-1 hover:bg-white rounded disabled:opacity-30 cursor-pointer"
+                title="تكبير"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
             <button
-              onClick={() => window.print()}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              onClick={handlePrint}
+              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-2 shadow-xs transition-all cursor-pointer"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-4 h-4 text-emerald-400" />
               طباعة المستند
             </button>
 
@@ -243,53 +295,27 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
         </div>
 
         {/* Document Printable Body */}
-        <div className="overflow-y-auto flex-1 pr-1 mt-4">
+        <div className="overflow-y-auto flex-1 pr-1 mt-3 bg-slate-50/50 p-2 rounded-xl flex justify-center">
           <div
             id="single-document-canvas-sheet"
-            className="bg-white border border-slate-300 p-6 sm:p-8 rounded-xl space-y-6 text-xs text-slate-900"
+            style={{
+              transform: `scale(${zoom / 100})`,
+              transformOrigin: 'top center',
+              transition: 'transform 0.15s ease',
+            }}
+            className={`printable-sheet printable-page bg-white border border-slate-300 p-6 sm:p-8 rounded-xl space-y-6 text-xs text-slate-900 w-full ${
+              orientation === 'landscape' ? 'print-landscape max-w-[297mm]' : 'print-portrait max-w-[210mm]'
+            }`}
           >
-            {/* Header with Company Profile */}
-            <div className="flex justify-between items-start border-b-2 border-slate-800 pb-5">
-              <div className="flex items-center gap-4">
-                {companyProfile.logoBase64 ? (
-                  <img
-                    src={companyProfile.logoBase64}
-                    alt={companyProfile.nameAr}
-                    style={{ width: `${companyProfile.logoWidth || 130}px` }}
-                    className="max-h-20 object-contain rounded-md"
-                  />
-                ) : (
-                  <div className="w-14 h-14 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-xl">
-                    {companyProfile.nameAr.slice(0, 2)}
-                  </div>
-                )}
-                <div>
-                  <h1 className="text-xl font-extrabold text-slate-900">{companyProfile.nameAr}</h1>
-                  <p className="text-xs text-slate-600 mt-0.5">{companyProfile.nameEn}</p>
-                  <p className="text-[11px] text-slate-500">
-                    س.ت: {companyProfile.commercialRegister} | الرقم الضريبي: {companyProfile.taxNumber}
-                  </p>
-                  <p className="text-[11px] text-slate-500">{companyProfile.address} | هاتف: {companyProfile.phone}</p>
-                </div>
-              </div>
-
-              <div className="text-left space-y-1">
-                <div className="inline-block bg-slate-900 text-white text-xs font-bold px-3.5 py-1 rounded-md shadow-xs">
-                  {docTitle}
-                </div>
-                <div className="font-mono font-extrabold text-sm text-slate-900">{docNumber}</div>
-                <div className="text-[11px] text-slate-500 font-mono">
-                  تاريخ المستند:{' '}
-                  {resolvedInvoice?.date ||
-                    resolvedReceipt?.date ||
-                    resolvedReturn?.date ||
-                    resolvedPurchase?.date ||
-                    resolvedJournal?.date ||
-                    documentTarget.data?.date ||
-                    new Date().toISOString().split('T')[0]}
-                </div>
-              </div>
-            </div>
+            {/* Standardized Header with Company Profile & Logo */}
+            <PrintHeader
+              docTitle={docTitle}
+              docNumber={docNumber}
+              date={docDate}
+              dueDate={docDueDate}
+              showQrCode={documentTarget.type === 'invoice'}
+              orientation={orientation}
+            />
 
             {/* 1. SALES INVOICE VIEW */}
             {documentTarget.type === 'invoice' && resolvedInvoice && (
@@ -762,26 +788,15 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                 </div>
               )}
 
-            {/* Official Signatures & Stamp */}
-            <div className="pt-8 border-t border-slate-300 grid grid-cols-3 gap-6 text-center text-xs text-slate-700">
-              <div className="space-y-8">
-                <span className="font-bold block">إعداد الموظف المختص</span>
-                <div className="border-b border-dashed border-slate-400 w-32 mx-auto"></div>
-              </div>
-              <div className="space-y-8">
-                <span className="font-bold block">مراجعة المحاسب القانوني</span>
-                <div className="border-b border-dashed border-slate-400 w-32 mx-auto"></div>
-              </div>
-              <div className="space-y-8">
-                <span className="font-bold block">الختم والاعتماد المالي</span>
-                <div className="border-b border-dashed border-slate-400 w-32 mx-auto"></div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="text-[10px] text-slate-400 text-center border-t border-slate-100 pt-2">
-              هذا المستند معتمد محاسبياً وصادر إلكترونياً من نظام {companyProfile.nameAr}.
-            </div>
+            {/* Standardized Signatures & Footer with Company Profile */}
+            <PrintFooter
+              notes={
+                resolvedInvoice?.notes ||
+                resolvedPurchase?.notes ||
+                resolvedReceipt?.notes ||
+                resolvedReturn?.notes
+              }
+            />
           </div>
         </div>
       </div>

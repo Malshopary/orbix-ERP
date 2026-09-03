@@ -108,8 +108,16 @@ export interface JournalEntry {
   totalCredit: number;
   isPosted?: boolean;
   isAutomatic?: boolean;
-  sourceModule?: 'sales' | 'purchases' | 'payroll' | 'collection' | 'pos' | 'manual' | 'commission';
+  sourceModule?: 'sales' | 'purchases' | 'payroll' | 'collection' | 'pos' | 'manual' | 'commission' | 'inventory';
   createdAt: string;
+}
+
+export interface WarehouseStockDetail {
+  warehouseId: string;
+  warehouseName?: string;
+  shelfLocation?: string;
+  quantity: number;
+  minStockAlert?: number;
 }
 
 export interface Product {
@@ -117,36 +125,192 @@ export interface Product {
   sku: string;
   name: string;
   category: string;
+  brand?: string; // الماركة / العلامة التجارية
+  originCountry?: string; // بلد المنشأ
   unit: string;
   costPrice: number;
   sellingPrice: number;
+  wholesalePrice?: number; // سعر الجملة
+  minSellingPrice?: number; // الحد الأدنى لسعر البيع
   stockQuantity: number;
   minStockAlert: number;
   warehouseId: string;
+  shelfLocation?: string; // مكان الرف / القطاع بالمستودع
+  warehouseStocks?: WarehouseStockDetail[]; // تفاصيل توزيع الأرصدة والأرفف على المستودعات
+  governorate?: string; // المحافظة / الموقع التخزيني
+  supplierId?: string; // المورد المفضل
+  supplierName?: string;
   barcode?: string;
+  weight?: string | number;
+  dimensions?: string;
+  description?: string;
   imageUrl?: string;
   imageBase64?: string;
   imageWidth?: number;
   imageHeight?: number;
+  hasExpiry?: boolean; // خاضع لتاريخ الصلاحية
+  productionDate?: string; // تاريخ الإنتاج
+  expiryDate?: string; // تاريخ انتهاء الصلاحية
+  batchNumber?: string; // رقم التشغيلة الافتراضي
 }
 
 export interface Warehouse {
   id: string;
+  code?: string;
   name: string;
-  location: string;
-  manager: string;
+  location?: string;
+  governorate?: string;
+  manager?: string;
+  keeperName?: string;
+  phone?: string;
+  keeperPhone?: string;
+  capacity?: string | number;
+  isMain?: boolean;
+  isDefault?: boolean;
+  isActive?: boolean;
+  notes?: string;
+}
+
+export interface StockTransferItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+  unit?: string;
+  batchNumber?: string;
+  expiryDate?: string;
+  notes?: string;
+}
+
+export interface StockTransfer {
+  id: string;
+  transferNumber: string;
+  date: string;
+  fromWarehouseId: string;
+  fromWarehouseName?: string;
+  toWarehouseId: string;
+  toWarehouseName?: string;
+  status: 'draft' | 'pending' | 'in_transit' | 'completed' | 'cancelled';
+  items: StockTransferItem[];
+  totalQuantity: number;
+  totalCost: number;
+  notes?: string;
+  createdBy?: string;
+  createdByName?: string;
+  receivedDate?: string;
+  createdAt?: string;
+}
+
+export interface StocktakingItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  barcode?: string;
+  category?: string;
+  unit?: string;
+  costPrice: number;
+  systemQty?: number;
+  systemQuantity?: number;
+  countedQty?: number;
+  countedQuantity?: number;
+  difference?: number;
+  differenceQty?: number; // counted - system
+  differenceValue: number; // differenceQty * costPrice
+  batchNumber?: string;
+  reason?: string;
+  notes?: string;
+}
+
+export interface StocktakingSession {
+  id: string;
+  sessionNumber: string;
+  title?: string;
+  date: string;
+  warehouseId: string;
+  warehouseName?: string;
+  status: 'in_progress' | 'completed' | 'cancelled';
+  items: StocktakingItem[];
+  totalSystemQty?: number;
+  totalCountedQty?: number;
+  totalShortageQty?: number; // عجز
+  totalSurplusQty?: number; // زيادة
+  totalDiscrepancyValue?: number; // صافي القيمة المالية للفروقات
+  notes?: string;
+  responsiblePerson?: string;
+  auditorName?: string;
+  createdAt?: string;
+  completedAt?: string;
+}
+
+export interface ScrapVoucherItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  unit?: string;
+  quantity: number;
+  costPrice: number;
+  totalCost: number;
+  reason?: string;
+  batchNumber?: string;
+  expiryDate?: string;
+}
+
+export interface ScrapVoucher {
+  id: string;
+  voucherNumber: string;
+  date: string;
+  warehouseId: string;
+  warehouseName?: string;
+  reason?: 'expired' | 'damaged_transit' | 'manufacturing_defect' | 'damaged' | 'sample' | 'storage_defect' | 'other';
+  reasonCategory?: 'expired' | 'damaged' | 'sample' | 'storage_defect' | 'other';
+  items: ScrapVoucherItem[];
+  totalQuantity?: number;
+  totalCostLoss?: number;
+  totalLossValue?: number;
+  totalCost?: number;
+  notes?: string;
+  approvedBy?: string;
+  createdBy?: string;
+  createdAt?: string;
+}
+
+export interface ProductBatch {
+  id: string;
+  productId: string;
+  productName?: string;
+  sku?: string;
+  warehouseId?: string;
+  warehouseName?: string;
+  batchNumber: string;
+  productionDate?: string;
+  expiryDate: string;
+  quantity: number;
+  initialQuantity?: number;
+  costPrice?: number;
+  sellingPrice?: number;
+  status?: 'valid' | 'near_expiry' | 'expired';
+  notes?: string;
 }
 
 export interface StockMovement {
   id: string;
   productId: string;
   productName: string;
-  type: 'IN' | 'OUT' | 'ADJUSTMENT' | 'TRANSFER';
+  sku?: string;
+  unit?: string;
+  warehouseId?: string;
+  warehouseName?: string;
+  type: 'IN' | 'OUT' | 'ADJUSTMENT' | 'TRANSFER' | 'SCRAP' | 'STOCKTAKING' | 'transfer_in' | 'transfer_out' | 'adjustment_in' | 'adjustment_out' | 'scrap';
   quantity: number;
-  unitPrice: number;
+  unitPrice?: number;
   date: string;
-  reference: string;
+  reference?: string;
+  referenceType?: string;
+  referenceNumber?: string;
+  batchNumber?: string;
   notes?: string;
+  createdAt?: string;
 }
 
 export interface PriceListItem {
@@ -197,7 +361,15 @@ export interface Customer {
   phone: string;
   email: string;
   taxNumber?: string;
+  commercialRegister?: string; // السجل التجاري
+  governorate?: string; // المحافظة
+  region?: string; // المنطقة / الحي
   address: string;
+  postalCode?: string;
+  contactPerson?: string; // جهة الاتصال / الشخص المسؤول
+  contactPersonPhone?: string; // هاتف المسؤول
+  customerCategory?: 'retail' | 'wholesale' | 'distributor' | 'vip' | 'corporate'; // تصنيف العميل
+  acquisitionChannel?: 'direct' | 'sales_rep' | 'social_media' | 'referral' | 'website' | 'exhibition' | 'campaign'; // قناة الاستقطاب
   creditLimit: number;
   paymentTermsDays: number;
   currentBalance: number; // Positive = owes us money
@@ -218,10 +390,21 @@ export interface Vendor {
   phone: string;
   email: string;
   taxNumber?: string;
+  commercialRegister?: string; // السجل التجاري
+  governorate?: string; // المحافظة
+  region?: string; // المنطقة / الحي
   address: string;
+  contactPerson?: string; // مندوب / مسؤول المورد
+  contactPersonPhone?: string; // هاتف المسؤول
+  category?: string; // تصنيف المورد
+  bankName?: string;
+  bankIban?: string;
+  creditLimit?: number; // سقف الائتمان المتاح
+  rating?: number; // تقييم المورد (1-5)
   currentBalance: number; // Positive = we owe them money
   paymentTermsDays: number;
   accountId?: string; // Linked sub-account in Chart of Accounts
+  notes?: string;
 }
 
 export interface InvoiceItem {
@@ -394,6 +577,18 @@ export interface SalesInvoice {
   createdAt?: string;
 }
 
+export interface PurchaseInvoiceItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  batchNumber?: string;
+  productionDate?: string;
+  expiryDate?: string;
+  warehouseId?: string;
+}
+
 export interface PurchaseInvoice {
   id: string;
   invoiceNumber: string;
@@ -401,13 +596,8 @@ export interface PurchaseInvoice {
   vendorName: string;
   date: string;
   dueDate: string;
-  items: {
-    productId: string;
-    productName: string;
-    quantity: number;
-    unitPrice: number;
-    total: number;
-  }[];
+  warehouseId?: string;
+  items: PurchaseInvoiceItem[];
   subtotal: number;
   vatTotal: number;
   grandTotal: number;
@@ -442,10 +632,19 @@ export interface Employee {
   name: string;
   jobTitle: string;
   department: string;
+  branch?: string; // الفرع / موقع العمل
+  governorate?: string; // المحافظة
+  region?: string; // المنطقة / الحي
+  address?: string; // العنوان التفصيلي
+  gender?: 'male' | 'female';
+  birthDate?: string; // تاريخ الميلاد
   hireDate: string;
   phone: string;
   email: string;
   nationalId: string;
+  emergencyContactName?: string; // جهة اتصال الطوارئ
+  emergencyContactPhone?: string; // هاتف الطوارئ
+  contractType?: 'full_time' | 'part_time' | 'contract' | 'probation'; // نوع العقد
   bankName: string;
   bankIban: string;
   basicSalary: number;
@@ -459,9 +658,11 @@ export interface Employee {
   photoBase64?: string;
   photoUrl?: string;
   accountId?: string; // Linked sub-account in Chart of Accounts
+  isSalesRep?: boolean; // هل يعمل كمندوب مبيعات
   commissionRate?: number;
   monthlySalesTarget?: number;
   salesTarget?: number;
+  notes?: string;
 }
 
 export interface CRMLead {

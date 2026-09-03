@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { useErp } from '../context/ErpContext';
 import { ReturnItem, SalesInvoice, SalesReturn } from '../types';
-import { exportElementToPdf } from '../utils/pdfExport';
 import { evaluateMathExpression, sanitizeMathInput } from '../utils/mathEvaluator';
 import { CustomerStatementModal } from './CustomerStatementModal';
+import { PrintPreviewModal } from './PrintPreviewModal';
+import { PrintHeader } from './PrintHeader';
+import { PrintFooter } from './PrintFooter';
+import { SearchableSelect } from './SearchableSelect';
 import {
   RotateCcw,
   PlusCircle,
   Search,
   Printer,
-  Download,
   X,
   FileText,
   AlertCircle,
@@ -52,7 +54,6 @@ export const SalesReturnsView: React.FC = () => {
   const [editingReturn, setEditingReturn] = useState<SalesReturn | null>(null);
   const [statementCustomerId, setStatementCustomerId] = useState<string | null>(null);
   const [selectedReturn, setSelectedReturn] = useState<SalesReturn | null>(null);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   // Create Return Form State
   const [returnType, setReturnType] = useState<'from_invoice' | 'from_account'>('from_invoice');
@@ -375,26 +376,6 @@ export const SalesReturnsView: React.FC = () => {
     setShowPrintModal(true);
   };
 
-  const handleExportPdf = async () => {
-    if (!selectedReturn) return;
-    setIsExportingPdf(true);
-    try {
-      await exportElementToPdf('sales-return-document-sheet', {
-        filename: `إشعار_دائن_مرتجع_${selectedReturn.returnNumber}.pdf`,
-      });
-    } catch (e) {
-      console.error(e);
-      showAlert({
-        title: 'تصدير PDF',
-        message: 'حدث خطأ أثناء تصدير ملف PDF، يرجى المحاولة مرة أخرى أو استخدام خيار الطباعة المباشرة.',
-        type: 'error',
-        confirmText: 'فهمت',
-      });
-    } finally {
-      setIsExportingPdf(false);
-    }
-  };
-
   const filteredReturns = salesReturns.filter((r) => {
     const q = searchQuery.toLowerCase();
     return (
@@ -635,34 +616,36 @@ export const SalesReturnsView: React.FC = () => {
                 {returnType === 'from_invoice' ? (
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">اختر الفاتورة الأصلية:</label>
-                    <select
+                    <SearchableSelect
                       value={selectedInvoiceId}
-                      onChange={(e) => handleSelectInvoice(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-medium"
-                      required
-                    >
-                      {salesInvoices.map((inv) => (
-                        <option key={inv.id} value={inv.id}>
-                          {inv.invoiceNumber} - {inv.customerName} ({formatMoney(inv.grandTotal)})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => handleSelectInvoice(val)}
+                      placeholder="اختر الفاتورة المراد إرجاعها..."
+                      searchPlaceholder="ابحث برقم الفاتورة أو العميل..."
+                      options={salesInvoices.map((inv) => ({
+                        value: inv.id,
+                        label: `${inv.invoiceNumber} - ${inv.customerName}`,
+                        subLabel: `${inv.date} • ${inv.items.length} أصناف`,
+                        badge: `${formatMoney(inv.grandTotal)} ${currency}`,
+                        badgeColor: 'bg-emerald-50 text-emerald-700',
+                      }))}
+                    />
                   </div>
                 ) : (
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">اختر العميل:</label>
-                    <select
+                    <SearchableSelect
                       value={selectedCustomerId}
-                      onChange={(e) => setSelectedCustomerId(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-medium"
-                      required
-                    >
-                      {customers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} {c.companyName ? `(${c.companyName})` : ''} - رصيد: {formatMoney(c.currentBalance)}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setSelectedCustomerId(val)}
+                      placeholder="اختر العميل..."
+                      searchPlaceholder="ابحث باسم العميل أو الشركة..."
+                      options={customers.map((c) => ({
+                        value: c.id,
+                        label: c.name,
+                        subLabel: c.companyName || c.phone,
+                        badge: `رصيد: ${formatMoney(c.currentBalance)}`,
+                        badgeColor: 'bg-slate-100 text-slate-700',
+                      }))}
+                    />
                   </div>
                 )}
 
@@ -863,83 +846,37 @@ export const SalesReturnsView: React.FC = () => {
 
       {/* PRINTABLE CREDIT NOTE PREVIEW MODAL */}
       {showPrintModal && selectedReturn && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 my-auto max-h-[96vh] overflow-y-auto text-slate-900">
-            {/* Action Bar (Hidden in Print) */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-6 print:hidden">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-800 text-sm">معاينة إشعار دائن مردودات مبيعات</span>
-                <span className="bg-amber-50 text-amber-800 text-xs px-2.5 py-0.5 rounded-md font-bold border border-amber-200">
-                  إشعار دائن معتمد
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleExportPdf}
-                  disabled={isExportingPdf}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  {isExportingPdf ? 'جاري التصدير...' : 'تصدير PDF'}
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  طباعة الإشعار
-                </button>
-                <button
-                  onClick={() => setShowPrintModal(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl border border-slate-200"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Official Credit Note Document Sheet */}
-            <div id="sales-return-document-sheet" className="border border-slate-300 p-6 rounded-xl space-y-6 text-xs">
-              {/* Header */}
-              <div className="flex justify-between items-start border-b-2 border-slate-800 pb-4">
-                <div className="flex items-center gap-3">
-                  {companyProfile.logoBase64 ? (
-                    <img
-                      src={companyProfile.logoBase64}
-                      alt={companyProfile.nameAr}
-                      style={{ width: `${companyProfile.logoWidth || 130}px` }}
-                      className="max-h-16 object-contain"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 bg-slate-900 text-white rounded-lg flex items-center justify-center font-bold text-lg">
-                      {companyProfile.nameAr.slice(0, 2)}
-                    </div>
-                  )}
-                  <div>
-                    <h1 className="text-lg font-extrabold text-slate-900">{companyProfile.nameAr}</h1>
-                    <p className="text-xs text-slate-500">س.ت: {companyProfile.commercialRegister} | الرقم الضريبي: {companyProfile.taxNumber}</p>
-                    <p className="text-[11px] text-slate-500">{companyProfile.address}</p>
-                  </div>
-                </div>
-
-                <div className="text-left space-y-1">
-                  <div className="inline-block bg-amber-600 text-white text-xs font-bold px-3 py-1 rounded-md">
-                    إشعار دائن مرتجع CREDIT NOTE
-                  </div>
-                  <div className="font-mono font-extrabold text-sm text-slate-900">
-                    {selectedReturn.returnNumber}
-                  </div>
-                  <div className="text-[11px] text-slate-500 font-mono">التاريخ: {selectedReturn.date}</div>
-                </div>
-              </div>
+        <PrintPreviewModal
+          isOpen={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          title="معاينة إشعار دائن مردودات مبيعات"
+          docNumber={selectedReturn.returnNumber}
+          badgeText="إشعار دائن معتمد"
+          badgeColor="bg-amber-50 text-amber-800 border-amber-200"
+          elementId="sales-return-document-sheet"
+        >
+          {({ orientation }) => (
+            <div className="space-y-6 text-xs text-slate-800">
+              {/* Standardized Header */}
+              <PrintHeader
+                docTitle="إشعار دائن مرتجع مبيعات (CREDIT NOTE)"
+                docNumber={selectedReturn.returnNumber}
+                date={selectedReturn.date}
+                badgeColor="bg-amber-600 text-white"
+                additionalMeta={[
+                  { label: 'العميل', value: selectedReturn.customerName },
+                  { label: 'الفاتورة المرجعية', value: selectedReturn.invoiceNumber || 'مرتجع مباشر' },
+                ]}
+                orientation={orientation}
+              />
 
               {/* Return Meta Grid */}
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
                 <div>
                   <span className="text-slate-500 font-semibold">بيانات العميل:</span>
                   <div className="font-bold text-slate-900 text-sm mt-0.5">{selectedReturn.customerName}</div>
-                  <div className="text-slate-600 mt-0.5">
-                    طريقة التسوية: {selectedReturn.refundMethod === 'customer_balance' ? 'خصم من رصيد العميل' : selectedReturn.refundMethod === 'cash_vault' ? 'صرف نقدي فوري' : 'تحويل بنكي'}
+                  <div className="text-slate-600 mt-1">
+                    طريقة التسوية: <strong className="text-slate-800">{selectedReturn.refundMethod === 'customer_balance' ? 'خصم من رصيد العميل' : selectedReturn.refundMethod === 'cash_vault' ? 'صرف نقدي فوري' : 'تحويل بنكي'}</strong>
                   </div>
                 </div>
                 <div className="text-left space-y-1">
@@ -948,74 +885,72 @@ export const SalesReturnsView: React.FC = () => {
                     <span className="font-mono font-bold text-slate-900">{selectedReturn.invoiceNumber || 'مرتجع مباشر'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500">السبب: </span>
+                    <span className="text-slate-500">سبب الإرجاع: </span>
                     <span className="font-medium text-slate-800">{selectedReturn.reason || 'مردودات مبيعات'}</span>
                   </div>
                 </div>
               </div>
 
               {/* Items Table */}
-              <table className="w-full text-right text-xs border border-slate-200">
-                <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-                  <tr>
-                    <th className="py-2.5 px-3">#</th>
-                    <th className="py-2.5 px-3">الصنف المسترجع</th>
-                    <th className="py-2.5 px-3 text-center">الكمية</th>
-                    <th className="py-2.5 px-3">سعر الوحدة</th>
-                    <th className="py-2.5 px-3">المجموع قبل الضريبة</th>
-                    <th className="py-2.5 px-3">مبلغ الضريبة</th>
-                    <th className="py-2.5 px-3 text-left">إجمالي المرتجع</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {selectedReturn.items.map((it, idx) => (
-                    <tr key={idx}>
-                      <td className="py-2.5 px-3 font-mono">{idx + 1}</td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900">{it.productName}</td>
-                      <td className="py-2.5 px-3 text-center font-bold">{it.quantity}</td>
-                      <td className="py-2.5 px-3 font-mono">{formatMoney(it.unitPrice)}</td>
-                      <td className="py-2.5 px-3 font-mono">{formatMoney(it.subtotal)}</td>
-                      <td className="py-2.5 px-3 font-mono">{formatMoney(it.vatAmount)}</td>
-                      <td className="py-2.5 px-3 text-left font-mono font-extrabold text-rose-700">
-                        {formatMoney(it.total)}
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs border border-slate-200">
+                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+                    <tr>
+                      <th className="py-2.5 px-3">#</th>
+                      <th className="py-2.5 px-3">الصنف المسترجع</th>
+                      <th className="py-2.5 px-3 text-center">الكمية</th>
+                      <th className="py-2.5 px-3">سعر الوحدة</th>
+                      <th className="py-2.5 px-3">المجموع قبل الضريبة</th>
+                      <th className="py-2.5 px-3">مبلغ الضريبة</th>
+                      <th className="py-2.5 px-3 text-left">إجمالي المرتجع</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {selectedReturn.items.map((it, idx) => (
+                      <tr key={idx}>
+                        <td className="py-2.5 px-3 font-mono text-slate-400">{idx + 1}</td>
+                        <td className="py-2.5 px-3 font-bold text-slate-900">{it.productName}</td>
+                        <td className="py-2.5 px-3 text-center font-bold font-mono">{it.quantity}</td>
+                        <td className="py-2.5 px-3 font-mono">{formatMoney(it.unitPrice)}</td>
+                        <td className="py-2.5 px-3 font-mono">{formatMoney(it.subtotal)}</td>
+                        <td className="py-2.5 px-3 font-mono">{formatMoney(it.vatAmount)}</td>
+                        <td className="py-2.5 px-3 text-left font-mono font-extrabold text-rose-700">
+                          {formatMoney(it.total)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               {/* Calculation Summary */}
               <div className="flex justify-end pt-2">
-                <div className="w-72 bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                <div className="w-72 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1.5 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>الإجمالي قبل الضريبة:</span>
-                    <span className="font-bold">{formatMoney(selectedReturn.subtotal)}</span>
+                    <span className="font-bold font-mono">{formatMoney(selectedReturn.subtotal)} {currency}</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>ضريبة القيمة المضافة ({selectedReturn.vatRate}%):</span>
-                    <span className="font-bold text-emerald-700">{formatMoney(selectedReturn.vatTotal)}</span>
+                    <span className="font-bold text-emerald-700 font-mono">+{formatMoney(selectedReturn.vatTotal)} {currency}</span>
                   </div>
                   <div className="flex justify-between text-sm font-extrabold text-slate-900 border-t border-slate-300 pt-1.5">
                     <span>إجمالي قيمة المرتجع:</span>
-                    <span className="text-amber-700">{formatMoney(selectedReturn.totalRefundAmount)}</span>
+                    <span className="text-amber-700 font-mono font-black text-base">{formatMoney(selectedReturn.totalRefundAmount)} {currency}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Signatures */}
-              <div className="pt-6 border-t border-slate-300 grid grid-cols-2 gap-6 text-center text-xs text-slate-600">
-                <div>
-                  <span className="font-bold block mb-8">أمين المخزن (استلام البضاعة المرتجعة)</span>
-                  <div className="border-b border-dashed border-slate-400 w-36 mx-auto"></div>
-                </div>
-                <div>
-                  <span className="font-bold block mb-8">الإدارة المالية (اعتماد الإشعار الدائن)</span>
-                  <div className="border-b border-dashed border-slate-400 w-36 mx-auto"></div>
-                </div>
-              </div>
+              {/* Standardized Signatures */}
+              <PrintFooter
+                preparedByTitle="أمين المستودع (استلام المرتجع)"
+                approvedByTitle="الإدارة المالية (اعتماد الإشعار)"
+                receivedByTitle="توقيع العميل / المندوب"
+                notes="تم قيد هذا الإشعار الدائن لصالح حساب العميل ومطابقة البضاعة المسترجعة في المخازن."
+              />
             </div>
-          </div>
-        </div>
+          )}
+        </PrintPreviewModal>
       )}
 
       {/* EDIT RETURN MODAL */}

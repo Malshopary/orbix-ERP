@@ -2,6 +2,10 @@ import React, { useState, useRef } from 'react';
 import { useErp } from '../context/ErpContext';
 import { Employee, PayrollRun, Payslip } from '../types';
 import { CreatableCombobox } from './CreatableCombobox';
+import { PrintPreviewModal } from './PrintPreviewModal';
+import { PrintHeader } from './PrintHeader';
+import { PrintFooter } from './PrintFooter';
+import { QuickAddModal } from './QuickAddModal';
 import {
   BadgeDollarSign,
   PlusCircle,
@@ -64,30 +68,10 @@ export const HrPayrollView: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   // Modals
-  const [showAddEmployeeModal, setShowAddEmployeeModal] = useState(false);
+  const [showQuickAddEmployee, setShowQuickAddEmployee] = useState(false);
   const [showEditEmployeeModal, setShowEditEmployeeModal] = useState(false);
   const [showPayslipModal, setShowPayslipModal] = useState(false);
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
-
-  // New Employee Form State
-  const [name, setName] = useState('');
-  const [jobTitle, setJobTitle] = useState('');
-  const [department, setDepartment] = useState('الإدارة المالية');
-  const [hireDate, setHireDate] = useState(new Date().toISOString().split('T')[0]);
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [nationalId, setNationalId] = useState('');
-  const [bankName, setBankName] = useState('مصرف الراجحي');
-  const [bankIban, setBankIban] = useState('');
-  const [basicSalary, setBasicSalary] = useState(8000);
-  const [housingAllowance, setHousingAllowance] = useState(2000);
-  const [transportAllowance, setTransportAllowance] = useState(800);
-  const [otherAllowances, setOtherAllowances] = useState(500);
-  const [socialInsuranceEmployeeRate, setSocialInsuranceEmployeeRate] = useState(9);
-  const [taxDeductionRate, setTaxDeductionRate] = useState(0);
-  const [commissionRate, setCommissionRate] = useState(3.0);
-  const [monthlySalesTarget, setMonthlySalesTarget] = useState(100000);
-  const [photoBase64, setPhotoBase64] = useState<string | undefined>(undefined);
 
   // Edit Employee Form State
   const [editEmpId, setEditEmpId] = useState('');
@@ -116,7 +100,7 @@ export const HrPayrollView: React.FC = () => {
   const canEditEmp = hasPermission('edit_employees');
   const canDeleteEmp = hasPermission('delete_employees');
 
-  const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
+  const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
@@ -131,11 +115,7 @@ export const HrPayrollView: React.FC = () => {
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
-      if (isEdit) {
-        setEditPhotoBase64(base64);
-      } else {
-        setPhotoBase64(base64);
-      }
+      setEditPhotoBase64(base64);
     };
     reader.readAsDataURL(file);
   };
@@ -228,44 +208,6 @@ export const HrPayrollView: React.FC = () => {
   const currentRun =
     payrollRuns.find((r) => r.month === selectedMonth && r.year === selectedYear) || null;
 
-  const handleCreateEmployee = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !jobTitle || basicSalary <= 0) return;
-
-    addEmployee({
-      name,
-      jobTitle,
-      department,
-      hireDate,
-      phone,
-      email,
-      nationalId,
-      bankName,
-      bankIban,
-      basicSalary,
-      housingAllowance,
-      transportAllowance,
-      otherAllowances,
-      socialInsuranceEmployeeRate,
-      socialInsuranceCompanyRate: 11,
-      taxDeductionRate,
-      commissionRate: Number(commissionRate) || 0,
-      monthlySalesTarget: Number(monthlySalesTarget) || 0,
-      salesTarget: Number(monthlySalesTarget) || 0,
-      photoBase64,
-      status: 'active',
-    });
-
-    setShowAddEmployeeModal(false);
-    setName('');
-    setJobTitle('');
-    setPhone('');
-    setEmail('');
-    setNationalId('');
-    setBankIban('');
-    setPhotoBase64(undefined);
-  };
-
   const handleGeneratePayroll = () => {
     generateMonthlyPayroll(selectedMonth, selectedYear);
   };
@@ -310,10 +252,12 @@ export const HrPayrollView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowAddEmployeeModal(true)}
-            className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs"
+            type="button"
+            onClick={() => setShowQuickAddEmployee(true)}
+            className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
+            title="إضافة موظف أو مندوب مبيعات جديد للنظام"
           >
-            <PlusCircle className="w-4 h-4" />
+            <Briefcase className="w-4 h-4" />
             إضافة موظف
           </button>
         </div>
@@ -613,237 +557,12 @@ export const HrPayrollView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal 1: Add Employee */}
-      {showAddEmployeeModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
-              <h3 className="font-bold text-base text-slate-900">إضافة موظف جديد لملف الرواتب والـ HR</h3>
-              <button onClick={() => setShowAddEmployeeModal(false)} className="text-slate-400 p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateEmployee} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">الاسم الرباعي <span className="text-rose-500">*</span></label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="مثال: أحمد محمود علي"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 font-medium"
-                  />
-                </div>
-                <div>
-                  <CreatableCombobox
-                    id="add-emp-job-title"
-                    label="المسمى الوظيفي"
-                    required
-                    placeholder="اختر أو اكتب مسمى جديد..."
-                    value={jobTitle}
-                    onChange={setJobTitle}
-                    options={jobTitles}
-                    onAddNew={addJobTitle}
-                    icon={<Briefcase className="w-3.5 h-3.5 text-indigo-600" />}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <CreatableCombobox
-                    id="add-emp-dept"
-                    label="القسم / الإدارة"
-                    required
-                    placeholder="اختر أو اكتب قسم جديد..."
-                    value={department}
-                    onChange={setDepartment}
-                    options={departments}
-                    onAddNew={addDepartment}
-                    icon={<Layers className="w-3.5 h-3.5 text-indigo-600" />}
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">تاريخ المباشرة</label>
-                  <input
-                    type="date"
-                    value={hireDate}
-                    onChange={(e) => setHireDate(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">الراتب الأساسي</label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={basicSalary}
-                    onChange={(e) => setBasicSalary(Number(e.target.value))}
-                    className="w-full p-2 rounded-xl border border-slate-200 font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">بدل السكن</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={housingAllowance}
-                    onChange={(e) => setHousingAllowance(Number(e.target.value))}
-                    className="w-full p-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">بدل الانتقال</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={transportAllowance}
-                    onChange={(e) => setTransportAllowance(Number(e.target.value))}
-                    className="w-full p-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">اسم البنك</label>
-                  <input
-                    type="text"
-                    value={bankName}
-                    onChange={(e) => setBankName(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">رقم الآيبان البنكي (IBAN)</label>
-                  <input
-                    type="text"
-                    value={bankIban}
-                    onChange={(e) => setBankIban(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Sales Rep & Target Integration Section */}
-              <div className="bg-indigo-50/70 p-3.5 rounded-2xl border border-indigo-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
-                    <Sparkles className="w-4 h-4 text-indigo-600" />
-                    إعدادات العمولات ومستهدفات المبيعات (مزامنة فورية مع CRM)
-                  </span>
-                  <span className="text-[10px] bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-bold">
-                    مؤتمت
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  عند تحديد مسمى وظيفي خاص بالمبيعات أو ربط الموظف بعملاء، يظهر الموظف تلقائياً في شاشة مناديب المبيعات والعمولات.
-                </p>
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">نسبة العمولة الافتراضية (%)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      value={commissionRate}
-                      onChange={(e) => setCommissionRate(Number(e.target.value))}
-                      className="w-full p-2 rounded-xl border border-slate-200 bg-white font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">المستهدف البيعي الشهري (Target)</label>
-                    <input
-                      type="number"
-                      step="1000"
-                      min="0"
-                      value={monthlySalesTarget}
-                      onChange={(e) => setMonthlySalesTarget(Number(e.target.value))}
-                      className="w-full p-2 rounded-xl border border-slate-200 bg-white font-bold"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Employee Photo Upload */}
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <label className="block font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Camera className="w-3.5 h-3.5 text-emerald-600" />
-                    صورة الموظف الشخصية (اختياري)
-                  </span>
-                  {photoBase64 && (
-                    <button
-                      type="button"
-                      onClick={() => setPhotoBase64(undefined)}
-                      className="text-rose-600 hover:text-rose-700 font-bold text-[11px]"
-                    >
-                      إزالة الصورة
-                    </button>
-                  )}
-                </label>
-                <div className="flex items-center gap-3">
-                  {photoBase64 ? (
-                    <img
-                      src={photoBase64}
-                      alt="معاينة الموظف"
-                      className="w-14 h-14 rounded-xl object-cover border border-slate-300 shadow-xs"
-                    />
-                  ) : (
-                    <div className="w-14 h-14 rounded-xl bg-slate-200/70 border border-dashed border-slate-300 flex items-center justify-center text-slate-400">
-                      <User className="w-6 h-6" />
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <input
-                      ref={empFileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handlePhotoFileChange(e, false)}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => empFileInputRef.current?.click()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-700 font-semibold cursor-pointer text-xs shadow-2xs"
-                    >
-                      <Upload className="w-3.5 h-3.5 text-slate-500" />
-                      {photoBase64 ? 'تغيير صورة الموظف' : 'رفع صورة من الجهاز'}
-                    </button>
-                    <div className="text-[10px] text-slate-400 mt-1">
-                      يدعم PNG, JPG, WebP بحجم أقصى 2MB
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddEmployeeModal(false)}
-                  className="px-4 py-2 text-slate-600 rounded-xl"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold cursor-pointer"
-                >
-                  حفظ الموظف
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Modal 1: Quick Add Employee */}
+      <QuickAddModal
+        isOpen={showQuickAddEmployee}
+        onClose={() => setShowQuickAddEmployee(false)}
+        initialTab="employee"
+      />
 
       {/* Modal 1.5: Edit Employee */}
       {showEditEmployeeModal && (
@@ -1065,7 +784,7 @@ export const HrPayrollView: React.FC = () => {
                       ref={editEmpFileInputRef}
                       type="file"
                       accept="image/*"
-                      onChange={(e) => handlePhotoFileChange(e, true)}
+                      onChange={handlePhotoFileChange}
                       className="hidden"
                     />
                     <button
@@ -1105,97 +824,105 @@ export const HrPayrollView: React.FC = () => {
 
       {/* Modal 2: Official Payslip Preview */}
       {showPayslipModal && selectedPayslip && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 text-slate-900">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-200 mb-4 print:hidden">
-              <span className="font-bold text-sm">معاينة قسيمة الراتب الرسمية</span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-lg inline-flex items-center gap-1"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  طباعة
-                </button>
-                <button onClick={() => setShowPayslipModal(false)} className="text-slate-400 p-1">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+        <PrintPreviewModal
+          isOpen={showPayslipModal}
+          onClose={() => setShowPayslipModal(false)}
+          title="معاينة قسيمة الراتب الشهرية (Payslip)"
+          docNumber={`PAY-${selectedPayslip.year}-${String(selectedPayslip.month).padStart(2, '0')}-${selectedPayslip.id.slice(0, 4)}`}
+          badgeText="مسير رواتب معتمد"
+          badgeColor="bg-emerald-50 text-emerald-800 border-emerald-200"
+          elementId="payslip-print-sheet"
+        >
+          {({ orientation }) => (
+            <div className="space-y-6 text-xs text-slate-800">
+              {/* Standardized Header */}
+              <PrintHeader
+                docTitle="قسيمة راتب شهري (MONTHLY PAYSLIP)"
+                docNumber={`PAY-${selectedPayslip.year}-${String(selectedPayslip.month).padStart(2, '0')}-${selectedPayslip.id.slice(0, 4)}`}
+                date={new Date().toISOString().split('T')[0]}
+                badgeColor="bg-slate-900 text-white"
+                additionalMeta={[
+                  { label: 'شهر الاستحقاق', value: `${selectedPayslip.month} / ${selectedPayslip.year}` },
+                  { label: 'العملة', value: companyProfile.currency || 'SAR' },
+                ]}
+                orientation={orientation}
+              />
 
-            {/* Payslip Document */}
-            <div className="border border-slate-300 rounded-xl p-5 space-y-4 text-xs">
-              <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+              {/* Employee Details Box */}
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
                 <div>
-                  <div className="font-bold text-sm text-slate-900">{companyProfile.nameAr}</div>
-                  <div className="text-[11px] text-slate-500">إشعار تحويل الراتب الشهري (Payslip)</div>
+                  <span className="text-slate-500 font-semibold block">اسم الموظف:</span>
+                  <span className="font-extrabold text-slate-900 text-sm">{selectedPayslip.employeeName}</span>
                 </div>
-                <div className="bg-slate-100 px-2.5 py-1 rounded-md font-bold font-mono">
-                  شهر {selectedPayslip.month} / {selectedPayslip.year}
-                </div>
-              </div>
-
-              {/* Employee Details */}
-              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-lg">
-                <div>
-                  <span className="text-slate-400 block text-[10px]">اسم الموظف:</span>
-                  <span className="font-bold text-slate-900">{selectedPayslip.employeeName}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">المسمى الوظيفي:</span>
-                  <span className="font-bold text-slate-900">{selectedPayslip.jobTitle}</span>
+                <div className="text-left">
+                  <span className="text-slate-500 font-semibold block">المسمى الوظيفي:</span>
+                  <span className="font-bold text-slate-900 text-sm">{selectedPayslip.jobTitle}</span>
                 </div>
               </div>
 
               {/* Earnings vs Deductions Table */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Earnings */}
-                <div className="border border-slate-200 rounded-lg p-3 space-y-1.5">
-                  <div className="font-bold text-emerald-800 border-b border-slate-100 pb-1">الاستحقاقات والبدلات:</div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">الراتب الأساسي:</span>
-                    <span className="font-semibold">{formatMoney(selectedPayslip.basicSalary)}</span>
+                <div className="border border-slate-200 rounded-xl p-3.5 space-y-2 bg-white">
+                  <div className="font-extrabold text-emerald-800 border-b border-slate-100 pb-1.5 flex justify-between">
+                    <span>الاستحقاقات والبدلات:</span>
+                    <span>المبلغ</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">بدل السكن:</span>
-                    <span className="font-semibold">{formatMoney(selectedPayslip.housingAllowance)}</span>
+                  <div className="flex justify-between text-slate-700">
+                    <span>الراتب الأساسي:</span>
+                    <span className="font-mono font-bold">{formatMoney(selectedPayslip.basicSalary)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">بدل الانتقال:</span>
-                    <span className="font-semibold">{formatMoney(selectedPayslip.transportAllowance)}</span>
+                  <div className="flex justify-between text-slate-700">
+                    <span>بدل السكن:</span>
+                    <span className="font-mono font-bold">{formatMoney(selectedPayslip.housingAllowance)}</span>
                   </div>
-                  <div className="flex justify-between font-bold border-t border-slate-100 pt-1 text-slate-900">
-                    <span>إجمالي الاستحقاق:</span>
-                    <span>{formatMoney(selectedPayslip.grossSalary)}</span>
+                  <div className="flex justify-between text-slate-700">
+                    <span>بدل الانتقال:</span>
+                    <span className="font-mono font-bold">{formatMoney(selectedPayslip.transportAllowance)}</span>
+                  </div>
+                  <div className="flex justify-between font-extrabold border-t border-slate-200 pt-2 text-slate-900">
+                    <span>إجمالي الاستحقاق (Gross):</span>
+                    <span className="font-mono text-emerald-700">{formatMoney(selectedPayslip.grossSalary)}</span>
                   </div>
                 </div>
 
                 {/* Deductions */}
-                <div className="border border-slate-200 rounded-lg p-3 space-y-1.5">
-                  <div className="font-bold text-rose-800 border-b border-slate-100 pb-1">الاستقطاعات والخصومات:</div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">تأمينات اجتماعية GOSI (9%):</span>
-                    <span className="font-semibold text-rose-700">{formatMoney(selectedPayslip.socialInsuranceDeduction)}</span>
+                <div className="border border-slate-200 rounded-xl p-3.5 space-y-2 bg-white">
+                  <div className="font-extrabold text-rose-800 border-b border-slate-100 pb-1.5 flex justify-between">
+                    <span>الاستقطاعات والخصومات:</span>
+                    <span>المبلغ</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">ضرائب أو غيابات:</span>
-                    <span className="font-semibold text-rose-700">{formatMoney(selectedPayslip.taxDeduction + selectedPayslip.deductions)}</span>
+                  <div className="flex justify-between text-slate-700">
+                    <span>تأمينات اجتماعية GOSI:</span>
+                    <span className="font-mono font-bold text-rose-700">{formatMoney(selectedPayslip.socialInsuranceDeduction)}</span>
                   </div>
-                  <div className="flex justify-between font-bold border-t border-slate-100 pt-1 text-rose-800">
-                    <span>إجمالي الخصم:</span>
-                    <span>{formatMoney(selectedPayslip.totalDeductions)}</span>
+                  <div className="flex justify-between text-slate-700">
+                    <span>خصومات / غيابات / ضرائب:</span>
+                    <span className="font-mono font-bold text-rose-700">{formatMoney(selectedPayslip.taxDeduction + selectedPayslip.deductions)}</span>
+                  </div>
+                  <div className="flex justify-between font-extrabold border-t border-slate-200 pt-2 text-rose-800">
+                    <span>إجمالي الاستقطاع:</span>
+                    <span className="font-mono">-{formatMoney(selectedPayslip.totalDeductions)}</span>
                   </div>
                 </div>
               </div>
 
               {/* Net Pay */}
-              <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex justify-between items-center font-extrabold text-sm text-emerald-950">
-                <span>صافي الراتب المحول للحساب:</span>
-                <span className="text-base text-emerald-800">{formatMoney(selectedPayslip.netSalary)}</span>
+              <div className="bg-slate-900 text-white p-4 rounded-xl flex justify-between items-center font-extrabold text-sm">
+                <span>صافي الراتب المستحق للتحويل:</span>
+                <span className="text-emerald-400 font-mono font-black text-lg">{formatMoney(selectedPayslip.netSalary)} {companyProfile.currency || 'SAR'}</span>
               </div>
+
+              {/* Standardized Footer */}
+              <PrintFooter
+                preparedByTitle="مسؤول الموارد البشرية / الرواتب"
+                approvedByTitle="المدير المالي"
+                receivedByTitle="توقيع واستلام الموظف"
+                notes="تم تحويل المستحقات عبر نظام حماية الأجور (WPS) المعتمد في الحساب البنكي للموظف."
+              />
             </div>
-          </div>
-        </div>
+          )}
+        </PrintPreviewModal>
       )}
     </div>
   );

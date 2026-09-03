@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useErp } from '../context/ErpContext';
 import { Product, Customer, PaymentReceipt, SalesInvoice } from '../types';
+import { printDocumentElement } from '../utils/printUtils';
+import { SearchableSelect } from './SearchableSelect';
 import {
   Search,
   ShoppingCart,
@@ -290,7 +292,10 @@ export const QuickPosView: React.FC = () => {
 
   // Trigger print
   const triggerNativePrint = () => {
-    window.print();
+    printDocumentElement('pos-printable-receipt', {
+      title: `فاتورة_كاشير_${printedInvoice?.invoiceNumber || ''}`,
+      orientation: 'portrait',
+    });
   };
 
   return (
@@ -524,17 +529,19 @@ export const QuickPosView: React.FC = () => {
                     + عميل جديد
                   </button>
                 </div>
-                <select
+                <SearchableSelect
                   value={selectedCustomerId}
-                  onChange={(e) => setSelectedCustomerId(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-slate-900 cursor-pointer shadow-2xs"
-                >
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.currentBalance > 0 ? `(مديونية: ${formatMoney(c.currentBalance)})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedCustomerId(val)}
+                  placeholder="ابحث أو اختر العميل..."
+                  searchPlaceholder="ابحث باسم العميل أو الهاتف..."
+                  options={customers.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                    subLabel: c.phone,
+                    badge: c.currentBalance > 0 ? `مديونية: ${formatMoney(c.currentBalance)}` : undefined,
+                    badgeColor: 'bg-rose-50 text-rose-700',
+                  }))}
+                />
               </div>
             </div>
 
@@ -914,8 +921,8 @@ export const QuickPosView: React.FC = () => {
             <div className="p-6 bg-slate-100 overflow-y-auto max-h-[70vh]">
               <div
                 id="pos-printable-receipt"
-                className={`mx-auto bg-white shadow-md p-6 border border-slate-300 text-slate-900 ${
-                  receiptFormat === 'thermal80' ? 'max-w-[340px] text-xs font-mono' : 'max-w-full text-sm'
+                className={`printable-sheet printable-page mx-auto bg-white shadow-md p-6 border border-slate-300 text-slate-900 ${
+                  receiptFormat === 'thermal80' ? 'receipt-thermal max-w-[340px] text-xs font-mono' : 'receipt-a4 max-w-full text-sm'
                 }`}
               >
                 {/* Header: Company Logo & Info */}

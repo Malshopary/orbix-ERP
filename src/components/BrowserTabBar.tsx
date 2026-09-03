@@ -33,6 +33,12 @@ import {
   Database,
   Laptop,
   Lightbulb,
+  BarChart3,
+  Truck,
+  Trash2,
+  Barcode,
+  Warehouse,
+  UserCheck,
   X,
   Plus,
   MoreHorizontal,
@@ -74,6 +80,12 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Database,
   Laptop,
   Lightbulb,
+  BarChart3,
+  Truck,
+  Trash2,
+  Barcode,
+  Warehouse,
+  UserCheck,
 };
 
 export const BrowserTabBar: React.FC = () => {
@@ -175,7 +187,7 @@ export const BrowserTabBar: React.FC = () => {
   };
 
   return (
-    <div className="w-full bg-slate-900 border-b border-slate-800 select-none sticky top-16 z-20 shadow-xs overflow-hidden">
+    <div className="w-full bg-slate-900 border-b border-slate-800 select-none shrink-0 z-20 shadow-xs overflow-hidden print:hidden print-hide">
       <div
         ref={containerRef}
         className="flex items-stretch h-10 px-2 gap-1.5 relative w-full overflow-hidden"

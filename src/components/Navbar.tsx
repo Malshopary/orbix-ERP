@@ -21,6 +21,7 @@ import {
 import { ActiveTab } from './Sidebar';
 import { OrbixLogo } from './OrbixLogo';
 import { OnlineUsersModal } from './OnlineUsersModal';
+import { GlobalQuickSearch } from './GlobalQuickSearch';
 
 interface NavbarProps {
   onOpenLoginModal: () => void;
@@ -80,7 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal, setActiveTab }
 
   return (
     <>
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+      <header className="bg-white border-b border-slate-200 shrink-0 z-30 shadow-xs print:hidden print-hide">
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-3">
             {/* Company Profile Logo & Business Details */}
@@ -90,12 +91,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal, setActiveTab }
               title="الرئيسية - بيانات المنشأة"
             >
               {/* Company Logo / Brand Icon */}
-              <div className="flex items-center justify-center shrink-0">
+              <div className="flex items-center justify-center shrink-0 bg-slate-100/90 border border-slate-200/90 rounded-xl p-1.5 min-w-[42px] h-11 transition-all group-hover:bg-slate-200/70 shadow-2xs">
                 {companyProfile.logoBase64 ? (
                   <img 
                     src={companyProfile.logoBase64} 
                     alt={companyProfile.nameAr} 
-                    className="h-10 w-auto max-w-[150px] object-contain rounded-lg"
+                    className="h-full w-auto max-w-[130px] object-contain rounded-lg"
                   />
                 ) : (
                   <div className="flex items-center gap-1.5">
@@ -133,8 +134,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal, setActiveTab }
               </div>
             </div>
 
+            {/* Center Quick Live Global Search Bar */}
+            <GlobalQuickSearch />
+
             {/* Quick Actions & User Bar */}
-            <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
               {/* Currency Selector Icon Button (Compact Logo / Symbol with Dropdown) */}
               <div className="relative" ref={currencyMenuRef}>
                 <button

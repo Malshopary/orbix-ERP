@@ -3,11 +3,17 @@ import { useErp } from '../context/ErpContext';
 import { PaymentReceipt, PurchaseInvoice, Vendor } from '../types';
 import { ProductSelectSearch } from './ProductSelectSearch';
 import { MathQuantityInput } from './MathQuantityInput';
+import { PrintPreviewModal } from './PrintPreviewModal';
+import { PrintHeader } from './PrintHeader';
+import { PrintFooter } from './PrintFooter';
+import { SearchableSelect } from './SearchableSelect';
+import { QuickAddModal } from './QuickAddModal';
 import {
   ShoppingCart,
   PlusCircle,
   Search,
   Building,
+  Building2,
   CreditCard,
   X,
   Package,
@@ -29,7 +35,9 @@ export const PurchasesView: React.FC = () => {
     vendors,
     purchaseInvoices,
     products,
+    productBatches,
     accounts,
+    warehouses,
     companyProfile,
     formatMoney,
     canDeleteEntity,
@@ -121,22 +129,13 @@ export const PurchasesView: React.FC = () => {
   }, [purchaseInvoices, searchQuery, statusFilter, dateFrom, dateTo, vendorFilter, sortField, sortDirection]);
 
   // Modals
-  const [showAddVendorModal, setShowAddVendorModal] = useState(false);
+  const [showQuickAddVendor, setShowQuickAddVendor] = useState(false);
   const [showEditVendorModal, setShowEditVendorModal] = useState(false);
   const [showCreateBillModal, setShowCreateBillModal] = useState(false);
   const [showEditBillModal, setShowEditBillModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState<PurchaseInvoice | null>(null);
-
-  // New Vendor Form
-  const [vendorName, setVendorName] = useState('');
-  const [vendorCompany, setVendorCompany] = useState('');
-  const [vendorPhone, setVendorPhone] = useState('');
-  const [vendorEmail, setVendorEmail] = useState('');
-  const [vendorTax, setVendorTax] = useState('');
-  const [vendorAddress, setVendorAddress] = useState('');
-  const [vendorTerms, setVendorTerms] = useState(30);
 
   // Edit Vendor Form
   const [editVendorId, setEditVendorId] = useState('');
@@ -150,6 +149,7 @@ export const PurchasesView: React.FC = () => {
 
   // New Bill Form
   const [billVendorId, setBillVendorId] = useState(vendors[0]?.id || '');
+  const [billWarehouseId, setBillWarehouseId] = useState(warehouses[0]?.id || '');
   const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
   const [billDueDate, setBillDueDate] = useState(
     new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -163,12 +163,17 @@ export const PurchasesView: React.FC = () => {
       quantity: 5,
       unitPrice: products[0]?.costPrice || 100,
       total: (products[0]?.costPrice || 100) * 5,
+      batchNumber: products[0]?.batchNumber || '',
+      productionDate: products[0]?.productionDate || '',
+      expiryDate: products[0]?.expiryDate || '',
+      warehouseId: warehouses[0]?.id || '',
     },
   ]);
 
   // Edit Bill Form
   const [editBillId, setEditBillId] = useState('');
   const [editBillVendorId, setEditBillVendorId] = useState('');
+  const [editBillWarehouseId, setEditBillWarehouseId] = useState('');
   const [editBillDate, setEditBillDate] = useState('');
   const [editBillDueDate, setEditBillDueDate] = useState('');
   const [editBillVatRate, setEditBillVatRate] = useState<number>(companyProfile.defaultVatRate ?? 15);
@@ -208,6 +213,10 @@ export const PurchasesView: React.FC = () => {
         quantity: 1,
         unitPrice: p.costPrice || 100,
         total: (p.costPrice || 100) * 1,
+        batchNumber: p.batchNumber || '',
+        productionDate: p.productionDate || '',
+        expiryDate: p.expiryDate || '',
+        warehouseId: billWarehouseId || warehouses[0]?.id || '',
       },
     ]);
   };
@@ -229,21 +238,39 @@ export const PurchasesView: React.FC = () => {
         quantity: currentQty,
         unitPrice: prod.costPrice || 100,
         total: (prod.costPrice || 100) * currentQty,
+        batchNumber: next[index]?.batchNumber || prod.batchNumber || '',
+        productionDate: next[index]?.productionDate || prod.productionDate || '',
+        expiryDate: next[index]?.expiryDate || prod.expiryDate || '',
+        warehouseId: next[index]?.warehouseId || billWarehouseId || warehouses[0]?.id || '',
       };
       return next;
     });
   };
 
-  const handleBillItemValueChange = (index: number, field: 'quantity' | 'unitPrice', val: number) => {
+  const handleBillItemValueChange = (index: number, field: string, val: any) => {
     setBillItems((prev) => {
       const next = [...prev];
       const item = { ...next[index] };
       if (field === 'quantity') {
-        item.quantity = Math.max(1, val);
+        item.quantity = Math.max(1, Number(val));
+        item.total = item.quantity * item.unitPrice;
       } else if (field === 'unitPrice') {
-        item.unitPrice = Math.max(0, val);
+        item.unitPrice = Math.max(0, Number(val));
+        item.total = item.quantity * item.unitPrice;
+      } else if (field === 'batchNumber') {
+        item.batchNumber = val;
+        // Check if there is an existing batch matching this batchNumber
+        const matchedBatch = productBatches.find(
+          (b) => b.productId === item.productId && b.batchNumber.toLowerCase() === String(val).toLowerCase().trim()
+        );
+        if (matchedBatch) {
+          if (matchedBatch.expiryDate && !item.expiryDate) item.expiryDate = matchedBatch.expiryDate;
+          if (matchedBatch.productionDate && !item.productionDate) item.productionDate = matchedBatch.productionDate;
+          if (matchedBatch.warehouseId) item.warehouseId = matchedBatch.warehouseId;
+        }
+      } else {
+        (item as any)[field] = val;
       }
-      item.total = item.quantity * item.unitPrice;
       next[index] = item;
       return next;
     });
@@ -260,6 +287,10 @@ export const PurchasesView: React.FC = () => {
         quantity: 1,
         unitPrice: p.costPrice || 100,
         total: (p.costPrice || 100) * 1,
+        batchNumber: p.batchNumber || '',
+        productionDate: p.productionDate || '',
+        expiryDate: p.expiryDate || '',
+        warehouseId: editBillWarehouseId || warehouses[0]?.id || '',
       },
     ]);
   };
@@ -281,21 +312,39 @@ export const PurchasesView: React.FC = () => {
         quantity: currentQty,
         unitPrice: prod.costPrice || 100,
         total: (prod.costPrice || 100) * currentQty,
+        batchNumber: next[index]?.batchNumber || prod.batchNumber || '',
+        productionDate: next[index]?.productionDate || prod.productionDate || '',
+        expiryDate: next[index]?.expiryDate || prod.expiryDate || '',
+        warehouseId: next[index]?.warehouseId || editBillWarehouseId || warehouses[0]?.id || '',
       };
       return next;
     });
   };
 
-  const handleEditBillItemValueChange = (index: number, field: 'quantity' | 'unitPrice', val: number) => {
+  const handleEditBillItemValueChange = (index: number, field: string, val: any) => {
     setEditBillItems((prev) => {
       const next = [...prev];
       const item = { ...next[index] };
       if (field === 'quantity') {
-        item.quantity = Math.max(1, val);
+        item.quantity = Math.max(1, Number(val));
+        item.total = item.quantity * item.unitPrice;
       } else if (field === 'unitPrice') {
-        item.unitPrice = Math.max(0, val);
+        item.unitPrice = Math.max(0, Number(val));
+        item.total = item.quantity * item.unitPrice;
+      } else if (field === 'batchNumber') {
+        item.batchNumber = val;
+        // Check if there is an existing batch matching this batchNumber
+        const matchedBatch = productBatches.find(
+          (b) => b.productId === item.productId && b.batchNumber.toLowerCase() === String(val).toLowerCase().trim()
+        );
+        if (matchedBatch) {
+          if (matchedBatch.expiryDate && !item.expiryDate) item.expiryDate = matchedBatch.expiryDate;
+          if (matchedBatch.productionDate && !item.productionDate) item.productionDate = matchedBatch.productionDate;
+          if (matchedBatch.warehouseId) item.warehouseId = matchedBatch.warehouseId;
+        }
+      } else {
+        (item as any)[field] = val;
       }
-      item.total = item.quantity * item.unitPrice;
       next[index] = item;
       return next;
     });
@@ -406,23 +455,6 @@ export const PurchasesView: React.FC = () => {
     );
   };
 
-  const handleAddVendor = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!vendorName) return;
-    addVendor({
-      name: vendorName,
-      companyName: vendorCompany,
-      phone: vendorPhone,
-      email: vendorEmail,
-      taxNumber: vendorTax,
-      address: vendorAddress,
-      paymentTermsDays: vendorTerms,
-    });
-    setShowAddVendorModal(false);
-    setVendorName('');
-    setVendorPhone('');
-  };
-
   const handleCreateBill = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedVendor) {
@@ -501,11 +533,13 @@ export const PurchasesView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowAddVendorModal(true)}
-            className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-2 rounded-xl transition-all border border-slate-300"
+            type="button"
+            onClick={() => setShowQuickAddVendor(true)}
+            className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-2 rounded-xl transition-all border border-slate-300 cursor-pointer"
+            title="إضافة مورد جديد للنظام والمشتريات"
           >
-            <PlusCircle className="w-4 h-4 text-slate-600" />
-            مورد جديد
+            <Building2 className="w-4 h-4 text-emerald-600" />
+            + مورد جديد
           </button>
 
           <button
@@ -587,18 +621,22 @@ export const PurchasesView: React.FC = () => {
               <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
                 <Filter className="w-3.5 h-3.5 text-slate-500" />
                 <span className="font-semibold text-slate-600">تصفية المورد:</span>
-                <select
-                  value={vendorFilter}
-                  onChange={(e) => setVendorFilter(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-medium"
-                >
-                  <option value="">جميع الموردين</option>
-                  {vendors.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-48">
+                  <SearchableSelect
+                    value={vendorFilter}
+                    onChange={(val) => setVendorFilter(val)}
+                    placeholder="جميع الموردين"
+                    searchPlaceholder="ابحث باسم المورد..."
+                    options={[
+                      { value: '', label: 'جميع الموردين' },
+                      ...vendors.map((v) => ({
+                        value: v.id,
+                        label: v.name,
+                        subLabel: v.phone,
+                      })),
+                    ]}
+                  />
+                </div>
               </div>
 
               {(dateFrom || dateTo || vendorFilter || searchQuery || statusFilter !== 'all') && (
@@ -860,68 +898,12 @@ export const PurchasesView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal 1: Add Vendor */}
-      {showAddVendorModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
-              <h3 className="font-bold text-base text-slate-900">إضافة مورد جديد</h3>
-              <button onClick={() => setShowAddVendorModal(false)} className="text-slate-400 p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddVendor} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">اسم المورد أو الشركة</label>
-                <input
-                  type="text"
-                  required
-                  value={vendorName}
-                  onChange={(e) => setVendorName(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">الهاتف</label>
-                  <input
-                    type="text"
-                    value={vendorPhone}
-                    onChange={(e) => setVendorPhone(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">الرقم الضريبي</label>
-                  <input
-                    type="text"
-                    value={vendorTax}
-                    onChange={(e) => setVendorTax(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddVendorModal(false)}
-                  className="px-4 py-2 text-slate-600 rounded-xl"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold cursor-pointer"
-                >
-                  حفظ المورد
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Modal 1: Quick Add Vendor */}
+      <QuickAddModal
+        isOpen={showQuickAddVendor}
+        onClose={() => setShowQuickAddVendor(false)}
+        initialTab="vendor"
+      />
 
       {/* Modal 1.5: Edit Vendor */}
       {showEditVendorModal && (
@@ -1065,17 +1047,37 @@ export const PurchasesView: React.FC = () => {
               }}
               className="space-y-4 text-xs"
             >
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">المورد المعتمد</label>
-                  <select
+                  <SearchableSelect
                     value={editBillVendorId}
-                    onChange={(e) => setEditBillVendorId(e.target.value)}
-                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-semibold"
+                    onChange={(val) => setEditBillVendorId(val)}
+                    placeholder="اختر المورد..."
+                    searchPlaceholder="ابحث باسم المورد أو الكود..."
+                    options={vendors.map((v) => ({
+                      value: v.id,
+                      label: `${v.name} (${v.code})`,
+                      subLabel: v.phone,
+                      badge: v.currentBalance > 0 ? `مستحق: ${formatMoney(v.currentBalance)}` : undefined,
+                      badgeColor: 'bg-amber-50 text-amber-700',
+                    }))}
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">مستودع الاستلام الافتراضي</label>
+                  <select
+                    value={editBillWarehouseId || warehouses[0]?.id || ''}
+                    onChange={(e) => {
+                      const wid = e.target.value;
+                      setEditBillWarehouseId(wid);
+                      setEditBillItems((prev) => prev.map((it) => ({ ...it, warehouseId: wid })));
+                    }}
+                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-semibold text-slate-900"
                   >
-                    {vendors.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name} ({v.code})
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} {w.isDefault ? '(الرئيسي)' : ''}
                       </option>
                     ))}
                   </select>
@@ -1116,7 +1118,7 @@ export const PurchasesView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Items Section (Single Horizontal Row Layout) */}
+              {/* Items Section (Single Horizontal Row Layout with Batch Tracking) */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between pb-1">
                   <div className="flex items-center gap-2">
@@ -1138,72 +1140,145 @@ export const PurchasesView: React.FC = () => {
 
                 {/* Table Column Headers on Desktop */}
                 <div className="hidden sm:grid grid-cols-12 gap-2 px-3 py-1.5 bg-slate-100/90 rounded-xl text-[11px] font-bold text-slate-600">
-                  <div className="col-span-5">الصنف والمنتج</div>
-                  <div className="col-span-2 text-center">الكمية الموردة (يدعم 5*10)</div>
-                  <div className="col-span-2 text-center">سعر التكلفة / الوحدة</div>
-                  <div className="col-span-3 text-center">إجمالي البند</div>
+                  <div className="col-span-4">الصنف والمنتج</div>
+                  <div className="col-span-2 text-center">رقم الباتش / التشغيلة</div>
+                  <div className="col-span-2 text-center">تاريخ الصلاحية</div>
+                  <div className="col-span-1 text-center">الكمية</div>
+                  <div className="col-span-1 text-center">سعر التكلفة</div>
+                  <div className="col-span-2 text-center">إجمالي البند</div>
                 </div>
 
                 {/* Single Row Item Cards */}
                 <div className="space-y-2">
-                  {editBillItems.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="p-2.5 sm:p-2 rounded-xl bg-white border border-slate-200 shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-2 items-center hover:border-slate-300 transition-colors"
-                    >
-                      {/* Product Selector */}
-                      <div className="sm:col-span-5">
-                        <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">
-                          بند #{idx + 1}: الصنف والمنتج
-                        </label>
-                        <ProductSelectSearch
-                          selectedProductId={item.productId}
-                          onSelectProduct={(prod) => handleEditBillProductChange(idx, prod.id)}
-                        />
-                      </div>
+                  {editBillItems.map((item, idx) => {
+                    const prod = products.find((p) => p.id === item.productId);
+                    const isExpiryTracked = prod?.hasExpiry || Boolean(item.expiryDate);
 
-                      {/* Quantity with Math calculator */}
-                      <div className="sm:col-span-2">
-                        <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">الكمية</label>
-                        <MathQuantityInput
-                          value={item.quantity}
-                          onChange={(newQty) => handleEditBillItemValueChange(idx, 'quantity', newQty)}
-                          min={1}
-                          className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-white font-bold text-center"
-                        />
-                      </div>
+                    return (
+                      <div
+                        key={idx}
+                        className="p-2.5 sm:p-2 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2 hover:border-slate-300 transition-colors"
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                          {/* Product Selector */}
+                          <div className="sm:col-span-4">
+                            <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">
+                              بند #{idx + 1}: الصنف والمنتج
+                            </label>
+                            <ProductSelectSearch
+                              selectedProductId={item.productId}
+                              onSelectProduct={(p) => handleEditBillProductChange(idx, p.id)}
+                            />
+                          </div>
 
-                      {/* Unit Cost Price */}
-                      <div className="sm:col-span-2">
-                        <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">سعر التكلفة</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.unitPrice}
-                          onChange={(e) => handleEditBillItemValueChange(idx, 'unitPrice', Number(e.target.value))}
-                          className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-white font-bold text-center"
-                        />
-                      </div>
+                          {/* Batch Number */}
+                          <div className="sm:col-span-2">
+                            <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">رقم التشغيلة / الباتش</label>
+                            <input
+                              type="text"
+                              placeholder="رقم الباتش (اختياري)"
+                              list={`edit-batch-suggestions-${idx}`}
+                              value={item.batchNumber || ''}
+                              onChange={(e) => handleEditBillItemValueChange(idx, 'batchNumber', e.target.value)}
+                              className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-white font-mono text-center placeholder:text-slate-400"
+                            />
+                            <datalist id={`edit-batch-suggestions-${idx}`}>
+                              {productBatches
+                                .filter((b) => b.productId === item.productId)
+                                .map((b) => (
+                                  <option key={b.id} value={b.batchNumber}>
+                                    {b.batchNumber} (صلاحية: {b.expiryDate} - رصيد: {b.quantity})
+                                  </option>
+                                ))}
+                            </datalist>
+                          </div>
 
-                      {/* Item Total & Delete on Single Line */}
-                      <div className="sm:col-span-3 flex items-center justify-between gap-1.5 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                        <div className="flex-1 text-center font-extrabold text-xs text-blue-700 font-mono py-1">
-                          {formatMoney(item.total)}
+                          {/* Expiry Date */}
+                          <div className="sm:col-span-2">
+                            <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">
+                              تاريخ انتهاء الصلاحية {isExpiryTracked && <span className="text-amber-600 font-bold">*</span>}
+                            </label>
+                            <input
+                              type="date"
+                              value={item.expiryDate || ''}
+                              onChange={(e) => handleEditBillItemValueChange(idx, 'expiryDate', e.target.value)}
+                              className={`w-full p-2 text-xs rounded-xl border ${
+                                isExpiryTracked ? 'border-amber-400 bg-amber-50/40 text-amber-900 font-bold' : 'border-slate-300 bg-white'
+                              } text-center`}
+                            />
+                          </div>
+
+                          {/* Quantity with Math calculator */}
+                          <div className="sm:col-span-1">
+                            <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">الكمية</label>
+                            <MathQuantityInput
+                              value={item.quantity}
+                              onChange={(newQty) => handleEditBillItemValueChange(idx, 'quantity', newQty)}
+                              min={1}
+                              className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-white font-bold text-center"
+                            />
+                          </div>
+
+                          {/* Unit Cost Price */}
+                          <div className="sm:col-span-1">
+                            <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">سعر التكلفة</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.unitPrice}
+                              onChange={(e) => handleEditBillItemValueChange(idx, 'unitPrice', Number(e.target.value))}
+                              className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-white font-bold text-center"
+                            />
+                          </div>
+
+                          {/* Item Total & Delete on Single Line */}
+                          <div className="sm:col-span-2 flex items-center justify-between gap-1.5 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                            <div className="flex-1 text-center font-extrabold text-xs text-blue-700 font-mono py-1">
+                              {formatMoney(item.total)}
+                            </div>
+                            {editBillItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveEditBillItem(idx)}
+                                className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors shrink-0"
+                                title="حذف البند"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        {editBillItems.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveEditBillItem(idx)}
-                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors shrink-0"
-                            title="حذف البند"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+
+                        {/* Extra Batch Details Row (Production Date & Specific Warehouse) */}
+                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-[11px] text-slate-500 bg-slate-50/50 p-1.5 rounded-lg">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-600">المستودع:</span>
+                            <select
+                              value={item.warehouseId || editBillWarehouseId || warehouses[0]?.id || ''}
+                              onChange={(e) => handleEditBillItemValueChange(idx, 'warehouseId', e.target.value)}
+                              className="p-1 text-[11px] rounded-lg border border-slate-200 bg-white text-slate-800"
+                            >
+                              {warehouses.map((w) => (
+                                <option key={w.id} value={w.id}>
+                                  {w.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-600">تاريخ الإنتاج:</span>
+                            <input
+                              type="date"
+                              value={item.productionDate || ''}
+                              onChange={(e) => handleEditBillItemValueChange(idx, 'productionDate', e.target.value)}
+                              className="p-1 text-[11px] rounded-lg border border-slate-200 bg-white text-slate-800"
+                            />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Add Item Row Button */}
@@ -1294,17 +1369,38 @@ export const PurchasesView: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateBill} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">المورد المعتمد</label>
-                  <select
+                  <SearchableSelect
                     value={billVendorId}
-                    onChange={(e) => setBillVendorId(e.target.value)}
-                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-semibold"
+                    onChange={(val) => setBillVendorId(val)}
+                    placeholder="اختر المورد..."
+                    searchPlaceholder="ابحث باسم المورد أو الكود..."
+                    options={vendors.map((v) => ({
+                      value: v.id,
+                      label: `${v.name} (${v.code})`,
+                      subLabel: v.phone,
+                      badge: v.currentBalance > 0 ? `مستحق: ${formatMoney(v.currentBalance)}` : undefined,
+                      badgeColor: 'bg-amber-50 text-amber-700',
+                    }))}
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">مستودع الاستلام الافتراضي</label>
+                  <select
+                    value={billWarehouseId || warehouses[0]?.id || ''}
+                    onChange={(e) => {
+                      const wid = e.target.value;
+                      setBillWarehouseId(wid);
+                      setBillItems((prev) => prev.map((it) => ({ ...it, warehouseId: wid })));
+                    }}
+                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-semibold text-slate-900"
                   >
-                    {vendors.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name} ({v.code})
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} {w.isDefault ? '(الرئيسي)' : ''}
                       </option>
                     ))}
                   </select>
@@ -1348,7 +1444,7 @@ export const PurchasesView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Items Section (Single Horizontal Row Layout) */}
+              {/* Items Section (Single Horizontal Row Layout with Batch Tracking) */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between pb-1">
                   <div className="flex items-center gap-2">
@@ -1370,72 +1466,145 @@ export const PurchasesView: React.FC = () => {
 
                 {/* Table Column Headers on Desktop */}
                 <div className="hidden sm:grid grid-cols-12 gap-2 px-3 py-1.5 bg-slate-100/90 rounded-xl text-[11px] font-bold text-slate-600">
-                  <div className="col-span-5">الصنف والمنتج</div>
-                  <div className="col-span-2 text-center">الكمية الموردة (يدعم 5*10)</div>
-                  <div className="col-span-2 text-center">سعر التكلفة / الوحدة</div>
-                  <div className="col-span-3 text-center">إجمالي البند</div>
+                  <div className="col-span-4">الصنف والمنتج</div>
+                  <div className="col-span-2 text-center">رقم الباتش / التشغيلة</div>
+                  <div className="col-span-2 text-center">تاريخ الصلاحية</div>
+                  <div className="col-span-1 text-center">الكمية</div>
+                  <div className="col-span-1 text-center">سعر التكلفة</div>
+                  <div className="col-span-2 text-center">إجمالي البند</div>
                 </div>
 
                 {/* Single Row Item Cards */}
                 <div className="space-y-2">
-                  {billItems.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="p-2.5 sm:p-2 rounded-xl bg-white border border-slate-200 shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-2 items-center hover:border-slate-300 transition-colors"
-                    >
-                      {/* Product Selector */}
-                      <div className="sm:col-span-5">
-                        <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">
-                          بند #{idx + 1}: الصنف والمنتج
-                        </label>
-                        <ProductSelectSearch
-                          selectedProductId={item.productId}
-                          onSelectProduct={(prod) => handleBillProductChange(idx, prod.id)}
-                        />
-                      </div>
+                  {billItems.map((item, idx) => {
+                    const prod = products.find((p) => p.id === item.productId);
+                    const isExpiryTracked = prod?.hasExpiry || Boolean(item.expiryDate);
 
-                      {/* Quantity with Math calculator */}
-                      <div className="sm:col-span-2">
-                        <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">الكمية</label>
-                        <MathQuantityInput
-                          value={item.quantity}
-                          onChange={(newQty) => handleBillItemValueChange(idx, 'quantity', newQty)}
-                          min={1}
-                          className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-white font-bold text-center"
-                        />
-                      </div>
+                    return (
+                      <div
+                        key={idx}
+                        className="p-2.5 sm:p-2 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2 hover:border-slate-300 transition-colors"
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                          {/* Product Selector */}
+                          <div className="sm:col-span-4">
+                            <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">
+                              بند #{idx + 1}: الصنف والمنتج
+                            </label>
+                            <ProductSelectSearch
+                              selectedProductId={item.productId}
+                              onSelectProduct={(p) => handleBillProductChange(idx, p.id)}
+                            />
+                          </div>
 
-                      {/* Unit Cost Price */}
-                      <div className="sm:col-span-2">
-                        <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">سعر التكلفة</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.unitPrice}
-                          onChange={(e) => handleBillItemValueChange(idx, 'unitPrice', Number(e.target.value))}
-                          className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-white font-bold text-center"
-                        />
-                      </div>
+                          {/* Batch Number */}
+                          <div className="sm:col-span-2">
+                            <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">رقم التشغيلة / الباتش</label>
+                            <input
+                              type="text"
+                              placeholder="رقم الباتش (اختياري)"
+                              list={`bill-batch-suggestions-${idx}`}
+                              value={item.batchNumber || ''}
+                              onChange={(e) => handleBillItemValueChange(idx, 'batchNumber', e.target.value)}
+                              className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-white font-mono text-center placeholder:text-slate-400"
+                            />
+                            <datalist id={`bill-batch-suggestions-${idx}`}>
+                              {productBatches
+                                .filter((b) => b.productId === item.productId)
+                                .map((b) => (
+                                  <option key={b.id} value={b.batchNumber}>
+                                    {b.batchNumber} (صلاحية: {b.expiryDate} - رصيد: {b.quantity})
+                                  </option>
+                                ))}
+                            </datalist>
+                          </div>
 
-                      {/* Item Total & Delete on Single Line */}
-                      <div className="sm:col-span-3 flex items-center justify-between gap-1.5 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                        <div className="flex-1 text-center font-extrabold text-xs text-emerald-700 font-mono py-1">
-                          {formatMoney(item.total)}
+                          {/* Expiry Date */}
+                          <div className="sm:col-span-2">
+                            <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">
+                              تاريخ انتهاء الصلاحية {isExpiryTracked && <span className="text-amber-600 font-bold">*</span>}
+                            </label>
+                            <input
+                              type="date"
+                              value={item.expiryDate || ''}
+                              onChange={(e) => handleBillItemValueChange(idx, 'expiryDate', e.target.value)}
+                              className={`w-full p-2 text-xs rounded-xl border ${
+                                isExpiryTracked ? 'border-amber-400 bg-amber-50/40 text-amber-900 font-bold' : 'border-slate-300 bg-white'
+                              } text-center`}
+                            />
+                          </div>
+
+                          {/* Quantity with Math calculator */}
+                          <div className="sm:col-span-1">
+                            <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">الكمية</label>
+                            <MathQuantityInput
+                              value={item.quantity}
+                              onChange={(newQty) => handleBillItemValueChange(idx, 'quantity', newQty)}
+                              min={1}
+                              className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-white font-bold text-center"
+                            />
+                          </div>
+
+                          {/* Unit Cost Price */}
+                          <div className="sm:col-span-1">
+                            <label className="sm:hidden block text-[10px] text-slate-500 mb-0.5 font-bold">سعر التكلفة</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.unitPrice}
+                              onChange={(e) => handleBillItemValueChange(idx, 'unitPrice', Number(e.target.value))}
+                              className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-white font-bold text-center"
+                            />
+                          </div>
+
+                          {/* Item Total & Delete on Single Line */}
+                          <div className="sm:col-span-2 flex items-center justify-between gap-1.5 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                            <div className="flex-1 text-center font-extrabold text-xs text-emerald-700 font-mono py-1">
+                              {formatMoney(item.total)}
+                            </div>
+                            {billItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveBillItem(idx)}
+                                className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors shrink-0"
+                                title="حذف البند"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        {billItems.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveBillItem(idx)}
-                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors shrink-0"
-                            title="حذف البند"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+
+                        {/* Extra Batch Details Row (Production Date & Specific Warehouse) */}
+                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-[11px] text-slate-500 bg-slate-50/50 p-1.5 rounded-lg">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-600">المستودع:</span>
+                            <select
+                              value={item.warehouseId || billWarehouseId || warehouses[0]?.id || ''}
+                              onChange={(e) => handleBillItemValueChange(idx, 'warehouseId', e.target.value)}
+                              className="p-1 text-[11px] rounded-lg border border-slate-200 bg-white text-slate-800"
+                            >
+                              {warehouses.map((w) => (
+                                <option key={w.id} value={w.id}>
+                                  {w.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-600">تاريخ الإنتاج:</span>
+                            <input
+                              type="date"
+                              value={item.productionDate || ''}
+                              onChange={(e) => handleBillItemValueChange(idx, 'productionDate', e.target.value)}
+                              className="p-1 text-[11px] rounded-lg border border-slate-200 bg-white text-slate-800"
+                            />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Add Item Row Button */}
@@ -1539,19 +1708,19 @@ export const PurchasesView: React.FC = () => {
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">الحساب المصروف منه (الخزينة/البنك)</label>
-                <select
+                <SearchableSelect
                   value={payAccountId}
-                  onChange={(e) => setPayAccountId(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200"
-                >
-                  {accounts
+                  onChange={(val) => setPayAccountId(val)}
+                  placeholder="-- اختر الخزينة أو الحساب البنكي --"
+                  searchPlaceholder="ابحث باسم الحساب أو الكود..."
+                  options={accounts
                     .filter((a) => (a.code === '1110' || a.code === '1120') && !a.isHeader)
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.code} - {a.name}
-                      </option>
-                    ))}
-                </select>
+                    .map((a) => ({
+                      value: a.id,
+                      label: `${a.code} - ${a.name}`,
+                      subLabel: a.category,
+                    }))}
+                />
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
@@ -1576,80 +1745,76 @@ export const PurchasesView: React.FC = () => {
 
       {/* Modal 4: Print Purchase Invoice Modal */}
       {showPrintModal && selectedBill && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
-              <div>
-                <h3 className="font-extrabold text-lg text-slate-900">فاتورة مشتريات وتوريد</h3>
-                <p className="text-xs text-slate-500 font-mono">رقم الفاتورة: {selectedBill.invoiceNumber}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>طباعة</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPrintModal(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+        <PrintPreviewModal
+          isOpen={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          title="معاينة فاتورة المشتريات والتوريد"
+          docNumber={selectedBill.invoiceNumber}
+          badgeText="فاتورة مشتريات معتمدة"
+          badgeColor="bg-emerald-50 text-emerald-800 border-emerald-200"
+          elementId="purchase-invoice-document-sheet"
+        >
+          {({ orientation }) => (
+            <div className="space-y-6 text-xs text-slate-800">
+              {/* Standardized Header */}
+              <PrintHeader
+                docTitle="فاتورة مشتريات وتوريد (PURCHASE BILL)"
+                docNumber={selectedBill.invoiceNumber}
+                date={selectedBill.date}
+                dueDate={selectedBill.dueDate ? `الاستحقاق: ${selectedBill.dueDate}` : undefined}
+                badgeColor="bg-emerald-700 text-white"
+                additionalMeta={[
+                  { label: 'المورد', value: selectedBill.vendorName },
+                  { label: 'حالة السداد', value: selectedBill.status === 'paid' || selectedBill.remainingAmount <= 0 ? 'خالصة ومسددة' : 'غير مسددة' },
+                ]}
+                orientation={orientation}
+              />
 
-            {/* Printable Content */}
-            <div className="space-y-6">
-              {/* Header Info */}
-              <div className="flex justify-between items-start bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              {/* Vendor and Supply Info */}
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
                 <div>
-                  <h4 className="font-bold text-slate-800 text-sm">{companyProfile.nameAr}</h4>
-                  <p className="text-xs text-slate-500">{companyProfile.address}</p>
-                  <p className="text-xs text-slate-500 font-mono">الرقم الضريبي: {companyProfile.taxNumber}</p>
+                  <span className="text-slate-500 font-semibold block mb-1">بيانات المورد (Vendor Details):</span>
+                  <div className="font-extrabold text-slate-900 text-sm">{selectedBill.vendorName}</div>
+                  <div className="text-slate-600 mt-1">
+                    حالة السداد: <strong className={selectedBill.remainingAmount <= 0 ? 'text-emerald-700' : 'text-amber-700'}>
+                      {selectedBill.remainingAmount <= 0 ? 'مدفوعة بالكامل' : 'متبقي مبالغ آجلة'}
+                    </strong>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <div className="text-xs text-slate-500">التاريخ: <span className="font-bold text-slate-800 font-mono">{selectedBill.date}</span></div>
-                  <div className="text-xs text-slate-500">تاريخ الاستحقاق: <span className="font-bold text-slate-800 font-mono">{selectedBill.dueDate}</span></div>
-                  <div className="text-xs text-slate-500">حالة السداد: <span className="font-bold text-emerald-600">{selectedBill.status === 'paid' || selectedBill.remainingAmount <= 0 ? 'خالصة ومسددة' : 'غير مسددة'}</span></div>
-                </div>
-              </div>
-
-              {/* Vendor Info */}
-              <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex justify-between items-center">
-                <div>
-                  <span className="text-[11px] text-emerald-800 font-bold uppercase">بيانات المورد</span>
-                  <div className="font-extrabold text-slate-900 text-base">{selectedBill.vendorName}</div>
-                </div>
-                <div className="text-left text-xs text-slate-600 space-y-0.5">
-                  <div>كود الفاتورة: <span className="font-mono font-bold text-slate-800">{selectedBill.invoiceNumber}</span></div>
-                  <div>المتبقي: <span className="font-mono font-bold text-rose-700">{formatMoney(selectedBill.remainingAmount)}</span></div>
+                <div className="text-left space-y-1">
+                  <div>
+                    <span className="text-slate-500">تاريخ الفاتورة: </span>
+                    <span className="font-mono font-bold text-slate-800">{selectedBill.date}</span>
+                  </div>
+                  {selectedBill.dueDate && (
+                    <div>
+                      <span className="text-slate-500">تاريخ الاستحقاق: </span>
+                      <span className="font-mono font-bold text-slate-800">{selectedBill.dueDate}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Items Table */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                <table className="w-full text-xs text-right">
-                  <thead className="bg-slate-100 text-slate-700 font-bold">
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs border border-slate-200">
+                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
                     <tr>
-                      <th className="p-3">#</th>
-                      <th className="p-3">الصنف / البيان</th>
-                      <th className="p-3 text-center">الكمية</th>
-                      <th className="p-3 text-center">سعر الوحدة</th>
-                      <th className="p-3 text-left">الإجمالي</th>
+                      <th className="p-2.5">#</th>
+                      <th className="p-2.5">الصنف / البيان والمواصفات</th>
+                      <th className="p-2.5 text-center">الكمية المستلمة</th>
+                      <th className="p-2.5 text-center">تكلفة الوحدة</th>
+                      <th className="p-2.5 text-left">الإجمالي ({companyProfile.currency || 'SAR'})</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
+                  <tbody className="divide-y divide-slate-200 font-mono">
                     {selectedBill.items.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="p-3 text-slate-400 font-sans">{idx + 1}</td>
-                        <td className="p-3 font-sans font-medium text-slate-900">{item.productName}</td>
-                        <td className="p-3 text-center font-bold">{item.quantity}</td>
-                        <td className="p-3 text-center">{formatMoney(item.unitCost)}</td>
-                        <td className="p-3 text-left font-bold text-slate-900">{formatMoney(item.total)}</td>
+                      <tr key={idx}>
+                        <td className="p-2.5 text-slate-400 font-sans">{idx + 1}</td>
+                        <td className="p-2.5 font-sans font-bold text-slate-900">{item.productName}</td>
+                        <td className="p-2.5 text-center font-bold text-slate-800">{item.quantity}</td>
+                        <td className="p-2.5 text-center text-slate-700">{formatMoney(item.unitCost)}</td>
+                        <td className="p-2.5 text-left font-bold text-slate-900">{formatMoney(item.total)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1657,31 +1822,41 @@ export const PurchasesView: React.FC = () => {
               </div>
 
               {/* Totals Summary */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>المجموع الفرعي (قبل الضريبة):</span>
-                  <span className="font-mono font-bold">{formatMoney(selectedBill.subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>ضريبة القيمة المضافة:</span>
-                  <span className="font-mono font-bold">{formatMoney(selectedBill.vatTotal)}</span>
-                </div>
-                <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-2 border-t border-slate-200">
-                  <span>الإجمالي النهائي:</span>
-                  <span className="font-mono text-emerald-700">{formatMoney(selectedBill.grandTotal)}</span>
-                </div>
-                <div className="flex justify-between text-slate-600 pt-1">
-                  <span>المسدد:</span>
-                  <span className="font-mono font-bold text-emerald-600">{formatMoney(selectedBill.paidAmount)}</span>
-                </div>
-                <div className="flex justify-between text-rose-700 font-bold pt-1">
-                  <span>المتبقي للمورد:</span>
-                  <span className="font-mono font-extrabold">{formatMoney(selectedBill.remainingAmount)}</span>
+              <div className="flex justify-end">
+                <div className="w-80 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
+                  <div className="flex justify-between text-slate-600">
+                    <span>المجموع قبل الضريبة:</span>
+                    <span className="font-mono font-bold">{formatMoney(selectedBill.subtotal)} {companyProfile.currency || 'SAR'}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>ضريبة القيمة المضافة:</span>
+                    <span className="font-mono font-bold text-emerald-700">+{formatMoney(selectedBill.vatTotal)} {companyProfile.currency || 'SAR'}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-2 border-t border-slate-300">
+                    <span>الإجمالي النهائي للفاتورة:</span>
+                    <span className="font-mono text-emerald-700 text-base font-black">{formatMoney(selectedBill.grandTotal)} {companyProfile.currency || 'SAR'}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 pt-1 border-t border-slate-200">
+                    <span>المبلغ المسدد:</span>
+                    <span className="font-mono font-bold text-emerald-600">{formatMoney(selectedBill.paidAmount)} {companyProfile.currency || 'SAR'}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-700 font-bold pt-1">
+                    <span>المتبقي للمورد:</span>
+                    <span className="font-mono font-extrabold">{formatMoney(selectedBill.remainingAmount)} {companyProfile.currency || 'SAR'}</span>
+                  </div>
                 </div>
               </div>
+
+              {/* Standardized Footer */}
+              <PrintFooter
+                preparedByTitle="أمين المستودع (استلام الأصناف)"
+                approvedByTitle="مدير المشتريات / الإدارة المالية"
+                receivedByTitle="توقيع مندوب المورد"
+                terms="تم استلام ومطابقة المواد المذكورة أعلاه بحالة جيدة وقيدها في السجلات المخزنية والمحاسبية."
+              />
             </div>
-          </div>
-        </div>
+          )}
+        </PrintPreviewModal>
       )}
     </div>
   );

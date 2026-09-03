@@ -25,6 +25,13 @@ import {
   SalesReturn,
   Vendor,
   Warehouse,
+  WarehouseStockDetail,
+  StockTransfer,
+  StocktakingSession,
+  StocktakingItem,
+  ScrapVoucher,
+  ProductBatch,
+  StockMovement,
   CRMLead,
   CRMInteraction,
   CRMTicket,
@@ -52,6 +59,10 @@ import {
   INITIAL_USERS,
   INITIAL_VENDORS,
   INITIAL_WAREHOUSES,
+  INITIAL_STOCK_TRANSFERS,
+  INITIAL_STOCKTAKING_SESSIONS,
+  INITIAL_SCRAP_VOUCHERS,
+  INITIAL_PRODUCT_BATCHES,
   INITIAL_CRM_LEADS,
   INITIAL_CRM_INTERACTIONS,
   INITIAL_CRM_TICKETS,
@@ -128,14 +139,54 @@ interface ErpContextType {
   editJournalEntry: (id: string, data: Partial<JournalEntry>) => boolean;
   deleteJournalEntry: (id: string) => void;
 
-  // Inventory
+  // Inventory & Multi-Warehouse Management
   products: Product[];
   warehouses: Warehouse[];
+  stockTransfers: StockTransfer[];
+  stocktakingSessions: StocktakingSession[];
+  scrapVouchers: ScrapVoucher[];
+  productBatches: ProductBatch[];
+  stockMovements: StockMovement[];
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (id: string, data: Partial<Product>) => void;
   editProduct: (id: string, data: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
-  updateProductStock: (productId: string, deltaQty: number, costPrice?: number) => void;
+  updateProductStock: (productId: string, deltaQty: number, costPrice?: number, warehouseId?: string) => void;
+  getProductQuantityInWarehouse: (productId: string, warehouseId: string) => number;
+  getProductWarehouseBreakdown: (productId: string) => {
+    warehouseId: string;
+    warehouseName: string;
+    warehouseCode?: string;
+    location?: string;
+    governorate?: string;
+    shelfLocation: string;
+    quantity: number;
+    costPrice: number;
+    totalValue: number;
+    percentage: number;
+    batches: ProductBatch[];
+    recentMovements: StockMovement[];
+    isDefault?: boolean;
+  }[];
+  updateProductShelfLocation: (productId: string, warehouseId: string, shelfLocation: string) => void;
+  adjustProductWarehouseStock: (productId: string, warehouseId: string, deltaQty: number, warehouseShelfLocation?: string) => void;
+  addWarehouse: (warehouse: Omit<Warehouse, 'id'>) => void;
+  editWarehouse: (id: string, data: Partial<Warehouse>) => void;
+  deleteWarehouse: (id: string) => void;
+  addStockTransfer: (transfer: Omit<StockTransfer, 'id' | 'transferNumber' | 'createdAt'>) => StockTransfer;
+  updateStockTransferStatus: (id: string, status: StockTransfer['status']) => void;
+  deleteStockTransfer: (id: string) => void;
+  addStocktakingSession: (session: Omit<StocktakingSession, 'id' | 'sessionNumber' | 'createdAt'>) => StocktakingSession;
+  updateStocktakingSession: (id: string, data: Partial<StocktakingSession>) => void;
+  completeStocktakingSession: (sessionId: string, updatedItems?: StocktakingItem[]) => void;
+  deleteStocktakingSession: (id: string) => void;
+  addScrapVoucher: (voucher: Omit<ScrapVoucher, 'id' | 'voucherNumber' | 'createdAt'>) => ScrapVoucher;
+  deleteScrapVoucher: (id: string) => void;
+  addProductBatch: (batch: Omit<ProductBatch, 'id'>) => void;
+  updateProductBatch: (id: string, data: Partial<ProductBatch>) => void;
+  deleteProductBatch: (id: string) => void;
+  syncProductBatches: (productId: string, batches: Array<Omit<ProductBatch, 'id'> & { id?: string }>) => void;
+  addStockMovement: (movement: Omit<StockMovement, 'id' | 'createdAt'>) => void;
 
   // Customers & CRM
   customers: Customer[];
@@ -372,11 +423,18 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
     return { id: 'accounts_chart', tab: 'accounts', subTab: 'chart', title: 'شجرة ودليل الحسابات', iconName: 'FolderTree' };
   }
   if (tab === 'inventory') {
+    if (subTab === 'transfers') return { id: 'inventory_transfers', tab: 'inventory', subTab: 'transfers', title: 'التحويلات المخزنية', iconName: 'Truck' };
+    if (subTab === 'stocktaking') return { id: 'inventory_stocktaking', tab: 'inventory', subTab: 'stocktaking', title: 'الجرد والتسويات', iconName: 'ClipboardCheck' };
+    if (subTab === 'scrap') return { id: 'inventory_scrap', tab: 'inventory', subTab: 'scrap', title: 'التوالف والهوالك', iconName: 'Trash2' };
+    if (subTab === 'batches') return { id: 'inventory_batches', tab: 'inventory', subTab: 'batches', title: 'الصلاحيات والتشغيلات', iconName: 'Calendar' };
+    if (subTab === 'barcodes') return { id: 'inventory_barcodes', tab: 'inventory', subTab: 'barcodes', title: 'طباعة الباركود', iconName: 'Barcode' };
+    if (subTab === 'warehouses') return { id: 'inventory_warehouses', tab: 'inventory', subTab: 'warehouses', title: 'المستودعات والفروع', iconName: 'Warehouse' };
     if (subTab === 'low_stock') return { id: 'inventory_low_stock', tab: 'inventory', subTab: 'low_stock', title: 'نواقص وتنبيهات المخزون', iconName: 'AlertTriangle' };
     if (subTab === 'adjust') return { id: 'inventory_adjust', tab: 'inventory', subTab: 'adjust', title: 'التسوية الجردية', iconName: 'ArrowDownUp' };
     return { id: 'inventory_all', tab: 'inventory', subTab: 'all', title: 'الأصناف والمخزون', iconName: 'Layers' };
   }
   if (tab === 'crm_collections') {
+    if (subTab === 'crm_analytics' || subTab === 'analytics') return { id: 'crm_analytics', tab: 'crm_collections', subTab: 'crm_analytics', title: 'التحليلات والرسوم البيانية', iconName: 'BarChart3' };
     if (subTab === 'pipeline') return { id: 'crm_pipeline', tab: 'crm_collections', subTab: 'pipeline', title: 'مسار المبيعات والفرص', iconName: 'TrendingUp' };
     if (subTab === 'interactions') return { id: 'crm_interactions', tab: 'crm_collections', subTab: 'interactions', title: 'سجل المتابعات والاتصالات', iconName: 'PhoneCall' };
     if (subTab === 'tickets') return { id: 'crm_tickets', tab: 'crm_collections', subTab: 'tickets', title: 'تذاكر الدعم والشكاوى', iconName: 'LifeBuoy' };
@@ -792,7 +850,35 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
   });
 
-  const [warehouses] = useState<Warehouse[]>(INITIAL_WAREHOUSES);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}warehouses`);
+    return saved ? JSON.parse(saved) : INITIAL_WAREHOUSES;
+  });
+
+  const [stockTransfers, setStockTransfers] = useState<StockTransfer[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}stock_transfers`);
+    return saved ? JSON.parse(saved) : INITIAL_STOCK_TRANSFERS;
+  });
+
+  const [stocktakingSessions, setStocktakingSessions] = useState<StocktakingSession[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}stocktaking_sessions`);
+    return saved ? JSON.parse(saved) : INITIAL_STOCKTAKING_SESSIONS;
+  });
+
+  const [scrapVouchers, setScrapVouchers] = useState<ScrapVoucher[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}scrap_vouchers`);
+    return saved ? JSON.parse(saved) : INITIAL_SCRAP_VOUCHERS;
+  });
+
+  const [productBatches, setProductBatches] = useState<ProductBatch[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}product_batches`);
+    return saved ? JSON.parse(saved) : INITIAL_PRODUCT_BATCHES;
+  });
+
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}stock_movements`);
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}customers`);
@@ -910,6 +996,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_PREFIX}accounts`, JSON.stringify(accounts));
     localStorage.setItem(`${STORAGE_PREFIX}journal_entries`, JSON.stringify(journalEntries));
     localStorage.setItem(`${STORAGE_PREFIX}products`, JSON.stringify(products));
+    localStorage.setItem(`${STORAGE_PREFIX}warehouses`, JSON.stringify(warehouses));
+    localStorage.setItem(`${STORAGE_PREFIX}stock_transfers`, JSON.stringify(stockTransfers));
+    localStorage.setItem(`${STORAGE_PREFIX}stocktaking_sessions`, JSON.stringify(stocktakingSessions));
+    localStorage.setItem(`${STORAGE_PREFIX}scrap_vouchers`, JSON.stringify(scrapVouchers));
+    localStorage.setItem(`${STORAGE_PREFIX}product_batches`, JSON.stringify(productBatches));
+    localStorage.setItem(`${STORAGE_PREFIX}stock_movements`, JSON.stringify(stockMovements));
     localStorage.setItem(`${STORAGE_PREFIX}customers`, JSON.stringify(customers));
     localStorage.setItem(`${STORAGE_PREFIX}vendors`, JSON.stringify(vendors));
     localStorage.setItem(`${STORAGE_PREFIX}sales_invoices`, JSON.stringify(salesInvoices));
@@ -941,6 +1033,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     accounts,
     journalEntries,
     products,
+    warehouses,
+    stockTransfers,
+    stocktakingSessions,
+    scrapVouchers,
+    productBatches,
+    stockMovements,
     customers,
     vendors,
     salesInvoices,
@@ -1584,6 +1682,65 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { canDelete: true };
   };
 
+  const canDeleteWarehouse = (id: string): { canDelete: boolean; reason?: string } => {
+    const target = warehouses.find((w) => w.id === id);
+    if (!target) return { canDelete: false, reason: 'المستودع غير موجود.' };
+    if (warehouses.length <= 1) {
+      return { canDelete: false, reason: 'لا يمكن حذف المستودع الوحيد المتبقي في النظام.' };
+    }
+    if (target.isDefault) {
+      return { canDelete: false, reason: 'لا يمكن حذف المستودع الافتراضي للنظام.' };
+    }
+    const linkedTransfers = stockTransfers.filter(
+      (t) => t.fromWarehouseId === id || t.toWarehouseId === id
+    );
+    if (linkedTransfers.length > 0) {
+      return {
+        canDelete: false,
+        reason: `المستودع مسجل في ${linkedTransfers.length} تحويلات مخزنية.`,
+      };
+    }
+    const linkedSessions = stocktakingSessions.filter((s) => s.warehouseId === id);
+    if (linkedSessions.length > 0) {
+      return {
+        canDelete: false,
+        reason: `المستودع مسجل في ${linkedSessions.length} جلسات جرد وتسويه سابقة.`,
+      };
+    }
+    const linkedScrap = scrapVouchers.filter((s) => s.warehouseId === id);
+    if (linkedScrap.length > 0) {
+      return {
+        canDelete: false,
+        reason: `المستودع مسجل في ${linkedScrap.length} أذون توالف وهوالك سابقة.`,
+      };
+    }
+    return { canDelete: true };
+  };
+
+  const canDeleteStockTransfer = (id: string): { canDelete: boolean; reason?: string } => {
+    const target = stockTransfers.find((t) => t.id === id);
+    if (!target) return { canDelete: false, reason: 'التحويل المخزني غير موجود.' };
+    if (target.status === 'completed') {
+      return { canDelete: false, reason: 'لا يمكن حذف تحويل مخزني مكتمل وتم ترحيل أرصدته.' };
+    }
+    return { canDelete: true };
+  };
+
+  const canDeleteStocktakingSession = (id: string): { canDelete: boolean; reason?: string } => {
+    const target = stocktakingSessions.find((s) => s.id === id);
+    if (!target) return { canDelete: false, reason: 'جلسة الجرد غير موجودة.' };
+    if (target.status === 'completed') {
+      return { canDelete: false, reason: 'لا يمكن حذف جلسة جرد معتمدة ومرحلة للأرصدة والحسابات.' };
+    }
+    return { canDelete: true };
+  };
+
+  const canDeleteScrapVoucher = (id: string): { canDelete: boolean; reason?: string } => {
+    const target = scrapVouchers.find((s) => s.id === id);
+    if (!target) return { canDelete: false, reason: 'إذن التالف غير موجود.' };
+    return { canDelete: true };
+  };
+
   const canDeleteEntity = (
     type:
       | 'account'
@@ -1597,7 +1754,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       | 'purchase'
       | 'payroll'
       | 'user'
-      | 'journal',
+      | 'journal'
+      | 'warehouse'
+      | 'stockTransfer'
+      | 'stocktakingSession'
+      | 'scrapVoucher',
     id: string
   ): { canDelete: boolean; reason?: string } => {
     switch (type) {
@@ -1625,6 +1786,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return canDeleteUser(id);
       case 'journal':
         return canDeleteJournalEntry(id);
+      case 'warehouse':
+        return canDeleteWarehouse(id);
+      case 'stockTransfer':
+        return canDeleteStockTransfer(id);
+      case 'stocktakingSession':
+        return canDeleteStocktakingSession(id);
+      case 'scrapVoucher':
+        return canDeleteScrapVoucher(id);
       default:
         return { canDelete: true };
     }
@@ -1958,18 +2127,126 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Inventory Management
   const addProduct = (productData: Omit<Product, 'id'>) => {
     const sku = productData.sku || getNextSequenceCode('product');
+    const matchedVendor = productData.supplierId ? vendors.find((v) => v.id === productData.supplierId) : undefined;
     const newProduct: Product = {
       ...productData,
       sku,
+      supplierName: productData.supplierName || matchedVendor?.name,
       id: `prod-${Date.now()}`,
     };
     setProducts((prev) => [...prev, newProduct]);
     setSequenceConfig((prev) => ({ ...prev, productNextNumber: prev.productNextNumber + 1 }));
+
+    // Record initial stock movement if stock > 0
+    if (newProduct.stockQuantity > 0) {
+      const wh = warehouses.find((w) => w.id === newProduct.warehouseId);
+      addStockMovement({
+        productId: newProduct.id,
+        productName: newProduct.name,
+        sku: newProduct.sku,
+        warehouseId: newProduct.warehouseId,
+        warehouseName: wh?.name,
+        type: 'IN',
+        quantity: newProduct.stockQuantity,
+        unitPrice: newProduct.costPrice,
+        referenceType: 'initial_stock',
+        reference: 'رصيد افتتاحي',
+        notes: 'تسجيل رصيد أول المدة الافتتاحي عند تعريف الصنف',
+        date: new Date().toISOString().split('T')[0],
+      });
+    }
+
+    // Auto-create product batch if item has expiry
+    if (newProduct.hasExpiry && newProduct.expiryDate) {
+      const batchNum = newProduct.batchNumber || `BATCH-${Date.now().toString().slice(-6)}`;
+      const expDate = newProduct.expiryDate;
+      const days = Math.ceil((new Date(expDate).getTime() - new Date().setHours(0,0,0,0)) / (1000 * 60 * 60 * 24));
+      const status: ProductBatch['status'] = days < 0 ? 'expired' : days <= 60 ? 'near_expiry' : 'valid';
+      
+      addProductBatch({
+        productId: newProduct.id,
+        productName: newProduct.name,
+        sku: newProduct.sku,
+        warehouseId: newProduct.warehouseId,
+        warehouseName: warehouses.find((w) => w.id === newProduct.warehouseId)?.name,
+        batchNumber: batchNum,
+        productionDate: newProduct.productionDate || new Date().toISOString().split('T')[0],
+        expiryDate: expDate,
+        quantity: newProduct.stockQuantity || 0,
+        initialQuantity: newProduct.stockQuantity || 0,
+        costPrice: newProduct.costPrice,
+        sellingPrice: newProduct.sellingPrice,
+        status,
+        notes: 'تشغيلة رصيد أول المدة التلقائية',
+      });
+    }
+
     logAuditEvent('إضافة منتج للمخزن', 'المخازن', `تمت إضافة الصنف: ${newProduct.name} (SKU: ${newProduct.sku})`);
+    return newProduct;
   };
 
   const updateProduct = (id: string, data: Partial<Product>) => {
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...data } : p)));
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const updated = { ...p, ...data };
+        return updated;
+      })
+    );
+
+    // If hasExpiry or expiryDate is updated, synchronize or create productBatch
+    if (data.hasExpiry || data.expiryDate || data.batchNumber) {
+      const prod = products.find((p) => p.id === id);
+      const hasExp = data.hasExpiry !== undefined ? data.hasExpiry : prod?.hasExpiry;
+      const expDate = data.expiryDate !== undefined ? data.expiryDate : prod?.expiryDate;
+      const batchNum = data.batchNumber || prod?.batchNumber || `LOT-${data.sku || prod?.sku || Date.now().toString().slice(-4)}`;
+      const prodDate = data.productionDate || prod?.productionDate || new Date().toISOString().split('T')[0];
+      const stockQty = data.stockQuantity !== undefined ? data.stockQuantity : (prod?.stockQuantity || 0);
+      const whId = data.warehouseId || prod?.warehouseId || warehouses[0]?.id || 'wh-1';
+
+      if (hasExp && expDate) {
+        const days = Math.ceil((new Date(expDate).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24));
+        const status: ProductBatch['status'] = days < 0 ? 'expired' : days <= 60 ? 'near_expiry' : 'valid';
+
+        setProductBatches((prev) => {
+          const existingIndex = prev.findIndex((b) => b.productId === id);
+          if (existingIndex >= 0) {
+            const updatedBatches = [...prev];
+            updatedBatches[existingIndex] = {
+              ...updatedBatches[existingIndex],
+              batchNumber: batchNum,
+              productionDate: prodDate,
+              expiryDate: expDate,
+              warehouseId: whId,
+              warehouseName: warehouses.find((w) => w.id === whId)?.name,
+              status,
+              quantity: stockQty,
+            };
+            return updatedBatches;
+          } else {
+            const newBatch: ProductBatch = {
+              id: `batch-${Date.now()}`,
+              productId: id,
+              productName: data.name || prod?.name || '',
+              sku: data.sku || prod?.sku || '',
+              warehouseId: whId,
+              warehouseName: warehouses.find((w) => w.id === whId)?.name,
+              batchNumber: batchNum,
+              productionDate: prodDate,
+              expiryDate: expDate,
+              quantity: stockQty,
+              initialQuantity: stockQty,
+              costPrice: data.costPrice !== undefined ? data.costPrice : (prod?.costPrice || 0),
+              sellingPrice: data.sellingPrice !== undefined ? data.sellingPrice : prod?.sellingPrice,
+              status,
+              notes: 'تمت المزامنة من بيانات الصنف',
+            };
+            return [...prev, newBatch];
+          }
+        });
+      }
+    }
+
     logAuditEvent('تعديل بيانات صنف', 'المخازن', `تم تحديث بيانات الصنف ${data.name || id}`);
   };
 
@@ -1995,20 +2272,974 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAuditEvent('حذف صنف من المخزن', 'المخازن', `تم حذف الصنف ${prod?.name || id}`);
   };
 
-  const updateProductStock = (productId: string, deltaQty: number, costPrice?: number) => {
+  const addStockMovement = (movementData: Omit<StockMovement, 'id' | 'createdAt'>) => {
+    const newMovement: StockMovement = {
+      ...movementData,
+      id: `sm-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      createdAt: new Date().toISOString(),
+    };
+    setStockMovements((prev) => [newMovement, ...prev]);
+  };
+
+  // Auto-sync products with expiry into productBatches if missing or recalculate their status dynamically
+  useEffect(() => {
+    setProductBatches((prevBatches) => {
+      let changed = false;
+      const batchList = [...prevBatches];
+
+      // Update statuses of existing batches based on current date
+      const updatedBatches = batchList.map((batch) => {
+        if (!batch.expiryDate) return batch;
+        const days = Math.ceil((new Date(batch.expiryDate).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24));
+        const correctStatus: ProductBatch['status'] = days < 0 ? 'expired' : days <= 60 ? 'near_expiry' : 'valid';
+        if (batch.status !== correctStatus) {
+          changed = true;
+          return { ...batch, status: correctStatus };
+        }
+        return batch;
+      });
+
+      // Find any products that have expiry tracking but no batch in productBatches
+      products.forEach((p) => {
+        if (p.hasExpiry && p.expiryDate) {
+          const hasBatch = updatedBatches.some((b) => b.productId === p.id);
+          if (!hasBatch) {
+            changed = true;
+            const days = Math.ceil((new Date(p.expiryDate).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24));
+            const status: ProductBatch['status'] = days < 0 ? 'expired' : days <= 60 ? 'near_expiry' : 'valid';
+            updatedBatches.push({
+              id: `batch-${Date.now()}-${p.id}`,
+              productId: p.id,
+              productName: p.name,
+              sku: p.sku,
+              warehouseId: p.warehouseId || warehouses[0]?.id || 'wh-1',
+              warehouseName: warehouses.find((w) => w.id === p.warehouseId)?.name,
+              batchNumber: p.batchNumber || `LOT-${p.sku}`,
+              productionDate: p.productionDate || new Date().toISOString().split('T')[0],
+              expiryDate: p.expiryDate,
+              quantity: p.stockQuantity || 0,
+              initialQuantity: p.stockQuantity || 0,
+              costPrice: p.costPrice,
+              sellingPrice: p.sellingPrice,
+              status,
+              notes: 'توليد تلقائي لتشغيلة الصنف',
+            });
+          }
+        }
+      });
+
+      return changed ? updatedBatches : prevBatches;
+    });
+  }, [products, warehouses]);
+  useEffect(() => {
+    let modified = false;
+    const reconciled = products.map((p) => {
+      let stocks = p.warehouseStocks ? [...p.warehouseStocks] : [];
+      if (stocks.length === 0) {
+        const primaryWh = p.warehouseId || warehouses[0]?.id || 'wh-1';
+        const primaryWhName = warehouses.find((w) => w.id === primaryWh)?.name;
+        stocks = [
+          {
+            warehouseId: primaryWh,
+            warehouseName: primaryWhName,
+            shelfLocation: p.shelfLocation || 'A-01',
+            quantity: p.stockQuantity,
+          },
+        ];
+        modified = true;
+        return { ...p, warehouseStocks: stocks };
+      }
+
+      const totalWarehouseStock = stocks.reduce((sum, s) => sum + (s.quantity || 0), 0);
+      if (totalWarehouseStock !== p.stockQuantity) {
+        const diff = totalWarehouseStock - p.stockQuantity;
+
+        // Check if there are scrap vouchers for this product in specific warehouses
+        const productScraps = scrapVouchers.filter((v) => v.items && v.items.some((i) => i.productId === p.id));
+        let remainingDiff = diff;
+
+        for (const scrap of productScraps) {
+          const scrapItem = scrap.items.find((i) => i.productId === p.id);
+          if (scrapItem && remainingDiff > 0) {
+            const whStockIndex = stocks.findIndex((s) => s.warehouseId === scrap.warehouseId);
+            if (whStockIndex >= 0) {
+              const deduct = Math.min(remainingDiff, scrapItem.quantity, stocks[whStockIndex].quantity);
+              if (deduct > 0) {
+                stocks[whStockIndex] = {
+                  ...stocks[whStockIndex],
+                  quantity: stocks[whStockIndex].quantity - deduct,
+                };
+                remainingDiff -= deduct;
+              }
+            }
+          }
+        }
+
+        // If there's still a discrepancy, reconcile with primary warehouse or first available
+        if (remainingDiff !== 0) {
+          const primaryIndex = stocks.findIndex((s) => s.warehouseId === (p.warehouseId || warehouses[0]?.id));
+          if (primaryIndex >= 0) {
+            stocks[primaryIndex] = {
+              ...stocks[primaryIndex],
+              quantity: Math.max(0, stocks[primaryIndex].quantity - remainingDiff),
+            };
+          } else if (stocks.length > 0) {
+            stocks[0] = {
+              ...stocks[0],
+              quantity: Math.max(0, stocks[0].quantity - remainingDiff),
+            };
+          }
+        }
+
+        const reconciledTotal = stocks.reduce((sum, s) => sum + s.quantity, 0);
+        modified = true;
+        return {
+          ...p,
+          stockQuantity: reconciledTotal,
+          warehouseStocks: stocks,
+        };
+      }
+      return p;
+    });
+
+    if (modified) {
+      setProducts(reconciled);
+    }
+  }, []); // Run once on startup to heal any existing state discrepancies
+
+  const adjustProductWarehouseStock = (
+    productId: string,
+    warehouseId: string,
+    deltaQty: number,
+    warehouseShelfLocation?: string,
+    costPrice?: number
+  ) => {
+    updateProductStock(productId, deltaQty, costPrice, warehouseId);
+    if (warehouseShelfLocation) {
+      updateProductShelfLocation(productId, warehouseId, warehouseShelfLocation);
+    }
+  };
+
+  const getProductQuantityInWarehouse = (productId: string, warehouseId: string): number => {
+    const prod = products.find((p) => p.id === productId);
+    if (!prod) return 0;
+    if (prod.warehouseStocks && prod.warehouseStocks.length > 0) {
+      const entry = prod.warehouseStocks.find((s) => s.warehouseId === warehouseId);
+      return entry ? entry.quantity : 0;
+    }
+    const primaryWh = prod.warehouseId || warehouses[0]?.id || 'wh-1';
+    if (primaryWh === warehouseId) {
+      return prod.stockQuantity;
+    }
+    return 0;
+  };
+
+  const getProductWarehouseBreakdown = (productId: string) => {
+    const prod = products.find((p) => p.id === productId);
+    if (!prod) return [];
+
+    const totalStock = prod.stockQuantity;
+
+    return warehouses.map((w) => {
+      const qtyInWh = getProductQuantityInWarehouse(prod.id, w.id);
+      const stockDetail = prod.warehouseStocks?.find((s) => s.warehouseId === w.id);
+      const shelfLoc =
+        stockDetail?.shelfLocation ||
+        (prod.warehouseId === w.id ? prod.shelfLocation : undefined) ||
+        'الرف الرئيسي (A-01)';
+
+      const batchesInWh = productBatches.filter(
+        (b) => b.productId === prod.id && (b.warehouseId === w.id || (!b.warehouseId && prod.warehouseId === w.id))
+      );
+
+      const movementsInWh = stockMovements
+        .filter((m) => m.productId === prod.id && m.warehouseId === w.id)
+        .slice(0, 5);
+
+      const percentage = totalStock > 0 ? Math.round((qtyInWh / totalStock) * 100) : 0;
+
+      return {
+        warehouseId: w.id,
+        warehouseName: w.name,
+        warehouseCode: w.code,
+        location: w.location,
+        governorate: w.governorate,
+        shelfLocation: shelfLoc,
+        quantity: qtyInWh,
+        costPrice: prod.costPrice,
+        totalValue: qtyInWh * prod.costPrice,
+        percentage,
+        batches: batchesInWh,
+        recentMovements: movementsInWh,
+        isDefault: w.isDefault,
+      };
+    });
+  };
+
+  const updateProductShelfLocation = (productId: string, warehouseId: string, shelfLocation: string) => {
     setProducts((prev) =>
       prev.map((p) => {
-        if (p.id === productId) {
-          const newQty = Math.max(0, p.stockQuantity + deltaQty);
-          return {
-            ...p,
-            stockQuantity: newQty,
-            costPrice: costPrice !== undefined ? costPrice : p.costPrice,
-          };
+        if (p.id !== productId) return p;
+
+        const existingStocks: WarehouseStockDetail[] = p.warehouseStocks ? [...p.warehouseStocks] : [];
+        if (existingStocks.length === 0) {
+          const primaryWh = p.warehouseId || warehouses[0]?.id || 'wh-1';
+          existingStocks.push({
+            warehouseId: primaryWh,
+            warehouseName: warehouses.find((w) => w.id === primaryWh)?.name,
+            shelfLocation: primaryWh === warehouseId ? shelfLocation : p.shelfLocation || 'A-01',
+            quantity: p.stockQuantity,
+          });
         }
-        return p;
+
+        const idx = existingStocks.findIndex((s) => s.warehouseId === warehouseId);
+        if (idx >= 0) {
+          existingStocks[idx] = { ...existingStocks[idx], shelfLocation };
+        } else {
+          existingStocks.push({
+            warehouseId,
+            warehouseName: warehouses.find((w) => w.id === warehouseId)?.name,
+            shelfLocation,
+            quantity: 0,
+          });
+        }
+
+        return {
+          ...p,
+          shelfLocation: p.warehouseId === warehouseId ? shelfLocation : p.shelfLocation,
+          warehouseStocks: existingStocks,
+        };
       })
     );
+    logAuditEvent('تحديث موقع الرف', 'المخازن', `تم تحديث موقع الرف للصنف في المستودع ${warehouseId} إلى ${shelfLocation}`);
+  };
+
+  const updateProductStock = (productId: string, deltaQty: number, costPrice?: number, warehouseId?: string) => {
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id !== productId) return p;
+
+        const targetWhId = warehouseId || p.warehouseId || warehouses.find((w) => w.isDefault)?.id || warehouses[0]?.id || 'wh-1';
+        const targetWhName = warehouses.find((w) => w.id === targetWhId)?.name;
+
+        const existingStocks: WarehouseStockDetail[] = p.warehouseStocks ? [...p.warehouseStocks] : [];
+
+        // If existingStocks is empty, initialize with primary warehouse
+        if (existingStocks.length === 0) {
+          const primaryWh = p.warehouseId || warehouses.find((w) => w.isDefault)?.id || warehouses[0]?.id || 'wh-1';
+          const primaryWhName = warehouses.find((w) => w.id === primaryWh)?.name;
+          existingStocks.push({
+            warehouseId: primaryWh,
+            warehouseName: primaryWhName,
+            shelfLocation: p.shelfLocation || 'A-01',
+            quantity: p.stockQuantity,
+          });
+        }
+
+        const idx = existingStocks.findIndex((s) => s.warehouseId === targetWhId);
+        if (idx >= 0) {
+          const currentQty = existingStocks[idx].quantity;
+          const newQty = Math.max(0, currentQty + deltaQty);
+          existingStocks[idx] = {
+            ...existingStocks[idx],
+            quantity: newQty,
+            warehouseName: targetWhName || existingStocks[idx].warehouseName,
+            shelfLocation: existingStocks[idx].shelfLocation || p.shelfLocation || 'A-01',
+          };
+        } else {
+          const newQty = Math.max(0, deltaQty);
+          existingStocks.push({
+            warehouseId: targetWhId,
+            warehouseName: targetWhName,
+            shelfLocation: p.shelfLocation || 'A-01',
+            quantity: newQty,
+          });
+        }
+
+        // Total stockQuantity is the sum across all warehouses
+        const totalStock = existingStocks.reduce((sum, s) => sum + s.quantity, 0);
+
+        return {
+          ...p,
+          stockQuantity: totalStock,
+          costPrice: costPrice !== undefined ? costPrice : p.costPrice,
+          warehouseStocks: existingStocks,
+        };
+      })
+    );
+  };
+
+  // Warehouses Management
+  const addWarehouse = (warehouseData: Omit<Warehouse, 'id'>) => {
+    const code = warehouseData.code || `WH-${String(warehouses.length + 1).padStart(2, '0')}`;
+    const newWarehouse: Warehouse = {
+      ...warehouseData,
+      code,
+      id: `wh-${Date.now()}`,
+    };
+    if (newWarehouse.isDefault) {
+      setWarehouses((prev) => prev.map((w) => ({ ...w, isDefault: false })).concat(newWarehouse));
+    } else {
+      setWarehouses((prev) => [...prev, newWarehouse]);
+    }
+    logAuditEvent('إضافة مستودع جديد', 'إدارة المخازن', `تمت إضافة مستودع: ${newWarehouse.name} (${newWarehouse.code})`);
+  };
+
+  const editWarehouse = (id: string, data: Partial<Warehouse>) => {
+    setWarehouses((prev) =>
+      prev.map((w) => {
+        if (w.id === id) {
+          return { ...w, ...data };
+        }
+        if (data.isDefault) {
+          return { ...w, isDefault: false };
+        }
+        return w;
+      })
+    );
+    logAuditEvent('تعديل بيانات مستودع', 'إدارة المخازن', `تم تحديث بيانات مستودع ${data.name || id}`);
+  };
+
+  const deleteWarehouse = (id: string) => {
+    const check = canDeleteWarehouse(id);
+    const target = warehouses.find((w) => w.id === id);
+    if (!check.canDelete) {
+      showAlert({
+        title: `تعذر حذف المستودع (${target?.name || ''})`,
+        message: 'لا يمكن حذف المستودع المحدد للأسباب التالية:',
+        details: check.reason,
+        type: 'error',
+        confirmText: 'فهمت',
+      });
+      return;
+    }
+    setWarehouses((prev) => prev.filter((w) => w.id !== id));
+    logAuditEvent('حذف مستودع', 'إدارة المخازن', `تم حذف مستودع ${target?.name || id}`);
+  };
+
+  // Stock Transfers Management
+  const addStockTransfer = (transferData: Omit<StockTransfer, 'id' | 'transferNumber' | 'createdAt'>): StockTransfer => {
+    const transferNumber = `TRF-${new Date().getFullYear()}-${String(stockTransfers.length + 1).padStart(3, '0')}`;
+    const newTransfer: StockTransfer = {
+      ...transferData,
+      id: `trf-${Date.now()}`,
+      transferNumber,
+      createdAt: new Date().toISOString(),
+    };
+
+    setStockTransfers((prev) => [newTransfer, ...prev]);
+
+    // Apply stock movements and deductions
+    if (newTransfer.status === 'completed') {
+      newTransfer.items.forEach((item) => {
+        // Deduct from source and credit to destination
+        adjustProductWarehouseStock(item.productId, newTransfer.fromWarehouseId, -item.quantity);
+        adjustProductWarehouseStock(item.productId, newTransfer.toWarehouseId, item.quantity);
+
+        // Move batches if any
+        if (item.batchNumber) {
+          setProductBatches((prevBatches) => {
+            const updated = prevBatches.map((b) => {
+              if (b.productId === item.productId && b.warehouseId === newTransfer.fromWarehouseId && b.batchNumber === item.batchNumber) {
+                return { ...b, quantity: Math.max(0, b.quantity - item.quantity) };
+              }
+              return b;
+            });
+            const destBatch = updated.find((b) => b.productId === item.productId && b.warehouseId === newTransfer.toWarehouseId && b.batchNumber === item.batchNumber);
+            if (destBatch) {
+              return updated.map((b) => b.id === destBatch.id ? { ...b, quantity: b.quantity + item.quantity } : b);
+            } else {
+              const srcBatch = prevBatches.find((b) => b.productId === item.productId && b.batchNumber === item.batchNumber);
+              if (srcBatch) {
+                updated.push({
+                  ...srcBatch,
+                  id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                  warehouseId: newTransfer.toWarehouseId,
+                  warehouseName: newTransfer.toWarehouseName,
+                  quantity: item.quantity,
+                  initialQuantity: item.quantity,
+                });
+              }
+            }
+            return updated;
+          });
+        }
+
+        // Stock movement out from source
+        addStockMovement({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          warehouseId: newTransfer.fromWarehouseId,
+          warehouseName: newTransfer.fromWarehouseName,
+          type: 'transfer_out',
+          quantity: item.quantity,
+          referenceType: 'transfer',
+          referenceNumber: transferNumber,
+          notes: `تحويل صادر إلى ${newTransfer.toWarehouseName}`,
+          date: newTransfer.date,
+        });
+
+        // Stock movement in to destination
+        addStockMovement({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          warehouseId: newTransfer.toWarehouseId,
+          warehouseName: newTransfer.toWarehouseName,
+          type: 'transfer_in',
+          quantity: item.quantity,
+          referenceType: 'transfer',
+          referenceNumber: transferNumber,
+          notes: `تحويل وارد من ${newTransfer.fromWarehouseName}`,
+          date: newTransfer.date,
+        });
+      });
+    } else if (newTransfer.status === 'in_transit') {
+      newTransfer.items.forEach((item) => {
+        // Deduct from source warehouse only (goods in shipping)
+        adjustProductWarehouseStock(item.productId, newTransfer.fromWarehouseId, -item.quantity);
+
+        addStockMovement({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          warehouseId: newTransfer.fromWarehouseId,
+          warehouseName: newTransfer.fromWarehouseName,
+          type: 'transfer_out',
+          quantity: item.quantity,
+          referenceType: 'transfer',
+          referenceNumber: transferNumber,
+          notes: `بضاعة قيد الشحن في الطريق إلى ${newTransfer.toWarehouseName}`,
+          date: newTransfer.date,
+        });
+      });
+    }
+
+    logAuditEvent('تحويل مخزني جديد', 'المخازن', `تم إنشاء إذن تحويل ${transferNumber} [${newTransfer.status}] من ${newTransfer.fromWarehouseName} إلى ${newTransfer.toWarehouseName}`);
+    return newTransfer;
+  };
+
+  const updateStockTransferStatus = (id: string, newStatus: StockTransfer['status']) => {
+    const transfer = stockTransfers.find((t) => t.id === id);
+    if (!transfer) return;
+    const oldStatus = transfer.status;
+    if (oldStatus === newStatus) return;
+
+    const today = new Date().toISOString().split('T')[0];
+
+    // 1. From (draft or pending) -> in_transit
+    if ((oldStatus === 'draft' || oldStatus === 'pending') && newStatus === 'in_transit') {
+      transfer.items.forEach((item) => {
+        adjustProductWarehouseStock(item.productId, transfer.fromWarehouseId, -item.quantity);
+        addStockMovement({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          warehouseId: transfer.fromWarehouseId,
+          warehouseName: transfer.fromWarehouseName,
+          type: 'transfer_out',
+          quantity: item.quantity,
+          referenceType: 'transfer',
+          referenceNumber: transfer.transferNumber,
+          notes: `شحن بضاعة في الطريق إلى ${transfer.toWarehouseName}`,
+          date: today,
+        });
+      });
+    }
+    // 2. From (draft or pending) -> completed
+    else if ((oldStatus === 'draft' || oldStatus === 'pending') && newStatus === 'completed') {
+      transfer.items.forEach((item) => {
+        adjustProductWarehouseStock(item.productId, transfer.fromWarehouseId, -item.quantity);
+        adjustProductWarehouseStock(item.productId, transfer.toWarehouseId, item.quantity);
+        addStockMovement({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          warehouseId: transfer.fromWarehouseId,
+          warehouseName: transfer.fromWarehouseName,
+          type: 'transfer_out',
+          quantity: item.quantity,
+          referenceType: 'transfer',
+          referenceNumber: transfer.transferNumber,
+          notes: `تحويل صادر إلى ${transfer.toWarehouseName}`,
+          date: today,
+        });
+        addStockMovement({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          warehouseId: transfer.toWarehouseId,
+          warehouseName: transfer.toWarehouseName,
+          type: 'transfer_in',
+          quantity: item.quantity,
+          referenceType: 'transfer',
+          referenceNumber: transfer.transferNumber,
+          notes: `تحويل وارد من ${transfer.fromWarehouseName}`,
+          date: today,
+        });
+      });
+    }
+    // 3. From in_transit -> completed
+    else if (oldStatus === 'in_transit' && newStatus === 'completed') {
+      transfer.items.forEach((item) => {
+        // Stock was already deducted from source, now credit to destination
+        adjustProductWarehouseStock(item.productId, transfer.toWarehouseId, item.quantity);
+        addStockMovement({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          warehouseId: transfer.toWarehouseId,
+          warehouseName: transfer.toWarehouseName,
+          type: 'transfer_in',
+          quantity: item.quantity,
+          referenceType: 'transfer',
+          referenceNumber: transfer.transferNumber,
+          notes: `استلام تحويل وارد من ${transfer.fromWarehouseName}`,
+          date: today,
+        });
+      });
+    }
+    // 4. From completed -> in_transit
+    else if (oldStatus === 'completed' && newStatus === 'in_transit') {
+      transfer.items.forEach((item) => {
+        // Remove from destination, remain deducted from source
+        adjustProductWarehouseStock(item.productId, transfer.toWarehouseId, -item.quantity);
+      });
+    }
+    // 5. From completed -> (draft or pending or cancelled)
+    else if (oldStatus === 'completed' && (newStatus === 'draft' || newStatus === 'pending' || newStatus === 'cancelled')) {
+      transfer.items.forEach((item) => {
+        // Revert both: remove from destination, restore to source
+        adjustProductWarehouseStock(item.productId, transfer.toWarehouseId, -item.quantity);
+        adjustProductWarehouseStock(item.productId, transfer.fromWarehouseId, item.quantity);
+        addStockMovement({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          warehouseId: transfer.fromWarehouseId,
+          warehouseName: transfer.fromWarehouseName,
+          type: 'adjustment_in',
+          quantity: item.quantity,
+          referenceType: 'transfer_reversal',
+          referenceNumber: transfer.transferNumber,
+          notes: `إلغاء تحويل وإرجاع الرصيد للمستودع المصدر (${transfer.fromWarehouseName})`,
+          date: today,
+        });
+      });
+    }
+    // 6. From in_transit -> (draft or pending or cancelled)
+    else if (oldStatus === 'in_transit' && (newStatus === 'draft' || newStatus === 'pending' || newStatus === 'cancelled')) {
+      transfer.items.forEach((item) => {
+        // Restore to source
+        adjustProductWarehouseStock(item.productId, transfer.fromWarehouseId, item.quantity);
+        addStockMovement({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          warehouseId: transfer.fromWarehouseId,
+          warehouseName: transfer.fromWarehouseName,
+          type: 'adjustment_in',
+          quantity: item.quantity,
+          referenceType: 'transfer_reversal',
+          referenceNumber: transfer.transferNumber,
+          notes: `إلغاء شحن تحويل وإرجاع الرصيد للمستودع المصدر`,
+          date: today,
+        });
+      });
+    }
+    // 7. From cancelled -> completed
+    else if (oldStatus === 'cancelled' && newStatus === 'completed') {
+      transfer.items.forEach((item) => {
+        adjustProductWarehouseStock(item.productId, transfer.fromWarehouseId, -item.quantity);
+        adjustProductWarehouseStock(item.productId, transfer.toWarehouseId, item.quantity);
+      });
+    }
+    // 8. From cancelled -> in_transit
+    else if (oldStatus === 'cancelled' && newStatus === 'in_transit') {
+      transfer.items.forEach((item) => {
+        adjustProductWarehouseStock(item.productId, transfer.fromWarehouseId, -item.quantity);
+      });
+    }
+
+    setStockTransfers((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              status: newStatus,
+              completedAt: newStatus === 'completed' ? new Date().toISOString() : t.completedAt,
+              receivedDate: newStatus === 'completed' ? today : t.receivedDate,
+            }
+          : t
+      )
+    );
+
+    logAuditEvent('تحديث حالة تحويل مخزني', 'المخازن', `تم تغيير حالة التحويل ${transfer.transferNumber} من ${oldStatus} إلى: ${newStatus}`);
+  };
+
+  const deleteStockTransfer = (id: string) => {
+    const check = canDeleteStockTransfer(id);
+    const target = stockTransfers.find((t) => t.id === id);
+    if (!check.canDelete) {
+      showAlert({
+        title: `تعذر حذف التحويل المخزني (${target?.transferNumber || ''})`,
+        message: 'لا يمكن حذف التحويل المخزني المحدد:',
+        details: check.reason,
+        type: 'error',
+        confirmText: 'فهمت',
+      });
+      return;
+    }
+
+    if (target) {
+      if (target.status === 'completed') {
+        target.items.forEach((item) => {
+          adjustProductWarehouseStock(item.productId, target.toWarehouseId, -item.quantity);
+          adjustProductWarehouseStock(item.productId, target.fromWarehouseId, item.quantity);
+        });
+      } else if (target.status === 'in_transit') {
+        target.items.forEach((item) => {
+          adjustProductWarehouseStock(item.productId, target.fromWarehouseId, item.quantity);
+        });
+      }
+    }
+
+    setStockTransfers((prev) => prev.filter((t) => t.id !== id));
+    logAuditEvent('حذف تحويل مخزني', 'المخازن', `تم حذف أمر التحويل المخزني ${target?.transferNumber || id}`);
+  };
+
+  // Stocktaking Sessions Management
+  const addStocktakingSession = (
+    sessionData: Omit<StocktakingSession, 'id' | 'sessionNumber' | 'createdAt'>
+  ): StocktakingSession => {
+    const sessionNumber = `STK-${new Date().getFullYear()}-${String(stocktakingSessions.length + 1).padStart(3, '0')}`;
+    const newSession: StocktakingSession = {
+      ...sessionData,
+      id: `stk-${Date.now()}`,
+      sessionNumber,
+      createdAt: new Date().toISOString(),
+    };
+    setStocktakingSessions((prev) => [newSession, ...prev]);
+    logAuditEvent('بدء جلسة جرد مخزني', 'المخازن', `تم فتح محضر جرد جديد ${sessionNumber} لمستودع ${newSession.warehouseName}`);
+    return newSession;
+  };
+
+  const updateStocktakingSession = (id: string, data: Partial<StocktakingSession>) => {
+    setStocktakingSessions((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        let items = data.items || s.items;
+        if (data.items) {
+          // Re-calculate difference and differenceValue
+          items = data.items.map((it) => {
+            const counted = it.countedQty !== undefined ? it.countedQty : it.systemQty;
+            const diff = counted - it.systemQty;
+            const diffVal = diff * (it.costPrice || 0);
+            return {
+              ...it,
+              countedQty: counted,
+              difference: diff,
+              differenceValue: diffVal,
+            };
+          });
+        }
+        const totalDiscrepancyValue = items.reduce((sum, it) => sum + (it.differenceValue || 0), 0);
+        return {
+          ...s,
+          ...data,
+          items,
+          totalDiscrepancyValue,
+        };
+      })
+    );
+  };
+
+  const completeStocktakingSession = (sessionId: string, updatedItems?: StocktakingItem[]) => {
+    const session = stocktakingSessions.find((s) => s.id === sessionId);
+    if (!session || session.status === 'completed') return;
+
+    // Determine final items with recalculated differences
+    let itemsToProcess = updatedItems || session.items;
+    itemsToProcess = itemsToProcess.map((it) => {
+      const counted = it.countedQty !== undefined ? it.countedQty : it.systemQty;
+      const diff = counted - it.systemQty;
+      const diffVal = diff * (it.costPrice || 0);
+      return {
+        ...it,
+        countedQty: counted,
+        difference: diff,
+        differenceValue: diffVal,
+      };
+    });
+
+    let totalDiscrepancyValue = 0;
+
+    // Apply adjustments to product stock in the session warehouse
+    itemsToProcess.forEach((item) => {
+      const diff = item.difference;
+      if (diff !== 0) {
+        updateProductStock(item.productId, diff, undefined, session.warehouseId);
+        totalDiscrepancyValue += item.differenceValue;
+
+        addStockMovement({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku,
+          warehouseId: session.warehouseId,
+          warehouseName: session.warehouseName,
+          type: diff > 0 ? 'adjustment_in' : 'adjustment_out',
+          quantity: Math.abs(diff),
+          referenceType: 'stocktaking',
+          referenceNumber: session.sessionNumber,
+          notes: `تسوية جردية بناءً على محضر ${session.sessionNumber} (${diff > 0 ? 'زيادة' : 'عجز'} ${Math.abs(diff)})`,
+          date: new Date().toISOString().split('T')[0],
+        });
+      }
+    });
+
+    // Create Accounting Journal Entry for Discrepancies if any
+    if (Math.abs(totalDiscrepancyValue) > 0.01) {
+      if (totalDiscrepancyValue > 0) {
+        // Stock Surplus (زيادة مخزون) -> Debit Inventory (1140), Credit Stock Surplus Revenue (4200)
+        addJournalEntry({
+          entryNumber: `JE-STK-${session.sessionNumber}`,
+          date: new Date().toISOString().split('T')[0],
+          reference: session.sessionNumber,
+          description: `إثبات أرباح وزيادة جرد المخزون طبقاً لمحضر ${session.sessionNumber}`,
+          lines: [
+            {
+              accountId: '1140',
+              accountCode: '1140',
+              accountName: 'المخزون السلعي والبضاعة',
+              debit: totalDiscrepancyValue,
+              credit: 0,
+              description: `زيادة جرد بضاعة ${session.warehouseName}`,
+            },
+            {
+              accountId: '4200',
+              accountCode: '4200',
+              accountName: 'إيرادات ومكاسب فروق الجرد',
+              debit: 0,
+              credit: totalDiscrepancyValue,
+              description: `تسوية فائض جرد ${session.sessionNumber}`,
+            },
+          ],
+          totalDebit: totalDiscrepancyValue,
+          totalCredit: totalDiscrepancyValue,
+          isAutomatic: true,
+          sourceModule: 'inventory',
+        });
+      } else {
+        // Stock Deficit / Loss (عجز مخزون) -> Debit Stock Deficit Expense (5300), Credit Inventory (1140)
+        const deficitVal = Math.abs(totalDiscrepancyValue);
+        addJournalEntry({
+          entryNumber: `JE-STK-${session.sessionNumber}`,
+          date: new Date().toISOString().split('T')[0],
+          reference: session.sessionNumber,
+          description: `إثبات عجز وفروق جرد المخزون طبقاً لمحضر ${session.sessionNumber}`,
+          lines: [
+            {
+              accountId: '5300',
+              accountCode: '5300',
+              accountName: 'خسائر وعجز فروق الجرد المخزني',
+              debit: deficitVal,
+              credit: 0,
+              description: `عجز جرد بضاعة ${session.warehouseName}`,
+            },
+            {
+              accountId: '1140',
+              accountCode: '1140',
+              accountName: 'المخزون السلعي والبضاعة',
+              debit: 0,
+              credit: deficitVal,
+              description: `تسوية عجز جرد ${session.sessionNumber}`,
+            },
+          ],
+          totalDebit: deficitVal,
+          totalCredit: deficitVal,
+          isAutomatic: true,
+          sourceModule: 'inventory',
+        });
+      }
+    }
+
+    setStocktakingSessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              items: itemsToProcess,
+              status: 'completed',
+              completedAt: new Date().toISOString(),
+              totalDiscrepancyValue,
+            }
+          : s
+      )
+    );
+
+    logAuditEvent('اعتماد تسوية جردية', 'المخازن', `تم اعتماد وترحيل محضر الجرد ${session.sessionNumber} وتسوية الفروق المخزنية والمالية.`);
+  };
+
+  const deleteStocktakingSession = (id: string) => {
+    const check = canDeleteStocktakingSession(id);
+    const target = stocktakingSessions.find((s) => s.id === id);
+    if (!check.canDelete) {
+      showAlert({
+        title: `تعذر حذف جلسة الجرد (${target?.sessionNumber || ''})`,
+        message: 'لا يمكن حذف جلسة الجرد المحددة:',
+        details: check.reason,
+        type: 'error',
+        confirmText: 'فهمت',
+      });
+      return;
+    }
+    setStocktakingSessions((prev) => prev.filter((s) => s.id !== id));
+    logAuditEvent('حذف محضر جرد', 'المخازن', `تم حذف محضر الجرد ${target?.sessionNumber || id}`);
+  };
+
+  // Scrap / Damaged Goods Vouchers
+  const addScrapVoucher = (
+    voucherData: Omit<ScrapVoucher, 'id' | 'voucherNumber' | 'createdAt'>
+  ): ScrapVoucher => {
+    const voucherNumber = `SCR-${new Date().getFullYear()}-${String(scrapVouchers.length + 1).padStart(3, '0')}`;
+    const newVoucher: ScrapVoucher = {
+      ...voucherData,
+      id: `scr-${Date.now()}`,
+      voucherNumber,
+      createdAt: new Date().toISOString(),
+    };
+
+    setScrapVouchers((prev) => [newVoucher, ...prev]);
+
+    // Deduct damaged items from inventory in the specific warehouse
+    newVoucher.items.forEach((item) => {
+      updateProductStock(item.productId, -item.quantity, undefined, newVoucher.warehouseId);
+
+      addStockMovement({
+        productId: item.productId,
+        productName: item.productName,
+        sku: item.sku,
+        warehouseId: newVoucher.warehouseId,
+        warehouseName: newVoucher.warehouseName,
+        type: 'scrap',
+        quantity: item.quantity,
+        referenceType: 'scrap',
+        referenceNumber: voucherNumber,
+        notes: `إعدام وتوالف: ${item.reason || newVoucher.reason}`,
+        date: newVoucher.date,
+      });
+    });
+
+    // Post Accounting Journal Entry for Scrap Expense
+    const totalVoucherLoss = newVoucher.totalCost ?? newVoucher.totalLossValue ?? 0;
+    if (totalVoucherLoss > 0) {
+      addJournalEntry({
+        entryNumber: `JE-SCR-${voucherNumber}`,
+        date: newVoucher.date,
+        reference: voucherNumber,
+        description: `إثبات خسائر إعدام وتوالف بضاعة - إذن ${voucherNumber}`,
+        lines: [
+          {
+            accountId: '5400',
+            accountCode: '5400',
+            accountName: 'خسائر التوالف والهوالك والبضاعة منتهية الصلاحية',
+            debit: totalVoucherLoss,
+            credit: 0,
+            description: `إعدام توالف ${newVoucher.warehouseName} - ${newVoucher.reason}`,
+          },
+          {
+            accountId: '1140',
+            accountCode: '1140',
+            accountName: 'المخزون السلعي والبضاعة',
+            debit: 0,
+            credit: totalVoucherLoss,
+            description: `تخفيض المخزون بإذن إعدام ${voucherNumber}`,
+          },
+        ],
+        totalDebit: totalVoucherLoss,
+        totalCredit: totalVoucherLoss,
+        isAutomatic: true,
+        sourceModule: 'inventory',
+      });
+    }
+
+    logAuditEvent('إذن إعدام توالف وهوالك', 'المخازن', `تم تسجيل إذن توالف ${voucherNumber} بقيمة إجمالية ${totalVoucherLoss} ${currency}`);
+    return newVoucher;
+  };
+
+  const deleteScrapVoucher = (id: string) => {
+    const target = scrapVouchers.find((s) => s.id === id);
+    if (!target) return;
+
+    // Restore stock back to the specific warehouse
+    target.items.forEach((item) => {
+      updateProductStock(item.productId, item.quantity, undefined, target.warehouseId);
+    });
+
+    setScrapVouchers((prev) => prev.filter((s) => s.id !== id));
+    logAuditEvent('حذف إذن توالف', 'المخازن', `تم حذف إذن التوالف ${target.voucherNumber}`);
+  };
+
+  // Batches & Expiry Management
+  const addProductBatch = (batchData: Omit<ProductBatch, 'id'>) => {
+    const newBatch: ProductBatch = {
+      ...batchData,
+      id: `batch-${Date.now()}`,
+    };
+    setProductBatches((prev) => [...prev, newBatch]);
+    logAuditEvent('إضافة تشغيلة إنتاج', 'المخازن', `تمت إضافة تشغيلة ${newBatch.batchNumber} للصنف ${newBatch.productName}`);
+  };
+
+  const updateProductBatch = (id: string, data: Partial<ProductBatch>) => {
+    setProductBatches((prev) => prev.map((b) => (b.id === id ? { ...b, ...data } : b)));
+    logAuditEvent('تعديل تشغيلة إنتاج', 'المخازن', `تم تعديل بيانات التشغيلة ${data.batchNumber || id}`);
+  };
+
+  const deleteProductBatch = (id: string) => {
+    const target = productBatches.find((b) => b.id === id);
+    if (!target) return;
+    setProductBatches((prev) => prev.filter((b) => b.id !== id));
+    logAuditEvent('حذف تشغيلة إنتاج', 'المخازن', `تم حذف التشغيلة ${target.batchNumber}`);
+  };
+
+  const syncProductBatches = (productId: string, newBatches: Array<Omit<ProductBatch, 'id'> & { id?: string }>) => {
+    const prod = products.find((p) => p.id === productId);
+    const prodName = prod?.name || '';
+    const prodSku = prod?.sku || '';
+
+    setProductBatches((prev) => {
+      const others = prev.filter((b) => b.productId !== productId);
+      const createdList: ProductBatch[] = newBatches.map((b, index) => {
+        const expDate = b.expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const days = Math.ceil((new Date(expDate).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24));
+        const status: ProductBatch['status'] = days < 0 ? 'expired' : days <= 60 ? 'near_expiry' : 'valid';
+        const whId = b.warehouseId || prod?.warehouseId || warehouses[0]?.id || 'wh-1';
+        const whName = warehouses.find((w) => w.id === whId)?.name || 'المستودع الرئيسي';
+
+        return {
+          id: b.id && !b.id.startsWith('temp-') ? b.id : `batch-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 6)}`,
+          productId,
+          productName: b.productName || prodName,
+          sku: b.sku || prodSku,
+          batchNumber: b.batchNumber ? b.batchNumber.trim() : `BATCH-${Date.now().toString().slice(-4)}-${index + 1}`,
+          productionDate: b.productionDate || new Date().toISOString().split('T')[0],
+          expiryDate: expDate,
+          warehouseId: whId,
+          warehouseName: whName,
+          quantity: Number(b.quantity) || 0,
+          initialQuantity: b.initialQuantity !== undefined ? Number(b.initialQuantity) : (Number(b.quantity) || 0),
+          costPrice: b.costPrice ?? prod?.costPrice,
+          sellingPrice: b.sellingPrice ?? prod?.sellingPrice,
+          status,
+          notes: b.notes,
+        };
+      });
+
+      return [...others, ...createdList];
+    });
+
+    logAuditEvent('مزامنة تشغيلات الصنف', 'المخازن', `تم تحديث تشغيلات الصنف ${prodName} (${newBatches.length} تشغيلة)`);
   };
 
   // Customers & CRM
@@ -3856,8 +5087,54 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map((v) => (v.id === purchaseData.vendorId ? { ...v, currentBalance: v.currentBalance + purchaseData.grandTotal } : v))
     );
 
+    const targetWhId = purchaseData.warehouseId || warehouses[0]?.id || 'wh-1';
+
     purchaseData.items.forEach((item) => {
-      updateProductStock(item.productId, item.quantity, item.unitPrice);
+      const itemWhId = item.warehouseId || targetWhId;
+      updateProductStock(item.productId, item.quantity, item.unitPrice, itemWhId);
+
+      const prod = products.find((p) => p.id === item.productId);
+      // Auto-register batch if specified or if product has expiry tracking
+      if (item.batchNumber || item.expiryDate || prod?.hasExpiry) {
+        const batchNum = item.batchNumber || prod?.batchNumber || `LOT-${invoiceNumber.slice(-4)}-${item.productId.slice(-4)}`;
+        const expDate = item.expiryDate || prod?.expiryDate || '';
+        const prodDate = item.productionDate || prod?.productionDate || purchaseData.date;
+
+        if (expDate || item.batchNumber) {
+          const days = expDate ? Math.ceil((new Date(expDate).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24)) : 999;
+          const status: ProductBatch['status'] = days < 0 ? 'expired' : days <= 60 ? 'near_expiry' : 'valid';
+
+          const newBatch: ProductBatch = {
+            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            batchNumber: batchNum,
+            productId: item.productId,
+            productName: prod?.name || item.productName,
+            sku: prod?.sku,
+            warehouseId: itemWhId,
+            warehouseName: warehouses.find((w) => w.id === itemWhId)?.name,
+            productionDate: prodDate,
+            expiryDate: expDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            quantity: item.quantity,
+            initialQuantity: item.quantity,
+            costPrice: item.unitPrice,
+            sellingPrice: prod?.sellingPrice,
+            status,
+            notes: `توريد بموجب فاتورة مشتريات ${invoiceNumber} من المورد ${purchaseData.vendorName}`,
+          };
+
+          setProductBatches((prev) => [...prev, newBatch]);
+
+          // Also make sure the product reflects hasExpiry and batchNumber if not already
+          if (!prod?.hasExpiry && expDate) {
+            updateProduct(item.productId, {
+              hasExpiry: true,
+              expiryDate: expDate,
+              productionDate: prodDate,
+              batchNumber: batchNum,
+            });
+          }
+        }
+      }
     });
 
     addJournalEntry({
@@ -4873,6 +6150,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setReceipts([]);
         setJournalEntries([]);
         setProducts([]);
+        setWarehouses(INITIAL_WAREHOUSES);
+        setStockTransfers([]);
+        setStocktakingSessions([]);
+        setScrapVouchers([]);
+        setProductBatches([]);
+        setStockMovements([]);
         setCustomers(INITIAL_CUSTOMERS);
         setVendors([]);
         setEmployees([]);
@@ -4918,6 +6201,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setAccounts(INITIAL_ACCOUNTS);
         setJournalEntries(INITIAL_JOURNAL_ENTRIES);
         setProducts(INITIAL_PRODUCTS);
+        setWarehouses(INITIAL_WAREHOUSES);
+        setStockTransfers(INITIAL_STOCK_TRANSFERS);
+        setStocktakingSessions(INITIAL_STOCKTAKING_SESSIONS);
+        setScrapVouchers(INITIAL_SCRAP_VOUCHERS);
+        setProductBatches(INITIAL_PRODUCT_BATCHES);
+        setStockMovements([]);
         setCustomers(INITIAL_CUSTOMERS);
         setVendors(INITIAL_VENDORS);
         setSalesInvoices(INITIAL_INVOICES);
@@ -4960,6 +6249,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       accounts,
       journalEntries,
       products,
+      warehouses,
+      stockTransfers,
+      stocktakingSessions,
+      scrapVouchers,
+      productBatches,
+      stockMovements,
       customers,
       vendors,
       salesInvoices,
@@ -5009,6 +6304,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (parsed.accounts && Array.isArray(parsed.accounts)) setAccounts(parsed.accounts);
       if (parsed.journalEntries && Array.isArray(parsed.journalEntries)) setJournalEntries(parsed.journalEntries);
       if (parsed.products && Array.isArray(parsed.products)) setProducts(parsed.products);
+      if (parsed.warehouses && Array.isArray(parsed.warehouses)) setWarehouses(parsed.warehouses);
+      if (parsed.stockTransfers && Array.isArray(parsed.stockTransfers)) setStockTransfers(parsed.stockTransfers);
+      if (parsed.stocktakingSessions && Array.isArray(parsed.stocktakingSessions)) setStocktakingSessions(parsed.stocktakingSessions);
+      if (parsed.scrapVouchers && Array.isArray(parsed.scrapVouchers)) setScrapVouchers(parsed.scrapVouchers);
+      if (parsed.productBatches && Array.isArray(parsed.productBatches)) setProductBatches(parsed.productBatches);
+      if (parsed.stockMovements && Array.isArray(parsed.stockMovements)) setStockMovements(parsed.stockMovements);
       if (parsed.customers && Array.isArray(parsed.customers)) setCustomers(parsed.customers);
       if (parsed.vendors && Array.isArray(parsed.vendors)) setVendors(parsed.vendors);
       if (parsed.salesInvoices && Array.isArray(parsed.salesInvoices)) setSalesInvoices(parsed.salesInvoices);
@@ -5085,11 +6386,37 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteJournalEntry,
         products,
         warehouses,
+        stockTransfers,
+        stocktakingSessions,
+        scrapVouchers,
+        productBatches,
+        stockMovements,
         addProduct,
         updateProduct,
         editProduct,
         deleteProduct,
         updateProductStock,
+        getProductQuantityInWarehouse,
+        getProductWarehouseBreakdown,
+        updateProductShelfLocation,
+        adjustProductWarehouseStock,
+        addWarehouse,
+        editWarehouse,
+        deleteWarehouse,
+        addStockTransfer,
+        updateStockTransferStatus,
+        deleteStockTransfer,
+        addStocktakingSession,
+        updateStocktakingSession,
+        completeStocktakingSession,
+        deleteStocktakingSession,
+        addScrapVoucher,
+        deleteScrapVoucher,
+        addProductBatch,
+        updateProductBatch,
+        deleteProductBatch,
+        syncProductBatches,
+        addStockMovement,
         priceLists,
         addPriceList,
         updatePriceList,

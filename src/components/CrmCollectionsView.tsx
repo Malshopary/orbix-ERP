@@ -3,8 +3,18 @@ import { useErp } from '../context/ErpContext';
 import { Customer, CRMLead, CRMInteraction, CRMTicket, SalesRep } from '../types';
 import { CustomerStatementModal } from './CustomerStatementModal';
 import { CrmSalesRepDashboard } from './CrmSalesRepDashboard';
+import { CrmAnalyticsDashboard } from './CrmAnalyticsDashboard';
+import { QuickAddModal } from './QuickAddModal';
+import { SearchableSelect } from './SearchableSelect';
+import {
+  GOVERNORATES_DATA,
+  CUSTOMER_CATEGORIES,
+  ACQUISITION_CHANNELS,
+  getRegionsForGovernorate,
+} from '../data/regionsData';
 import {
   Users2,
+  UserPlus,
   PlusCircle,
   PhoneCall,
   Mail,
@@ -32,6 +42,9 @@ import {
   AlertCircle,
   HelpCircle,
   Compass,
+  BarChart3,
+  MapPin,
+  Briefcase,
 } from 'lucide-react';
 
 export const CrmCollectionsView: React.FC = () => {
@@ -64,49 +77,37 @@ export const CrmCollectionsView: React.FC = () => {
     showConfirm,
   } = useErp();
 
-  // Active CRM Tab
-  const [activeTab, setActiveTabLocal] = useState<'customers' | 'pipeline' | 'interactions' | 'tickets' | 'sales_reps'>('customers');
-
-  React.useEffect(() => {
-    if (activeSubTab && ['customers', 'pipeline', 'interactions', 'tickets', 'sales_reps'].includes(activeSubTab)) {
-      setActiveTabLocal(activeSubTab as any);
+  // Active CRM Tab from Sidebar or Context
+  const activeTab = useMemo<'crm_analytics' | 'customers' | 'pipeline' | 'interactions' | 'tickets' | 'sales_reps'>(() => {
+    if (activeSubTab && ['crm_analytics', 'customers', 'pipeline', 'interactions', 'tickets', 'sales_reps'].includes(activeSubTab)) {
+      return activeSubTab as any;
     }
+    return 'crm_analytics';
   }, [activeSubTab]);
-
-  const setActiveTab = (tab: 'customers' | 'pipeline' | 'interactions' | 'tickets' | 'sales_reps') => {
-    setActiveTabLocal(tab);
-    setActiveSubTab(tab);
-  };
   const [searchQuery, setSearchQuery] = useState('');
   const [repFilter, setRepFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // Modals
-  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false);
   const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [showAddInteractionModal, setShowAddInteractionModal] = useState(false);
   const [showAddTicketModal, setShowAddTicketModal] = useState(false);
   const [statementCustomerId, setStatementCustomerId] = useState<string | null>(null);
 
-  // Customer Form State
-  const [custName, setCustName] = useState('');
-  const [custCompany, setCustCompany] = useState('');
-  const [custPhone, setCustPhone] = useState('');
-  const [custEmail, setCustEmail] = useState('');
-  const [custTax, setCustTax] = useState('');
-  const [custAddress, setCustAddress] = useState('');
-  const [custCreditLimit, setCustCreditLimit] = useState(30000);
-  const [custTerms, setCustTerms] = useState(30);
-  const [custSalesRepId, setCustSalesRepId] = useState('');
-  const [custPriceListId, setCustPriceListId] = useState('');
-
-  // Edit Customer Form State
+  // Edit Customer Form State (Enriched)
   const [editCustId, setEditCustId] = useState('');
   const [editCustName, setEditCustName] = useState('');
   const [editCustCompany, setEditCustCompany] = useState('');
+  const [editCustContactPerson, setEditCustContactPerson] = useState('');
   const [editCustPhone, setEditCustPhone] = useState('');
   const [editCustEmail, setEditCustEmail] = useState('');
+  const [editCustGovernorate, setEditCustGovernorate] = useState('القاهرة');
+  const [editCustRegion, setEditCustRegion] = useState('');
+  const [editCustCategory, setEditCustCategory] = useState('retail');
+  const [editCustAcquisition, setEditCustAcquisition] = useState('direct');
+  const [editCustCommercialRegister, setEditCustCommercialRegister] = useState('');
   const [editCustTax, setEditCustTax] = useState('');
   const [editCustAddress, setEditCustAddress] = useState('');
   const [editCustCreditLimit, setEditCustCreditLimit] = useState(30000);
@@ -161,8 +162,14 @@ export const CrmCollectionsView: React.FC = () => {
     setEditCustId(c.id);
     setEditCustName(c.name);
     setEditCustCompany(c.companyName || '');
+    setEditCustContactPerson(c.contactPerson || '');
     setEditCustPhone(c.phone || '');
     setEditCustEmail(c.email || '');
+    setEditCustGovernorate(c.governorate || 'القاهرة');
+    setEditCustRegion(c.region || '');
+    setEditCustCategory(c.customerCategory || 'retail');
+    setEditCustAcquisition(c.acquisitionChannel || 'direct');
+    setEditCustCommercialRegister(c.commercialRegister || '');
     setEditCustTax(c.taxNumber || '');
     setEditCustAddress(c.address || '');
     setEditCustCreditLimit(c.creditLimit);
@@ -170,50 +177,6 @@ export const CrmCollectionsView: React.FC = () => {
     setEditCustSalesRepId(c.salesRepId || '');
     setEditCustPriceListId(c.priceListId || '');
     setShowEditCustomerModal(true);
-  };
-
-  const handleSaveNewCustomer = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!custName.trim()) {
-      showAlert({
-        title: 'بيانات غير مكتملة',
-        message: 'يرجى إدخال اسم العميل أولاً.',
-        type: 'warning',
-        confirmText: 'فهمت',
-      });
-      return;
-    }
-
-    const rep = salesReps.find((r) => r.id === custSalesRepId);
-
-    addCustomer({
-      name: custName.trim(),
-      companyName: custCompany.trim() || undefined,
-      phone: custPhone.trim() || undefined,
-      email: custEmail.trim() || undefined,
-      taxNumber: custTax.trim() || undefined,
-      address: custAddress.trim() || undefined,
-      creditLimit: Number(custCreditLimit) || 0,
-      paymentTermsDays: Number(custTerms) || 30,
-      salesRepId: custSalesRepId || undefined,
-      salesRepName: rep?.name || undefined,
-      priceListId: custPriceListId || undefined,
-      status: 'active',
-      loyaltyPoints: 0,
-    });
-
-    // Reset Form
-    setCustName('');
-    setCustCompany('');
-    setCustPhone('');
-    setCustEmail('');
-    setCustTax('');
-    setCustAddress('');
-    setCustCreditLimit(30000);
-    setCustTerms(30);
-    setCustSalesRepId('');
-    setCustPriceListId('');
-    setShowAddCustomerModal(false);
   };
 
   const handleUpdateCustomer = (e: React.FormEvent) => {
@@ -233,8 +196,14 @@ export const CrmCollectionsView: React.FC = () => {
     updateCustomer(editCustId, {
       name: editCustName.trim(),
       companyName: editCustCompany.trim() || undefined,
+      contactPerson: editCustContactPerson.trim() || undefined,
       phone: editCustPhone.trim() || undefined,
       email: editCustEmail.trim() || undefined,
+      governorate: editCustGovernorate || 'القاهرة',
+      region: editCustRegion.trim() || undefined,
+      customerCategory: editCustCategory as any,
+      acquisitionChannel: editCustAcquisition as any,
+      commercialRegister: editCustCommercialRegister.trim() || undefined,
       taxNumber: editCustTax.trim() || undefined,
       address: editCustAddress.trim() || undefined,
       creditLimit: Number(editCustCreditLimit) || 0,
@@ -468,14 +437,14 @@ export const CrmCollectionsView: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-black text-slate-900">
-                  إدارة علاقات العملاء والمتابعات (CRM 360)
+                  إدارة علاقات العملاء والتحليلات (CRM 360)
                 </h1>
                 <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  مفصول بالكامل عن التحصيلات
+                  Enterprise CRM
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                إدارة ملفات العملاء، الفرص البيعية، ربط المناديب، متابعة المكالمات والاجتماعات، وخدمة العملاء.
+                التحليلات البيانية المتقدمة، أفضل 5 مناديب وعملاء، ملفات العملاء، الفرص البيعية، وخدمة العملاء.
               </p>
             </div>
           </div>
@@ -485,10 +454,11 @@ export const CrmCollectionsView: React.FC = () => {
               <button
                 type="button"
                 id="btn-add-new-customer"
-                onClick={() => setShowAddCustomerModal(true)}
+                onClick={() => setShowQuickAddCustomer(true)}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
+                title="إضافة عميل جديد للنظام والـ CRM"
               >
-                <PlusCircle className="w-4 h-4" />
+                <UserPlus className="w-4 h-4" />
                 إضافة عميل جديد
               </button>
             )}
@@ -529,7 +499,7 @@ export const CrmCollectionsView: React.FC = () => {
         </div>
 
         {/* CRM Metric Badges */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-100">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-100">
           <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
             <span className="text-slate-400 text-xs font-semibold block mb-1">إجمالي العملاء المسجلين</span>
             <span className="text-xl font-black text-slate-800">{customers.length} عميل</span>
@@ -549,78 +519,83 @@ export const CrmCollectionsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="بحث بالاسم، الجوال، الكود، الموضوع..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-10 pl-4 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          {/* Sales Rep Filter */}
-          <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-            <UserCheck className="w-3.5 h-3.5 text-slate-500" />
-            <span>المندوب:</span>
-            <select
-              value={repFilter}
-              onChange={(e) => setRepFilter(e.target.value)}
-              className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
-            >
-              <option value="all">كل المناديب</option>
-              {salesReps.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+      {/* Filters Bar (Only for directory/pipeline/interactions/tickets) */}
+      {activeTab !== 'crm_analytics' && activeTab !== 'sales_reps' && (
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="relative w-full md:w-80">
+            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="بحث بالاسم، الجوال، الكود، الموضوع..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-10 pl-4 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
+            />
           </div>
 
-          {/* Stage / Status Filter */}
-          {activeTab === 'pipeline' && (
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            {/* Sales Rep Filter */}
             <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-              <Filter className="w-3.5 h-3.5 text-slate-500" />
-              <span>المرحلة:</span>
+              <UserCheck className="w-3.5 h-3.5 text-slate-500" />
+              <span>المندوب:</span>
               <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                value={repFilter}
+                onChange={(e) => setRepFilter(e.target.value)}
                 className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
               >
-                <option value="all">كل المراحل</option>
-                <option value="new">فرصة جديدة</option>
-                <option value="contacted">تم التواصل</option>
-                <option value="proposal_sent">عرض سعر مرسل</option>
-                <option value="negotiation">مفاوضات</option>
-                <option value="won">تم الفوز</option>
-                <option value="lost">خاسرة / ملغاة</option>
+                <option value="all">كل المناديب</option>
+                {salesReps.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
               </select>
             </div>
-          )}
 
-          {activeTab === 'tickets' && (
-            <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-              <Filter className="w-3.5 h-3.5 text-slate-500" />
-              <span>الحالة:</span>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
-              >
-                <option value="all">كل التذاكر</option>
-                <option value="open">مفتوحة</option>
-                <option value="in_progress">قيد المعالجة</option>
-                <option value="resolved">تم الحل</option>
-                <option value="closed">مغلقة</option>
-              </select>
-            </div>
-          )}
+            {/* Stage / Status Filter */}
+            {activeTab === 'pipeline' && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+                <Filter className="w-3.5 h-3.5 text-slate-500" />
+                <span>المرحلة:</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+                >
+                  <option value="all">كل المراحل</option>
+                  <option value="new">فرصة جديدة</option>
+                  <option value="contacted">تم التواصل</option>
+                  <option value="proposal_sent">عرض سعر مرسل</option>
+                  <option value="negotiation">مفاوضات</option>
+                  <option value="won">تم الفوز</option>
+                  <option value="lost">خاسرة / ملغاة</option>
+                </select>
+              </div>
+            )}
+
+            {activeTab === 'tickets' && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+                <Filter className="w-3.5 h-3.5 text-slate-500" />
+                <span>الحالة:</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+                >
+                  <option value="all">كل التذاكر</option>
+                  <option value="open">مفتوحة</option>
+                  <option value="in_progress">قيد المعالجة</option>
+                  <option value="resolved">تم الحل</option>
+                  <option value="closed">مغلقة</option>
+                </select>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* TAB 0: ADVANCED CRM & PERFORMANCE ANALYTICS */}
+      {activeTab === 'crm_analytics' && <CrmAnalyticsDashboard />}
 
       {/* TAB 1: CUSTOMERS DIRECTORY */}
       {activeTab === 'customers' && (
@@ -1046,162 +1021,12 @@ export const CrmCollectionsView: React.FC = () => {
         />
       )}
 
-      {/* MODAL: ADD CUSTOMER */}
-      {showAddCustomerModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-xl w-full border border-slate-200 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-              <h3 className="font-black text-slate-900 text-base">إضافة عميل جديد للنظام</h3>
-              <button
-                type="button"
-                onClick={() => setShowAddCustomerModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveNewCustomer} className="space-y-4 mt-4 text-xs">
-              <div className="p-3 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 leading-relaxed">
-                ✨ <strong>ملاحظة محاسبية:</strong> سيتم إنشاء حساب فرعي تلقائياً للعميل في شجرة الحسابات تحت كود (1130 العملاء والمدينون).
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">اسم العميل / المسؤول *</label>
-                  <input
-                    type="text"
-                    required
-                    value={custName}
-                    onChange={(e) => setCustName(e.target.value)}
-                    placeholder="مثال: أحمد عبد الله أو شركة الأمل"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">اسم المنشأة / الشركة</label>
-                  <input
-                    type="text"
-                    value={custCompany}
-                    onChange={(e) => setCustCompany(e.target.value)}
-                    placeholder="مثال: مؤسسة الأمل للمقاولات"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">رقم الهاتف / الجوال</label>
-                  <input
-                    type="text"
-                    value={custPhone}
-                    onChange={(e) => setCustPhone(e.target.value)}
-                    placeholder="05XXXXXXXX"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">البريد الإلكتروني</label>
-                  <input
-                    type="email"
-                    value={custEmail}
-                    onChange={(e) => setCustEmail(e.target.value)}
-                    placeholder="customer@example.com"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
-                  />
-                </div>
-
-                {/* Sales Rep Selector */}
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 text-indigo-700">
-                    مندوب المبيعات المسؤول (لحساب العمولات)
-                  </label>
-                  <select
-                    value={custSalesRepId}
-                    onChange={(e) => setCustSalesRepId(e.target.value)}
-                    className="w-full bg-indigo-50/50 border border-indigo-200 text-indigo-900 rounded-xl p-2.5 focus:border-indigo-500 focus:outline-hidden font-bold"
-                  >
-                    <option value="">-- بدون مندوب مبيعات --</option>
-                    {salesReps.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} (عمولة {r.commissionRate}%)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Price List Selector */}
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 text-amber-800">
-                    قائمة أسعار المنتجات المخصصة للعميل
-                  </label>
-                  <select
-                    value={custPriceListId}
-                    onChange={(e) => setCustPriceListId(e.target.value)}
-                    className="w-full bg-amber-50/50 border border-amber-200 text-amber-900 rounded-xl p-2.5 focus:border-amber-500 focus:outline-hidden font-bold"
-                  >
-                    <option value="">-- قائمة الأسعار القياسية --</option>
-                    {priceLists.map((pl) => (
-                      <option key={pl.id} value={pl.id}>
-                        {pl.name} {pl.discountPercent ? `(خصم ${pl.discountPercent}%)` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">الرقم الضريبي (إن وجد)</label>
-                  <input
-                    type="text"
-                    value={custTax}
-                    onChange={(e) => setCustTax(e.target.value)}
-                    placeholder="300XXXXXXXXXXXX"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">الحد الائتماني المسموح</label>
-                  <input
-                    type="number"
-                    value={custCreditLimit}
-                    onChange={(e) => setCustCreditLimit(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">العنوان والموقع</label>
-                <input
-                  type="text"
-                  value={custAddress}
-                  onChange={(e) => setCustAddress(e.target.value)}
-                  placeholder="المدينة، الحي، اسم الشارع"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddCustomerModal(false)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl cursor-pointer shadow-xs"
-                >
-                  حفظ العميل وإنشاء الحساب
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* MODAL: QUICK ADD CUSTOMER */}
+      <QuickAddModal
+        isOpen={showQuickAddCustomer}
+        onClose={() => setShowQuickAddCustomer(false)}
+        initialTab="customer"
+      />
 
       {/* MODAL: EDIT CUSTOMER */}
       {showEditCustomerModal && (
@@ -1221,13 +1046,24 @@ export const CrmCollectionsView: React.FC = () => {
             <form onSubmit={handleUpdateCustomer} className="space-y-4 mt-4 text-xs">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">اسم العميل *</label>
+                  <label className="block text-slate-700 font-bold mb-1">اسم العميل / المؤسسة *</label>
                   <input
                     type="text"
                     required
                     value={editCustName}
                     onChange={(e) => setEditCustName(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">اسم المسؤول / جهة الاتصال</label>
+                  <input
+                    type="text"
+                    value={editCustContactPerson}
+                    onChange={(e) => setEditCustContactPerson(e.target.value)}
+                    placeholder="اسم الشخص المسؤول"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
                   />
                 </div>
 
@@ -1242,12 +1078,12 @@ export const CrmCollectionsView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">رقم الهاتف</label>
+                  <label className="block text-slate-700 font-bold mb-1">رقم الهاتف / الجوال</label>
                   <input
                     type="text"
                     value={editCustPhone}
                     onChange={(e) => setEditCustPhone(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden font-mono"
                   />
                 </div>
 
@@ -1261,23 +1097,96 @@ export const CrmCollectionsView: React.FC = () => {
                   />
                 </div>
 
+                {/* Governorate Selector */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1 text-emerald-800">
+                    المحافظة / المنطقة الجغرافية
+                  </label>
+                  <select
+                    value={editCustGovernorate}
+                    onChange={(e) => {
+                      setEditCustGovernorate(e.target.value);
+                      const regs = getRegionsForGovernorate(e.target.value);
+                      if (regs.length > 0) setEditCustRegion(regs[0]);
+                    }}
+                    className="w-full bg-emerald-50/50 border border-emerald-200 text-emerald-900 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden font-bold"
+                  >
+                    {GOVERNORATES_DATA.map((gov) => (
+                      <option key={gov.name} value={gov.name}>
+                        {gov.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Region Selector */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">المركز / الحي / المنطقة</label>
+                  <input
+                    type="text"
+                    value={editCustRegion}
+                    onChange={(e) => setEditCustRegion(e.target.value)}
+                    list="edit-cust-regions-list"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
+                  />
+                  <datalist id="edit-cust-regions-list">
+                    {getRegionsForGovernorate(editCustGovernorate).map((r, i) => (
+                      <option key={i} value={r} />
+                    ))}
+                  </datalist>
+                </div>
+
+                {/* Customer Category */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">تصنيف العميل (CRM)</label>
+                  <select
+                    value={editCustCategory}
+                    onChange={(e) => setEditCustCategory(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden font-bold text-slate-800"
+                  >
+                    {CUSTOMER_CATEGORIES.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Acquisition Channel */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">قناة الاستقطاب / المصدر</label>
+                  <select
+                    value={editCustAcquisition}
+                    onChange={(e) => setEditCustAcquisition(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden font-bold text-slate-800"
+                  >
+                    {ACQUISITION_CHANNELS.map((ch) => (
+                      <option key={ch.id} value={ch.id}>
+                        {ch.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Assigned Sales Rep */}
                 <div>
                   <label className="block text-slate-700 font-bold mb-1 text-indigo-700">
                     مندوب المبيعات المسؤول
                   </label>
-                  <select
+                  <SearchableSelect
                     value={editCustSalesRepId}
-                    onChange={(e) => setEditCustSalesRepId(e.target.value)}
-                    className="w-full bg-indigo-50/50 border border-indigo-200 text-indigo-900 rounded-xl p-2.5 focus:border-indigo-500 focus:outline-hidden font-bold"
-                  >
-                    <option value="">-- بدون مندوب مبيعات --</option>
-                    {salesReps.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} (عمولة {r.commissionRate}%)
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEditCustSalesRepId(val)}
+                    placeholder="-- بدون مندوب مبيعات --"
+                    searchPlaceholder="ابحث باسم المندوب..."
+                    options={[
+                      { value: '', label: '-- بدون مندوب مبيعات --' },
+                      ...salesReps.map((r) => ({
+                        value: r.id,
+                        label: `${r.name} (عمولة ${r.commissionRate}%)`,
+                        subLabel: r.phone,
+                      })),
+                    ]}
+                  />
                 </div>
 
                 {/* Assigned Price List */}
@@ -1285,27 +1194,50 @@ export const CrmCollectionsView: React.FC = () => {
                   <label className="block text-slate-700 font-bold mb-1 text-amber-800">
                     قائمة أسعار المنتجات
                   </label>
-                  <select
+                  <SearchableSelect
                     value={editCustPriceListId}
-                    onChange={(e) => setEditCustPriceListId(e.target.value)}
-                    className="w-full bg-amber-50/50 border border-amber-200 text-amber-900 rounded-xl p-2.5 focus:border-amber-500 focus:outline-hidden font-bold"
-                  >
-                    <option value="">-- قائمة الأسعار الافتراضية --</option>
-                    {priceLists.map((pl) => (
-                      <option key={pl.id} value={pl.id}>
-                        {pl.name} {pl.discountPercent ? `(خصم ${pl.discountPercent}%)` : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEditCustPriceListId(val)}
+                    placeholder="-- قائمة الأسعار الافتراضية --"
+                    searchPlaceholder="ابحث باسم قائمة الأسعار..."
+                    options={[
+                      { value: '', label: '-- قائمة الأسعار الافتراضية --' },
+                      ...priceLists.map((pl) => ({
+                        value: pl.id,
+                        label: `${pl.name} ${pl.discountPercent ? `(خصم ${pl.discountPercent}%)` : ''}`,
+                        subLabel: pl.description,
+                      })),
+                    ]}
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">الحد الائتماني</label>
+                  <label className="block text-slate-700 font-bold mb-1">السجل التجاري</label>
+                  <input
+                    type="text"
+                    value={editCustCommercialRegister}
+                    onChange={(e) => setEditCustCommercialRegister(e.target.value)}
+                    placeholder="رقم السجل التجاري"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">الرقم الضريبي</label>
+                  <input
+                    type="text"
+                    value={editCustTax}
+                    onChange={(e) => setEditCustTax(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">الحد الائتماني (ج.م / ر.س)</label>
                   <input
                     type="number"
                     value={editCustCreditLimit}
                     onChange={(e) => setEditCustCreditLimit(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden font-bold"
                   />
                 </div>
 
@@ -1321,7 +1253,7 @@ export const CrmCollectionsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">العنوان</label>
+                <label className="block text-slate-700 font-bold mb-1">العنوان التفصيلي</label>
                 <input
                   type="text"
                   value={editCustAddress}
@@ -1508,51 +1440,51 @@ export const CrmCollectionsView: React.FC = () => {
             <form onSubmit={handleSaveInteraction} className="space-y-3.5 mt-4 text-xs">
               <div>
                 <label className="block text-slate-700 font-bold mb-1">العميل *</label>
-                <select
-                  required
+                <SearchableSelect
                   value={intCustomerId}
-                  onChange={(e) => setIntCustomerId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden font-bold"
-                >
-                  <option value="">-- اختر العميل --</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.companyName ? `(${c.companyName})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setIntCustomerId(val)}
+                  placeholder="-- اختر العميل --"
+                  searchPlaceholder="ابحث باسم العميل أو الشركة..."
+                  options={customers.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                    subLabel: c.companyName || c.phone,
+                  }))}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1">نوع النشاط</label>
-                  <select
+                  <SearchableSelect
                     value={intType}
-                    onChange={(e) => setIntType(e.target.value as any)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden font-bold"
-                  >
-                    <option value="call">اتصال هاتفي 📞</option>
-                    <option value="meeting">اجتماع عمل 🤝</option>
-                    <option value="email">بريد إلكتروني ✉️</option>
-                    <option value="whatsapp">محادثة واتساب 💬</option>
-                    <option value="task">مهمة متابعة 📋</option>
-                  </select>
+                    onChange={(val) => setIntType(val as any)}
+                    options={[
+                      { value: 'call', label: 'اتصال هاتفي 📞' },
+                      { value: 'meeting', label: 'اجتماع عمل 🤝' },
+                      { value: 'email', label: 'بريد إلكتروني ✉️' },
+                      { value: 'whatsapp', label: 'محادثة واتساب 💬' },
+                      { value: 'task', label: 'مهمة متابعة 📋' },
+                    ]}
+                  />
                 </div>
 
                 <div>
                   <label className="block text-slate-700 font-bold mb-1">المندوب القائم بالنشاط</label>
-                  <select
+                  <SearchableSelect
                     value={intRepId}
-                    onChange={(e) => setIntRepId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden font-bold"
-                  >
-                    <option value="">-- اختياري --</option>
-                    {salesReps.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setIntRepId(val)}
+                    placeholder="-- اختياري --"
+                    searchPlaceholder="ابحث باسم المندوب..."
+                    options={[
+                      { value: '', label: '-- بدون تحديد --' },
+                      ...salesReps.map((r) => ({
+                        value: r.id,
+                        label: r.name,
+                        subLabel: r.phone,
+                      })),
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -1638,19 +1570,17 @@ export const CrmCollectionsView: React.FC = () => {
             <form onSubmit={handleSaveTicket} className="space-y-3.5 mt-4 text-xs">
               <div>
                 <label className="block text-slate-700 font-bold mb-1">العميل صاحب التذكرة *</label>
-                <select
-                  required
+                <SearchableSelect
                   value={tktCustomerId}
-                  onChange={(e) => setTktCustomerId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-emerald-500 focus:outline-hidden font-bold"
-                >
-                  <option value="">-- اختر العميل --</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.companyName ? `(${c.companyName})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setTktCustomerId(val)}
+                  placeholder="-- اختر العميل --"
+                  searchPlaceholder="ابحث باسم العميل أو الشركة..."
+                  options={customers.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                    subLabel: c.companyName || c.phone,
+                  }))}
+                />
               </div>
 
               <div>

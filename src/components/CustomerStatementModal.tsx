@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useErp } from '../context/ErpContext';
 import { Customer } from '../types';
-import { exportElementToPdf } from '../utils/pdfExport';
+import { printDocumentElement } from '../utils/printUtils';
 import { DocumentViewerModal, DocumentViewerTarget } from './DocumentViewerModal';
+import { PrintHeader } from './PrintHeader';
+import { PrintFooter } from './PrintFooter';
 import {
   FileSpreadsheet,
   Printer,
-  Download,
   Calendar,
   X,
   Filter,
@@ -21,6 +22,8 @@ import {
   Layers,
   ArrowUpDown,
   ExternalLink,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 
 interface CustomerStatementModalProps {
@@ -59,7 +62,6 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
 
   const [startDate, setStartDate] = useState<string>(firstDayOfMonth);
   const [endDate, setEndDate] = useState<string>(todayStr);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const handleOpenDocument = (tx: {
     id?: string;
@@ -143,23 +145,14 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
     return Array.from(itemMap.values()).sort((a, b) => b.totalAmount - a.totalAmount);
   }, [salesInvoices, customerId, startDate, endDate]);
 
-  const handleExportPdf = async () => {
-    setIsExportingPdf(true);
-    try {
-      await exportElementToPdf('customer-statement-sheet', {
-        filename: `كشف_حساب_${customer.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`,
-      });
-    } catch (e) {
-      console.error('PDF Export Error:', e);
-      showAlert({
-        title: 'تصدير كشف الحساب PDF',
-        message: 'حدث خطأ أثناء تصدير ملف PDF، يرجى المحاولة مرة أخرى أو استخدام خيار الطباعة المباشرة.',
-        type: 'error',
-        confirmText: 'فهمت',
-      });
-    } finally {
-      setIsExportingPdf(false);
-    }
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('landscape');
+  const [zoom, setZoom] = useState<number>(100);
+
+  const handlePrint = () => {
+    printDocumentElement('customer-statement-sheet', {
+      title: `كشف حساب عميل - ${customer?.name || ''}`,
+      orientation,
+    });
   };
 
   const handlePresetDate = (type: 'today' | 'this_month' | 'this_quarter' | 'this_year' | 'all') => {
@@ -184,10 +177,14 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-5xl w-full p-5 sm:p-7 shadow-2xl border border-slate-200 my-auto max-h-[96vh] flex flex-col text-slate-900">
+    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto print-preview-modal-layer">
+      <div
+        className={`bg-white rounded-2xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 my-auto max-h-[96vh] flex flex-col text-slate-900 transition-all print-modal-card ${
+          orientation === 'landscape' ? 'max-w-6xl' : 'max-w-5xl'
+        }`}
+      >
         {/* Modal Top Bar (Hidden in Print) */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200 print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 print:hidden">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
               <FileSpreadsheet className="w-5 h-5" />
@@ -207,23 +204,64 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              id="export-pdf-statement-btn"
-              onClick={handleExportPdf}
-              disabled={isExportingPdf}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-              {isExportingPdf ? 'جاري تصدير PDF...' : 'تصدير PDF'}
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Orientation buttons */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold text-slate-700">
+              <button
+                type="button"
+                onClick={() => setOrientation('portrait')}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                  orientation === 'portrait'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+                title="طباعة رأسية"
+              >
+                طولي (Portrait)
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrientation('landscape')}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                  orientation === 'landscape'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+                title="طباعة أفقية"
+              >
+                عرضي (Landscape)
+              </button>
+            </div>
+
+            {/* Zoom controls */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold text-slate-700">
+              <button
+                type="button"
+                onClick={() => setZoom((z) => Math.max(70, z - 10))}
+                disabled={zoom <= 70}
+                className="p-1 hover:bg-white rounded disabled:opacity-30 cursor-pointer"
+                title="تصغير"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <span className="px-1.5 font-mono text-[11px] min-w-[36px] text-center">{zoom}%</span>
+              <button
+                type="button"
+                onClick={() => setZoom((z) => Math.min(120, z + 10))}
+                disabled={zoom >= 120}
+                className="p-1 hover:bg-white rounded disabled:opacity-30 cursor-pointer"
+                title="تكبير"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
             <button
               id="print-statement-btn"
-              onClick={() => window.print()}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              onClick={handlePrint}
+              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-2 shadow-xs transition-all cursor-pointer"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-4 h-4 text-emerald-400" />
               طباعة الكشف
             </button>
 
@@ -343,54 +381,37 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
         </div>
 
         {/* Printable & Exportable Statement Document Canvas */}
-        <div className="overflow-y-auto flex-1 pr-1">
+        <div className="overflow-y-auto flex-1 pr-1 bg-slate-50/50 p-2 rounded-xl flex justify-center">
           <div
             id="customer-statement-sheet"
-            className="bg-white border border-slate-300 p-6 sm:p-8 rounded-xl space-y-6 text-xs text-slate-900"
+            style={{
+              transform: `scale(${zoom / 100})`,
+              transformOrigin: 'top center',
+              transition: 'transform 0.15s ease',
+            }}
+            className={`printable-sheet printable-page bg-white border border-slate-300 p-6 sm:p-8 rounded-xl space-y-6 text-xs text-slate-900 w-full ${
+              orientation === 'landscape' ? 'print-landscape max-w-[297mm]' : 'print-portrait max-w-[210mm]'
+            }`}
           >
-            {/* Document Header with Logo and Company Info */}
-            <div className="flex justify-between items-start border-b-2 border-slate-800 pb-5">
-              <div className="flex items-center gap-4">
-                {companyProfile.logoBase64 ? (
-                  <img
-                    src={companyProfile.logoBase64}
-                    alt={companyProfile.nameAr}
-                    style={{ width: `${companyProfile.logoWidth || 140}px` }}
-                    className="max-h-20 object-contain rounded-md"
-                  />
-                ) : (
-                  <div className="w-14 h-14 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-xl">
-                    {companyProfile.nameAr.slice(0, 2)}
-                  </div>
-                )}
-                <div>
-                  <h1 className="text-xl font-extrabold text-slate-900">{companyProfile.nameAr}</h1>
-                  <p className="text-xs text-slate-600 mt-0.5">{companyProfile.nameEn}</p>
-                  <p className="text-[11px] text-slate-500">
-                    س.ت: {companyProfile.commercialRegister} | الرقم الضريبي: {companyProfile.taxNumber}
-                  </p>
-                  <p className="text-[11px] text-slate-500">{companyProfile.address} | هاتف: {companyProfile.phone}</p>
-                </div>
-              </div>
-
-              <div className="text-left space-y-1">
-                <div className="inline-block bg-slate-900 text-white text-xs font-bold px-3.5 py-1 rounded-md shadow-xs">
-                  {statementType === 'detailed'
-                    ? 'كشف حساب تفصيلي (STATEMENT OF ACCOUNT)'
-                    : statementType === 'summary'
-                    ? 'كشف ملخص الحساب (ACCOUNT SUMMARY)'
-                    : statementType === 'aging'
-                    ? 'كشف الفواتير المستحقة (OUTSTANDING INVOICES)'
-                    : 'كشف مسحوبات الأصناف (PRODUCT SALES)'}
-                </div>
-                <div className="text-[11px] text-slate-600 font-mono">
-                  تاريخ الطباعة: {new Date().toLocaleString('ar-EG')}
-                </div>
-                <div className="text-[11px] text-slate-600 font-mono">
-                  الفترة: {startDate || 'البداية'} إلى {endDate || 'الآن'}
-                </div>
-              </div>
-            </div>
+            {/* Standardized Document Header with Logo and Company Info */}
+            <PrintHeader
+              docTitle={
+                statementType === 'detailed'
+                  ? 'كشف حساب تفصيلي (STATEMENT OF ACCOUNT)'
+                  : statementType === 'summary'
+                  ? 'كشف ملخص الحساب (ACCOUNT SUMMARY)'
+                  : statementType === 'aging'
+                  ? 'كشف الفواتير المستحقة (OUTSTANDING INVOICES)'
+                  : 'كشف مسحوبات الأصناف (PRODUCT SALES)'
+              }
+              docSubtitle={`الفترة: ${startDate || 'البداية'} إلى ${endDate || 'الآن'}`}
+              date={new Date().toISOString().split('T')[0]}
+              additionalMeta={[
+                { label: 'العميل', value: customer.name },
+                { label: 'كود العميل', value: customer.code || 'CUST-000' },
+              ]}
+              orientation={orientation}
+            />
 
             {/* Customer Details Box */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
@@ -701,26 +722,13 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               </div>
             )}
 
-            {/* Signature & Authentication Stamp Section */}
-            <div className="pt-8 border-t border-slate-300 grid grid-cols-3 gap-6 text-center text-xs text-slate-700">
-              <div className="space-y-8">
-                <span className="font-bold block">إعداد / قسم المحاسبة</span>
-                <div className="border-b border-dashed border-slate-400 w-32 mx-auto"></div>
-              </div>
-              <div className="space-y-8">
-                <span className="font-bold block">اعتماد الإدارة المالية</span>
-                <div className="border-b border-dashed border-slate-400 w-32 mx-auto"></div>
-              </div>
-              <div className="space-y-8">
-                <span className="font-bold block">توقيع وختم العميل بالمصادقة</span>
-                <div className="border-b border-dashed border-slate-400 w-32 mx-auto"></div>
-              </div>
-            </div>
-
-            {/* Footer Notice */}
-            <div className="text-[10px] text-slate-400 text-center border-t border-slate-100 pt-2">
-              هذا المستند صادر آلياً من نظام {companyProfile.nameAr} المحاسبي الموحد. في حال وجود أي ملاحظات أو استفسارات حول الرصيد يرجى التواصل مع الإدارة المالية خلال 7 أيام من تاريخه.
-            </div>
+            {/* Standardized Signatures & Authentication Stamp Section */}
+            <PrintFooter
+              preparedByTitle="إعداد / قسم الحسابات"
+              approvedByTitle="اعتماد الإدارة المالية"
+              receivedByTitle="توقيع وختم العميل بالمصادقة"
+              notes="في حال وجود أي ملاحظات أو استفسارات حول الرصيد الوارد بهذا الكشف، يرجى التواصل مع الإدارة المالية خلال 7 أيام من تاريخه."
+            />
           </div>
         </div>
       </div>

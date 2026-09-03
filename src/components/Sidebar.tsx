@@ -39,6 +39,12 @@ import {
   ChevronLeft,
   FileBadge,
   ClipboardList,
+  BarChart3,
+  Barcode,
+  ClipboardCheck,
+  Trash2,
+  Warehouse,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { useErp } from '../context/ErpContext';
 import { OrbixLogo } from './OrbixLogo';
@@ -93,6 +99,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     purchaseInvoices,
     vendors,
     products,
+    warehouses,
+    stockTransfers,
+    stocktakingSessions,
+    scrapVouchers,
+    productBatches,
     customers,
     crmLeads,
     crmInteractions,
@@ -266,9 +277,46 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           badgeColor: 'bg-rose-500/30 text-rose-300',
         },
         {
-          id: 'adjust',
-          label: 'التسوية',
-          icon: ArrowDownUp,
+          id: 'transfers',
+          label: 'التحويلات',
+          icon: ArrowRightLeft,
+          badge: stockTransfers.filter((t) => t.status === 'in_transit' || t.status === 'pending').length > 0
+            ? stockTransfers.filter((t) => t.status === 'in_transit' || t.status === 'pending').length
+            : undefined,
+        },
+        {
+          id: 'stocktaking',
+          label: 'الجرد',
+          icon: ClipboardCheck,
+          badge: stocktakingSessions.filter((s) => s.status === 'in_progress').length > 0
+            ? stocktakingSessions.filter((s) => s.status === 'in_progress').length
+            : undefined,
+        },
+        {
+          id: 'scrap',
+          label: 'التوالف',
+          icon: Trash2,
+          badge: scrapVouchers.length > 0 ? scrapVouchers.length : undefined,
+        },
+        {
+          id: 'batches',
+          label: 'الصلاحيات',
+          icon: Calendar,
+          badge: productBatches.filter((b) => b.status === 'expired' || b.status === 'near_expiry').length > 0
+            ? productBatches.filter((b) => b.status === 'expired' || b.status === 'near_expiry').length
+            : undefined,
+          badgeColor: 'bg-amber-500/30 text-amber-300',
+        },
+        {
+          id: 'barcodes',
+          label: 'الباركود',
+          icon: Barcode,
+        },
+        {
+          id: 'warehouses',
+          label: 'المستودعات',
+          icon: Warehouse,
+          badge: warehouses.length,
         },
       ],
     },
@@ -278,6 +326,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       icon: Users2,
       badge: 'CRM',
       subItems: [
+        {
+          id: 'crm_analytics',
+          label: 'التحليلات والرسوم',
+          icon: BarChart3,
+        },
         {
           id: 'customers',
           label: 'الدليل',

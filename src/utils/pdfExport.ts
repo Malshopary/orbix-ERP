@@ -30,38 +30,57 @@ export async function exportElementToPdf(
     onError,
   } = options;
 
+  let originalTransform = '';
+  let targetElement: HTMLElement | null = null;
+
   try {
     if (onStart) onStart();
 
-    const element =
+    targetElement =
       typeof elementOrId === 'string'
         ? document.getElementById(elementOrId)
         : elementOrId;
 
-    if (!element) {
-      throw new Error(`Element ${elementOrId} not found in DOM`);
+    if (!targetElement) {
+      throw new Error(`Element "${elementOrId}" not found in DOM`);
     }
 
-    // Scroll to top to ensure complete render
-    const originalScrollPos = window.scrollY;
+    // Save and temporarily remove zoom transform from original element
+    originalTransform = targetElement.style.transform;
+    targetElement.style.transform = 'none';
 
-    const canvas = await html2canvas(element, {
-      scale: scale,
+    // Capture using html2canvas with optimized options
+    const canvas = await html2canvas(targetElement, {
+      scale: Math.max(1.5, Math.min(scale, 2.5)),
       useCORS: true,
       allowTaint: true,
       logging: false,
       backgroundColor: '#ffffff',
-      windowWidth: element.scrollWidth,
-      windowHeight: element.scrollHeight,
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: targetElement.scrollWidth,
+      windowHeight: targetElement.scrollHeight,
+      onclone: (_clonedDoc, clonedElement) => {
+        clonedElement.style.transform = 'none';
+        clonedElement.style.boxShadow = 'none';
+        clonedElement.style.margin = '0 auto';
+      },
     });
 
-    window.scrollTo(0, originalScrollPos);
+    // Restore original transform
+    if (targetElement) {
+      targetElement.style.transform = originalTransform;
+    }
 
+    // Convert canvas to image data
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+    // Initialize jsPDF
     const pdf = new jsPDF({
-      orientation: orientation,
+      orientation: orientation === 'landscape' ? 'landscape' : 'portrait',
       unit: 'mm',
       format: format,
+      compress: true,
     });
 
     const pageWidth = pdf.internal.pageSize.getWidth();
@@ -75,14 +94,32 @@ export async function exportElementToPdf(
     let position = margin;
 
     // First page
-    pdf.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight, undefined, 'FAST');
+    pdf.addImage(
+      imgData,
+      'JPEG',
+      margin,
+      position,
+      imgWidth,
+      imgHeight,
+      undefined,
+      'FAST'
+    );
     heightLeft -= pageHeight - margin * 2;
 
-    // Multi-page handling if content is longer than one page
+    // Multi-page handling if content exceeds single page
     while (heightLeft > 0) {
       position = heightLeft - imgHeight + margin;
       pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight, undefined, 'FAST');
+      pdf.addImage(
+        imgData,
+        'JPEG',
+        margin,
+        position,
+        imgWidth,
+        imgHeight,
+        undefined,
+        'FAST'
+      );
       heightLeft -= pageHeight - margin * 2;
     }
 
@@ -92,8 +129,13 @@ export async function exportElementToPdf(
     if (onComplete) onComplete();
     return true;
   } catch (error) {
-    console.error('PDF generation error:', error);
+    // Restore transform in case of error
+    if (targetElement && originalTransform !== undefined) {
+      targetElement.style.transform = originalTransform;
+    }
+
+    console.error('PDF export error:', error);
     if (onError) onError(error);
-    return false;
+    throw error;
   }
 }

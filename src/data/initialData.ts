@@ -19,6 +19,10 @@ import {
   SystemSequenceSettings,
   Vendor,
   Warehouse,
+  StockTransfer,
+  StocktakingSession,
+  ScrapVoucher,
+  ProductBatch,
   CRMLead,
   CRMInteraction,
   CRMTicket,
@@ -158,8 +162,64 @@ export const INITIAL_ACCOUNTS: Account[] = [
 ];
 
 export const INITIAL_WAREHOUSES: Warehouse[] = [
-  { id: 'wh-1', name: 'المستودع الرئيسي (Main Warehouse)', location: 'المقر الرئيسي', manager: 'مدير المستودع' },
+  {
+    id: 'wh-1',
+    code: 'WH-01',
+    name: 'المستودع الرئيسي - القاهرة (Main Warehouse)',
+    location: 'المنطقة الصناعية - مدينة نصر',
+    governorate: 'القاهرة',
+    manager: 'م. حسام الدين عبد الله',
+    phone: '01012345678',
+    capacity: '5,000 م³',
+    isMain: true,
+    isActive: true,
+    notes: 'المستودع المركزي لاستقبال وتفريغ الشحنات والتوزيع على باقي الفروع والموزعين',
+  },
+  {
+    id: 'wh-2',
+    code: 'WH-02',
+    name: 'مستودع فرع الإسكندرية (Alexandria Hub)',
+    location: 'سموحة - المنطقة اللوجستية',
+    governorate: 'الإسكندرية',
+    manager: 'أ. طارق عبد الرحمن',
+    phone: '01123456789',
+    capacity: '2,200 م³',
+    isMain: false,
+    isActive: true,
+    notes: 'مستودع إقليمي لتغذية قطاع وجه بحري ومحافظات الساحل',
+  },
+  {
+    id: 'wh-3',
+    code: 'WH-03',
+    name: 'مخزن صالة العرض والمبيعات (Showroom & POS)',
+    location: 'المقر التجاري - صالة البيع',
+    governorate: 'القاهرة',
+    manager: 'أ. سامح فؤاد',
+    phone: '01234567890',
+    capacity: '600 م³',
+    isMain: false,
+    isActive: true,
+    notes: 'مخزن المنتجات المعروضة المخصصة للبيع المباشر والفوري بنقاط البيع POS',
+  },
+  {
+    id: 'wh-4',
+    code: 'WH-04',
+    name: 'مستودع المرتجعات والتوالف (Damaged & Returns)',
+    location: 'المقر الرئيسي - مبنى ملحق ب',
+    governorate: 'القاهرة',
+    manager: 'أ. مصطفى كمال',
+    phone: '01099887766',
+    capacity: '350 م³',
+    isMain: false,
+    isActive: true,
+    notes: 'مخزن عزل البضائع المعيبة، المرتجعة، أو منتهية الصلاحية للفحص الفني والتسوية',
+  },
 ];
+
+export const INITIAL_STOCK_TRANSFERS: StockTransfer[] = [];
+export const INITIAL_STOCKTAKING_SESSIONS: StocktakingSession[] = [];
+export const INITIAL_SCRAP_VOUCHERS: ScrapVoucher[] = [];
+export const INITIAL_PRODUCT_BATCHES: ProductBatch[] = [];
 
 // Clean Operational Tables (Ready for new user data)
 export const INITIAL_PRODUCTS: Product[] = [];

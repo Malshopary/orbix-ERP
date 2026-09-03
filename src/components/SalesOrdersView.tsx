@@ -4,6 +4,10 @@ import { SalesOrder, SalesOrderItem, Quotation } from '../types';
 import { ProductSelectSearch } from './ProductSelectSearch';
 import { MathQuantityInput } from './MathQuantityInput';
 import { OrbixLogo } from './OrbixLogo';
+import { PrintPreviewModal } from './PrintPreviewModal';
+import { PrintHeader } from './PrintHeader';
+import { PrintFooter } from './PrintFooter';
+import { SearchableSelect } from './SearchableSelect';
 import {
   ClipboardList,
   PlusCircle,
@@ -1020,36 +1024,37 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     العميل <span className="text-rose-500">*</span>
                   </label>
-                  <select
+                  <SearchableSelect
                     value={customerId}
-                    onChange={(e) => setCustomerId(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.companyName ? `(${c.companyName})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setCustomerId(val)}
+                    placeholder="اختر العميل..."
+                    searchPlaceholder="ابحث باسم العميل أو الشركة..."
+                    options={customers.map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                      subLabel: c.companyName || c.phone,
+                    }))}
+                  />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     مندوب المبيعات
                   </label>
-                  <select
+                  <SearchableSelect
                     value={salesRepId}
-                    onChange={(e) => setSalesRepId(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">-- بدون مندوب محدد --</option>
-                    {salesReps.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} ({r.code})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSalesRepId(val)}
+                    placeholder="-- بدون مندوب محدد --"
+                    searchPlaceholder="ابحث باسم المندوب..."
+                    options={[
+                      { value: '', label: '-- بدون مندوب محدد --' },
+                      ...salesReps.map((r) => ({
+                        value: r.id,
+                        label: `${r.name} (${r.code})`,
+                        subLabel: r.phone,
+                      })),
+                    ]}
+                  />
                 </div>
 
                 <div>
@@ -1340,36 +1345,37 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     العميل <span className="text-rose-500">*</span>
                   </label>
-                  <select
+                  <SearchableSelect
                     value={editCustomerId}
-                    onChange={(e) => setEditCustomerId(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEditCustomerId(val)}
+                    placeholder="اختر العميل..."
+                    searchPlaceholder="ابحث باسم العميل..."
+                    options={customers.map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                      subLabel: c.phone,
+                    }))}
+                  />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     مندوب المبيعات
                   </label>
-                  <select
+                  <SearchableSelect
                     value={editSalesRepId}
-                    onChange={(e) => setEditSalesRepId(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">-- بدون مندوب --</option>
-                    {salesReps.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEditSalesRepId(val)}
+                    placeholder="-- بدون مندوب --"
+                    searchPlaceholder="ابحث باسم المندوب..."
+                    options={[
+                      { value: '', label: '-- بدون مندوب --' },
+                      ...salesReps.map((r) => ({
+                        value: r.id,
+                        label: r.name,
+                        subLabel: r.phone,
+                      })),
+                    ]}
+                  />
                 </div>
 
                 <div>
@@ -1632,62 +1638,35 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
 
       {/* PRINT / PREVIEW MODAL */}
       {showPrintModal && selectedOrder && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-3xl w-full max-w-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 max-h-[92vh] flex flex-col my-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 no-print">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-slate-800">
-                  معاينة أمر البيع والتوريد ({selectedOrder.orderNumber})
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  طباعة / PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPrintModal(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Printable Document Area */}
-            <div className="flex-1 overflow-y-auto py-6 space-y-6 text-slate-800 text-sm printable-area">
-              {/* Header */}
-              <div className="flex items-start justify-between border-b pb-6 border-slate-200">
-                <div className="flex items-center gap-3">
-                  <OrbixLogo size="md" variant="full" />
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">{companyProfile.nameAr}</h2>
-                    <p className="text-xs text-slate-500">{companyProfile.address}</p>
-                    <p className="text-xs text-slate-500 font-mono">الرقم الضريبي: {companyProfile.taxNumber}</p>
-                  </div>
-                </div>
-
-                <div className="text-left font-mono">
-                  <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                    أمر بيع وتوريد (Sales Order)
-                  </span>
-                  <p className="text-base font-bold text-slate-900 mt-2">{selectedOrder.orderNumber}</p>
-                  <p className="text-xs text-slate-500 font-sans">التاريخ: {selectedOrder.date}</p>
-                  {selectedOrder.quotationNumber && (
-                    <p className="text-xs text-amber-700 font-sans">مرجع العرض: {selectedOrder.quotationNumber}</p>
-                  )}
-                </div>
-              </div>
+        <PrintPreviewModal
+          isOpen={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          title="معاينة أمر البيع والتوريد"
+          docNumber={selectedOrder.orderNumber}
+          badgeText="أمر بيع وتوريد معتمد"
+          badgeColor="bg-blue-50 text-blue-800 border-blue-200"
+          elementId="sales-order-print-sheet"
+        >
+          {({ orientation }) => (
+            <div className="space-y-6 text-xs text-slate-800">
+              {/* Standardized Header */}
+              <PrintHeader
+                docTitle="أمر بيع وتوريد (SALES ORDER)"
+                docNumber={selectedOrder.orderNumber}
+                date={selectedOrder.date}
+                dueDate={selectedOrder.expectedDeliveryDate ? `تاريخ التسليم: ${selectedOrder.expectedDeliveryDate}` : undefined}
+                badgeColor="bg-blue-700 text-white"
+                additionalMeta={[
+                  { label: 'العميل', value: selectedOrder.customerName },
+                  { label: 'مرجع العرض', value: selectedOrder.quotationNumber || 'مباشر' },
+                ]}
+                orientation={orientation}
+              />
 
               {/* Customer and Delivery Info */}
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
                 <div>
-                  <span className="text-slate-400 font-bold block mb-1">العميل (Customer):</span>
+                  <span className="text-slate-500 font-semibold block mb-1">العميل (Customer):</span>
                   <p className="text-sm font-bold text-slate-900">{selectedOrder.customerName}</p>
                   {selectedOrder.customerPhone && (
                     <p className="text-slate-600 font-mono mt-0.5">الهاتف: {selectedOrder.customerPhone}</p>
@@ -1697,47 +1676,46 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
                   )}
                 </div>
 
-                <div>
-                  <span className="text-slate-400 font-bold block mb-1">بيانات التسليم والشحن:</span>
+                <div className="text-left space-y-1">
                   {selectedOrder.shippingAddress && (
-                    <p className="text-slate-700 font-medium">موقع التسليم: {selectedOrder.shippingAddress}</p>
+                    <p className="text-slate-700">موقع التسليم: <strong className="text-slate-900">{selectedOrder.shippingAddress}</strong></p>
                   )}
                   {selectedOrder.expectedDeliveryDate && (
-                    <p className="text-slate-700 mt-0.5 font-mono">تاريخ التسليم المتوقع: {selectedOrder.expectedDeliveryDate}</p>
+                    <p className="text-slate-700 font-mono">تاريخ التسليم المتوقع: <strong>{selectedOrder.expectedDeliveryDate}</strong></p>
                   )}
-                  <p className="text-slate-700 mt-0.5">مندوب المبيعات: <strong>{selectedOrder.salesRepName || 'الإدارة'}</strong></p>
+                  <p className="text-slate-700">مندوب المبيعات: <strong>{selectedOrder.salesRepName || 'الإدارة'}</strong></p>
                 </div>
               </div>
 
               {/* Line Items Table */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                <table className="w-full text-right text-xs">
-                  <thead className="bg-slate-100 font-bold text-slate-700 border-b border-slate-200">
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs border border-slate-200">
+                  <thead className="bg-slate-100 font-bold text-slate-700 border-b border-slate-300">
                     <tr>
-                      <th className="p-3">#</th>
-                      <th className="p-3">بيان الصنف والمواصفات</th>
-                      <th className="p-3 text-center">الكمية المطلوبة</th>
-                      <th className="p-3 text-center">سعر الوحدة</th>
-                      <th className="p-3 text-center">الخصم</th>
-                      <th className="p-3 text-center">الصافي</th>
-                      <th className="p-3 text-center">الضريبة</th>
-                      <th className="p-3 text-left">الإجمالي ({currency})</th>
+                      <th className="p-2.5">#</th>
+                      <th className="p-2.5">بيان الصنف والمواصفات</th>
+                      <th className="p-2.5 text-center">الكمية المطلوبة</th>
+                      <th className="p-2.5 text-center">سعر الوحدة</th>
+                      <th className="p-2.5 text-center">الخصم</th>
+                      <th className="p-2.5 text-center">الصافي</th>
+                      <th className="p-2.5 text-center">الضريبة</th>
+                      <th className="p-2.5 text-left">الإجمالي ({currency})</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-200">
                     {selectedOrder.items.map((it, idx) => (
                       <tr key={it.id || idx}>
-                        <td className="p-3 font-mono text-slate-400">{idx + 1}</td>
-                        <td className="p-3">
+                        <td className="p-2.5 font-mono text-slate-400">{idx + 1}</td>
+                        <td className="p-2.5">
                           <p className="font-bold text-slate-900">{it.productName}</p>
                           {it.sku && <span className="text-[10px] text-slate-400 font-mono">SKU: {it.sku}</span>}
                         </td>
-                        <td className="p-3 text-center font-mono">{it.quantity} {it.unit || ''}</td>
-                        <td className="p-3 text-center font-mono">{formatMoney(it.unitPrice)}</td>
-                        <td className="p-3 text-center font-mono">{formatMoney(it.discount || 0)}</td>
-                        <td className="p-3 text-center font-mono">{formatMoney(it.subtotal)}</td>
-                        <td className="p-3 text-center font-mono">{formatMoney(it.vatAmount)}</td>
-                        <td className="p-3 text-left font-mono font-bold text-slate-900">{formatMoney(it.total)}</td>
+                        <td className="p-2.5 text-center font-mono font-bold">{it.quantity} {it.unit || ''}</td>
+                        <td className="p-2.5 text-center font-mono">{formatMoney(it.unitPrice)}</td>
+                        <td className="p-2.5 text-center font-mono">{formatMoney(it.discount || 0)}</td>
+                        <td className="p-2.5 text-center font-mono">{formatMoney(it.subtotal)}</td>
+                        <td className="p-2.5 text-center font-mono">{formatMoney(it.vatAmount)}</td>
+                        <td className="p-2.5 text-left font-mono font-bold text-slate-900">{formatMoney(it.total)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1746,7 +1724,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
 
               {/* Financial Totals */}
               <div className="flex justify-end">
-                <div className="w-72 bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
+                <div className="w-72 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>إجمالي القيمة:</span>
                     <span className="font-mono font-bold">{formatMoney(selectedOrder.subtotal)} {currency}</span>
@@ -1761,38 +1739,23 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
                     <span>ضريبة القيمة المضافة ({selectedOrder.vatRate}%):</span>
                     <span className="font-mono font-bold">{formatMoney(selectedOrder.vatTotal)} {currency}</span>
                   </div>
-                  <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
+                  <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-300">
                     <span>الإجمالي النهائي لأمر البيع:</span>
-                    <span className="font-mono text-blue-700 text-base">{formatMoney(selectedOrder.grandTotal)} {currency}</span>
+                    <span className="font-mono text-blue-700 text-base font-black">{formatMoney(selectedOrder.grandTotal)} {currency}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Instructions and Signatures */}
-              {selectedOrder.deliveryNotes && (
-                <div className="bg-blue-50/50 p-3.5 rounded-xl border border-blue-200/60 text-xs text-blue-900">
-                  <span className="font-bold block mb-0.5">تعليمات الشحن والتوريد:</span>
-                  <p>{selectedOrder.deliveryNotes}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-3 gap-4 pt-8 border-t border-slate-200 text-center text-xs">
-                <div>
-                  <p className="font-bold text-slate-700 mb-8">مسؤول المبيعات</p>
-                  <p className="text-slate-400">....................................</p>
-                </div>
-                <div>
-                  <p className="font-bold text-slate-700 mb-8">مسؤول المستودع والتجهيز</p>
-                  <p className="text-slate-400">....................................</p>
-                </div>
-                <div>
-                  <p className="font-bold text-slate-700 mb-8">استلام العميل</p>
-                  <p className="text-slate-400">....................................</p>
-                </div>
-              </div>
+              {/* Standardized Footer */}
+              <PrintFooter
+                preparedByTitle="مسؤول المبيعات"
+                approvedByTitle="مسؤول المستودع والتجهيز"
+                receivedByTitle="استلام العميل والمطابقة"
+                terms={selectedOrder.deliveryNotes || 'يلتزم المستودع بتجهيز وتسليم الطلبية وفق المواعيد والمواصفات المحددة أعلاه.'}
+              />
             </div>
-          </div>
-        </div>
+          )}
+        </PrintPreviewModal>
       )}
     </div>
   );
