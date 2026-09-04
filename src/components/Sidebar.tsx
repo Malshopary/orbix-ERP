@@ -42,6 +42,7 @@ import {
   BarChart3,
   Barcode,
   ClipboardCheck,
+  ArrowUpDown,
   Trash2,
   Warehouse,
   ArrowRightLeft,
@@ -102,6 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     warehouses,
     stockTransfers,
     stocktakingSessions,
+    stockAdjustments,
     scrapVouchers,
     productBatches,
     customers,
@@ -291,6 +293,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           badge: stocktakingSessions.filter((s) => s.status === 'in_progress').length > 0
             ? stocktakingSessions.filter((s) => s.status === 'in_progress').length
             : undefined,
+        },
+        {
+          id: 'adjustments',
+          label: 'التسوية',
+          icon: ArrowUpDown,
+          badge: stockAdjustments.length > 0 ? stockAdjustments.length : undefined,
         },
         {
           id: 'scrap',

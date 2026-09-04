@@ -275,6 +275,49 @@ export interface ScrapVoucher {
   createdAt?: string;
 }
 
+export interface StockAdjustmentItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  unit?: string;
+  costPrice: number;
+  currentQuantity: number; // الرصيد بالنظام قبل التسوية
+  adjustedQuantity: number; // الرصيد الفعلي المعدل
+  deltaQuantity: number; // الفرق (+ إضافة، - خصم)
+  type: 'increase' | 'decrease'; // نوع الحركة للبند
+  totalCostImpact: number; // الأثر المالي للبند (deltaQuantity * costPrice)
+  batchNumber?: string;
+  shelfLocation?: string;
+  reason?: string;
+  notes?: string;
+  time?: string;
+}
+
+export interface StockAdjustment {
+  id: string;
+  adjustmentNumber: string; // ADJ-2026-001
+  date: string;
+  time?: string;
+  warehouseId: string;
+  warehouseName?: string;
+  type: 'general' | 'increase' | 'decrease' | 'initial_balance' | 'correction';
+  reason: 'inventory_variance' | 'initial_balance' | 'audit_correction' | 'gift_promotion' | 'damage_settlement' | 'sample' | 'other';
+  reasonLabel?: string;
+  status: 'draft' | 'posted' | 'cancelled';
+  items: StockAdjustmentItem[];
+  totalItemsCount: number;
+  totalIncreaseQuantity: number;
+  totalDecreaseQuantity: number;
+  netQuantityDelta: number;
+  totalCostImpact: number; // صافي الأثر المالي (+ / -)
+  totalCostAbsValuation: number; // إجمالي قيمة البضاعة الخاضعة للتسوية
+  notes?: string;
+  responsiblePerson?: string;
+  approvedBy?: string;
+  createdByName?: string;
+  createdAt?: string;
+}
+
 export interface ProductBatch {
   id: string;
   productId: string;
@@ -301,7 +344,7 @@ export interface StockMovement {
   unit?: string;
   warehouseId?: string;
   warehouseName?: string;
-  type: 'IN' | 'OUT' | 'ADJUSTMENT' | 'TRANSFER' | 'SCRAP' | 'STOCKTAKING' | 'transfer_in' | 'transfer_out' | 'adjustment_in' | 'adjustment_out' | 'scrap';
+  type: 'IN' | 'OUT' | 'ADJUSTMENT' | 'TRANSFER' | 'SCRAP' | 'STOCKTAKING' | 'transfer_in' | 'transfer_out' | 'adjustment_in' | 'adjustment_out' | 'adjustment' | 'scrap';
   quantity: number;
   unitPrice?: number;
   date: string;

@@ -21,6 +21,7 @@ import {
   Warehouse,
   StockTransfer,
   StocktakingSession,
+  StockAdjustment,
   ScrapVoucher,
   ProductBatch,
   CRMLead,
@@ -218,6 +219,7 @@ export const INITIAL_WAREHOUSES: Warehouse[] = [
 
 export const INITIAL_STOCK_TRANSFERS: StockTransfer[] = [];
 export const INITIAL_STOCKTAKING_SESSIONS: StocktakingSession[] = [];
+export const INITIAL_STOCK_ADJUSTMENTS: StockAdjustment[] = [];
 export const INITIAL_SCRAP_VOUCHERS: ScrapVoucher[] = [];
 export const INITIAL_PRODUCT_BATCHES: ProductBatch[] = [];
 

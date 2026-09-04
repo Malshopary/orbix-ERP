@@ -1,11 +1,12 @@
 import React, { useState, useRef } from 'react';
 import { useErp } from '../context/ErpContext';
-import { Product } from '../types';
+import { Product, StockAdjustment } from '../types';
 import {
   Package,
   PlusCircle,
   AlertTriangle,
   ArrowDownUp,
+  ArrowUpDown,
   Search,
   Warehouse as WarehouseIcon,
   Tag,
@@ -36,6 +37,7 @@ import {
 } from 'lucide-react';
 import { WarehouseTransfersTab } from './inventory/WarehouseTransfersTab';
 import { StocktakingTab } from './inventory/StocktakingTab';
+import { StockAdjustmentsTab } from './inventory/StockAdjustmentsTab';
 import { ScrapVouchersTab } from './inventory/ScrapVouchersTab';
 import { BatchesExpiryTab } from './inventory/BatchesExpiryTab';
 import { BarcodePrintTab } from './inventory/BarcodePrintTab';
@@ -55,6 +57,7 @@ export const InventoryView: React.FC = () => {
     vendors,
     stockTransfers,
     stocktakingSessions,
+    stockAdjustments,
     scrapVouchers,
     productBatches,
     currency,
@@ -70,6 +73,10 @@ export const InventoryView: React.FC = () => {
     adjustProductWarehouseStock,
     getProductWarehouseBreakdown,
     updateProductShelfLocation,
+    getProductQuantityInWarehouse,
+    addStockAdjustment,
+    currentUser,
+    navigateTo,
     hasPermission,
     activeSubTab,
     setActiveSubTab,
@@ -81,18 +88,19 @@ export const InventoryView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [onlyLowStock, setOnlyLowStock] = useState(false);
-  const [notification, setNotification] = useState<{ message: string; type: 'warning' | 'success' } | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'warning' | 'success'; showAdjustLink?: boolean } | null>(null);
 
   React.useEffect(() => {
     if (activeSubTab) {
-      setCurrentTab(activeSubTab);
-      if (activeSubTab === 'low_stock') {
-        setOnlyLowStock(true);
-      } else if (activeSubTab === 'all') {
-        setOnlyLowStock(false);
-      } else if (activeSubTab === 'adjust') {
-        setShowAdjustModal(true);
-        if (products.length > 0) setSelectedProduct(products[0]);
+      if (activeSubTab === 'adjust' || activeSubTab === 'adjustments') {
+        setCurrentTab('adjustments');
+      } else {
+        setCurrentTab(activeSubTab);
+        if (activeSubTab === 'low_stock') {
+          setOnlyLowStock(true);
+        } else if (activeSubTab === 'all') {
+          setOnlyLowStock(false);
+        }
       }
     }
   }, [activeSubTab, products]);
@@ -105,6 +113,10 @@ export const InventoryView: React.FC = () => {
   const [adjustQty, setAdjustQty] = useState(1);
   const [adjustType, setAdjustType] = useState<'IN' | 'OUT'>('IN');
   const [adjustWarehouseId, setAdjustWarehouseId] = useState<string>('');
+  const [adjustReason, setAdjustReason] = useState<StockAdjustment['reason']>('inventory_variance');
+  const [adjustNotes, setAdjustNotes] = useState('');
+  const [adjustDate, setAdjustDate] = useState(new Date().toISOString().split('T')[0]);
+  const [adjustTime, setAdjustTime] = useState(new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }));
 
   // Warehouse Stock Breakdown Modal & Inline Shelf Editor State
   const [breakdownProduct, setBreakdownProduct] = useState<Product | null>(null);
@@ -365,27 +377,83 @@ export const InventoryView: React.FC = () => {
   const handleAdjustStock = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProduct) return;
+    const targetWhId = adjustWarehouseId || warehouses[0]?.id || '';
+    const targetWh = warehouses.find((w) => w.id === targetWhId);
+    const targetWhName = targetWh?.name || 'المستودع الرئيسي';
     const delta = adjustType === 'IN' ? Math.abs(adjustQty) : -Math.abs(adjustQty);
-    updateProductStock(selectedProduct.id, delta, adjustWarehouseId || undefined);
-    const newQty = selectedProduct.stockQuantity + delta;
+    const currentWhQty = getProductQuantityInWarehouse ? getProductQuantityInWarehouse(selectedProduct.id, targetWhId) : selectedProduct.stockQuantity;
+    const newWhQty = currentWhQty + delta;
+
+    if (newWhQty < 0) {
+      showAlert({
+        title: 'رصيد غير كافٍ للتسوية بالخصم',
+        message: `لا يمكن خصم كمية (${Math.abs(adjustQty)}) أكبر من الرصيد المتوفر في ${targetWhName} (${currentWhQty} ${selectedProduct.unit || 'قطعة'})!`,
+        type: 'error',
+      });
+      return;
+    }
+
+    const reasonLabels: Record<string, string> = {
+      inventory_variance: 'تسوية فروقات جرد فعلي',
+      initial_balance: 'تسوية أرصدة افتتاحية / أول المدة',
+      audit_correction: 'تصحيح وتعديل خطأ إدخال سابق',
+      gift_promotion: 'هدايا وعينات ترويجية وتسويقية',
+      damage_settlement: 'تسوية عجز وتلفيات',
+      sample: 'عينات فحص واختبار',
+      other: 'تسوية مخزنية أخرى',
+    };
+
+    const reasonLabel = reasonLabels[adjustReason] || 'تسوية مخزنية';
+    const finalDate = adjustDate || new Date().toISOString().split('T')[0];
+    const finalTime = adjustTime || new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+    // Official stock adjustment registration
+    const createdAdj = addStockAdjustment({
+      warehouseId: targetWhId,
+      warehouseName: targetWhName,
+      date: finalDate,
+      time: finalTime,
+      type: adjustType === 'IN' ? 'increase' : 'decrease',
+      reason: adjustReason,
+      reasonLabel,
+      notes: adjustNotes.trim() || `تسوية يدوية للصنف ${selectedProduct.name} (${adjustType === 'IN' ? 'زيادة' : 'خصم'} ${Math.abs(adjustQty)} ${selectedProduct.unit || 'قطعة'})`,
+      status: 'posted',
+      responsiblePerson: currentUser?.name || 'أمين المستودع',
+      totalItemsCount: 1,
+      totalIncreaseQuantity: adjustType === 'IN' ? Math.abs(adjustQty) : 0,
+      totalDecreaseQuantity: adjustType === 'OUT' ? Math.abs(adjustQty) : 0,
+      netQuantityDelta: delta,
+      totalCostImpact: delta * (selectedProduct.costPrice || 0),
+      totalCostAbsValuation: Math.abs(delta) * (selectedProduct.costPrice || 0),
+      items: [
+        {
+          productId: selectedProduct.id,
+          productName: selectedProduct.name,
+          sku: selectedProduct.sku,
+          unit: selectedProduct.unit || 'قطعة',
+          costPrice: selectedProduct.costPrice || 0,
+          currentQuantity: currentWhQty,
+          adjustedQuantity: newWhQty,
+          deltaQuantity: delta,
+          type: adjustType === 'IN' ? 'increase' : 'decrease',
+          totalCostImpact: delta * (selectedProduct.costPrice || 0),
+          reason: reasonLabel + (adjustNotes ? ` - ${adjustNotes}` : ''),
+          time: finalTime,
+        },
+      ],
+    });
+
     setShowAdjustModal(false);
 
-    const targetWhName = adjustWarehouseId ? warehouses.find((w) => w.id === adjustWarehouseId)?.name : 'المستودع العام';
-
-    if (newQty <= selectedProduct.minStockAlert) {
-      setNotification({
-        message: `تنبيه فوري: أصبح رصيد الصنف "${selectedProduct.name}" (${newQty} ${selectedProduct.unit}) أقل من أو مساوياً لحد الطلب الأدنى (${selectedProduct.minStockAlert})!`,
-        type: 'warning',
-      });
-    } else {
-      setNotification({
-        message: `تم تحديث رصيد الصنف "${selectedProduct.name}" في ${targetWhName} بنجاح. الرصيد الكلي: ${newQty} ${selectedProduct.unit}.`,
-        type: 'success',
-      });
-    }
-    setTimeout(() => setNotification(null), 5000);
+    setNotification({
+      message: `تم تسجيل إذن تسوية مخزنية (${createdAdj.adjustmentNumber}) بنجاح للصنف "${selectedProduct.name}" (${delta > 0 ? '+' : ''}${delta} ${selectedProduct.unit || 'قطعة'}) في ${targetWhName}. الرصيد الجديد: ${newWhQty} ${selectedProduct.unit || 'قطعة'}.`,
+      type: 'success',
+      showAdjustLink: true,
+    });
+    setTimeout(() => setNotification(null), 8000);
     setSelectedProduct(null);
     setAdjustWarehouseId('');
+    setAdjustNotes('');
   };
 
   return (
@@ -393,7 +461,7 @@ export const InventoryView: React.FC = () => {
       {/* Toast Notification */}
       {notification && (
         <div
-          className={`p-4 rounded-2xl border text-xs font-bold flex items-center justify-between shadow-md transition-all ${
+          className={`p-4 rounded-2xl border text-xs font-bold flex flex-wrap items-center justify-between gap-3 shadow-md transition-all ${
             notification.type === 'warning'
               ? 'bg-rose-50 border-rose-300 text-rose-900 animate-pulse'
               : 'bg-emerald-50 border-emerald-300 text-emerald-900'
@@ -401,31 +469,50 @@ export const InventoryView: React.FC = () => {
         >
           <div className="flex items-center gap-2">
             <AlertTriangle
-              className={`w-4 h-4 ${
+              className={`w-4 h-4 shrink-0 ${
                 notification.type === 'warning' ? 'text-rose-600' : 'text-emerald-600'
               }`}
             />
             <span>{notification.message}</span>
           </div>
-          <button
-            onClick={() => setNotification(null)}
-            className="text-slate-400 hover:text-slate-700 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+
+          <div className="flex items-center gap-2">
+            {notification.showAdjustLink && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentTab('adjustments');
+                  setActiveSubTab?.('adjustments');
+                  navigateTo('inventory', 'adjustments');
+                  setNotification(null);
+                }}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+                عرض صفحة التسويات والحركات ⬅
+              </button>
+            )}
+            <button
+              onClick={() => setNotification(null)}
+              className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
       {/* Sub-tab Views */}
       {currentTab === 'transfers' && <WarehouseTransfersTab />}
       {currentTab === 'stocktaking' && <StocktakingTab />}
+      {(currentTab === 'adjustments' || currentTab === 'adjust') && <StockAdjustmentsTab />}
       {currentTab === 'scrap' && <ScrapVouchersTab />}
       {currentTab === 'batches' && <BatchesExpiryTab />}
       {currentTab === 'barcodes' && <BarcodePrintTab />}
       {currentTab === 'warehouses' && <WarehousesManagementTab />}
 
       {/* Primary Products View (All / Low Stock) */}
-      {(currentTab === 'all' || currentTab === 'low_stock' || currentTab === 'adjust') && (
+      {(currentTab === 'all' || currentTab === 'low_stock') && (
         <>
           {/* Header Banner & Summary */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1660,91 +1747,188 @@ export const InventoryView: React.FC = () => {
 
       {/* Modal 2: Stock Adjustment */}
       {showAdjustModal && selectedProduct && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
-              <div>
-                <h3 className="font-bold text-base text-slate-900">حركة تسوية مخزنية يدوية</h3>
-                <p className="text-xs text-slate-500">{selectedProduct.name}</p>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl">
+                  <ArrowUpDown className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">تسجيل إذن تسوية مخزنية</h3>
+                  <p className="text-xs text-slate-500 font-mono">
+                    {selectedProduct.name} {selectedProduct.sku ? `(${selectedProduct.sku})` : ''}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => {
                   setShowAdjustModal(false);
                   setAdjustWarehouseId('');
+                  setAdjustNotes('');
                 }}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAdjustStock} className="space-y-3.5 text-xs">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center">
-                <span className="text-slate-600 font-medium">الرصيد الإجمالي الحالي:</span>
-                <span className="font-extrabold text-slate-900 text-sm font-mono">
-                  {selectedProduct.stockQuantity} {selectedProduct.unit}
-                </span>
-              </div>
+            <form onSubmit={handleAdjustStock} className="space-y-4 text-xs">
+              {/* Warehouse Selection with Live Available Stock */}
+              {(() => {
+                const targetWhId = adjustWarehouseId || warehouses[0]?.id || '';
+                const currentQtyInTargetWh = getProductQuantityInWarehouse ? getProductQuantityInWarehouse(selectedProduct.id, targetWhId) : selectedProduct.stockQuantity;
+                const delta = adjustType === 'IN' ? Math.abs(adjustQty || 0) : -Math.abs(adjustQty || 0);
+                const projectedQty = currentQtyInTargetWh + delta;
+                const costValuation = Math.abs(delta) * (selectedProduct.costPrice || 0);
 
-              {/* Warehouse Selection for adjustment */}
-              <div>
-                <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
-                  <Building className="w-3.5 h-3.5 text-emerald-600" />
-                  المستودع المستهدف بالتسوية:
-                </label>
-                <select
-                  value={adjustWarehouseId}
-                  onChange={(e) => setAdjustWarehouseId(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-bold text-xs text-slate-800"
-                >
-                  <option value="">-- المستودع الافتراضي / الرئيسي للصنف --</option>
-                  {warehouses.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name} {w.isDefault ? '(الرئيسي)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                return (
+                  <>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-2">
+                      <label className="block font-bold text-slate-700 flex items-center gap-1.5">
+                        <Building className="w-4 h-4 text-indigo-600" />
+                        المستودع المستهدف بالتسوية:
+                      </label>
+                      <select
+                        value={targetWhId}
+                        onChange={(e) => setAdjustWarehouseId(e.target.value)}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-bold text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                      >
+                        {warehouses.map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.name} {w.isDefault ? '(الرئيسي)' : ''}
+                          </option>
+                        ))}
+                      </select>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">نوع الحركة</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAdjustType('IN')}
-                    className={`py-2 rounded-xl font-bold transition-all cursor-pointer ${
-                      adjustType === 'IN'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    + إضافة رصيد (إدخال)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAdjustType('OUT')}
-                    className={`py-2 rounded-xl font-bold transition-all cursor-pointer ${
-                      adjustType === 'OUT'
-                        ? 'bg-rose-600 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    - خصم رصيد (إخراج / هالك)
-                  </button>
-                </div>
-              </div>
+                      <div className="flex items-center justify-between text-slate-600 text-[11px] pt-1">
+                        <span>الرصيد الحالي بالمستودع المحدد:</span>
+                        <span className="font-extrabold text-slate-900 font-mono text-xs">
+                          {currentQtyInTargetWh} {selectedProduct.unit || 'قطعة'}
+                        </span>
+                      </div>
+                    </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">الكمية المراد تسويتها</label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={adjustQty}
-                  onChange={(e) => setAdjustQty(Number(e.target.value))}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 font-extrabold text-sm text-center font-mono"
-                />
-              </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1.5">نوع التسوية</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAdjustType('IN')}
+                          className={`py-2.5 px-3 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                            adjustType === 'IN'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          <Plus className="w-4 h-4" />
+                          تسوية بالزيادة (+ إضافة)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAdjustType('OUT')}
+                          className={`py-2.5 px-3 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                            adjustType === 'OUT'
+                              ? 'bg-rose-600 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          <span className="text-base leading-none font-bold">-</span>
+                          تسوية بالنقص (- عجز / خصم)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">الكمية المسواة ({selectedProduct.unit || 'قطعة'})</label>
+                        <input
+                          type="number"
+                          min="1"
+                          required
+                          value={adjustQty}
+                          onChange={(e) => setAdjustQty(Math.max(1, Number(e.target.value)))}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 font-black text-sm text-center font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">سبب التسوية</label>
+                        <select
+                          value={adjustReason}
+                          onChange={(e) => setAdjustReason(e.target.value as StockAdjustment['reason'])}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-xs text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                        >
+                          <option value="inventory_variance">فروقات جرد فعلي</option>
+                          <option value="audit_correction">تصحيح خطأ إدخال سابق</option>
+                          <option value="damage_settlement">تسوية عجز وتلفيات</option>
+                          <option value="initial_balance">تسوية رصيد افتتاحي</option>
+                          <option value="gift_promotion">هدايا وعينات ترويجية</option>
+                          <option value="sample">عينات فحص واختبار</option>
+                          <option value="other">أخرى</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">تاريخ التسوية</label>
+                        <input
+                          type="date"
+                          required
+                          value={adjustDate}
+                          onChange={(e) => setAdjustDate(e.target.value)}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">وقت التسوية</label>
+                        <input
+                          type="text"
+                          required
+                          value={adjustTime}
+                          onChange={(e) => setAdjustTime(e.target.value)}
+                          placeholder="مثال: 02:30 م"
+                          className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">بيان وملاحظات إضافية</label>
+                      <input
+                        type="text"
+                        value={adjustNotes}
+                        onChange={(e) => setAdjustNotes(e.target.value)}
+                        placeholder="رقم محضر الجرد، اسم المعتمد، أو سبب التسوية بالتفصيل..."
+                        className="w-full p-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                      />
+                    </div>
+
+                    {/* Projected Impact Preview Card */}
+                    <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-indigo-900 font-bold">معاينة الرصيد بعد التسوية:</span>
+                        <div className="flex items-center gap-1.5 font-mono">
+                          <span className="text-slate-500">{currentQtyInTargetWh}</span>
+                          <span className="text-slate-400">⬅</span>
+                          <span className={`font-black text-sm ${projectedQty < 0 ? 'text-rose-600' : 'text-indigo-950'}`}>
+                            {projectedQty} {selectedProduct.unit || 'قطعة'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-600 pt-1 border-t border-indigo-100">
+                        <span>الأثر المالي للتسوية (بالتكلفة):</span>
+                        <span className={`font-mono font-bold ${adjustType === 'IN' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                          {adjustType === 'IN' ? '+' : '-'}{formatMoney(costValuation)}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
@@ -1752,16 +1936,18 @@ export const InventoryView: React.FC = () => {
                   onClick={() => {
                     setShowAdjustModal(false);
                     setAdjustWarehouseId('');
+                    setAdjustNotes('');
                   }}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium cursor-pointer"
+                  className="px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-medium cursor-pointer transition-colors"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold shadow-xs cursor-pointer"
+                  className="px-5 py-2.5 bg-indigo-700 hover:bg-indigo-800 text-white rounded-xl font-bold shadow-xs cursor-pointer transition-all flex items-center gap-2"
                 >
-                  تأكيد الحركة المخزنية
+                  <CheckCircle2 className="w-4 h-4" />
+                  تأكيد وتسجيل إذن التسوية
                 </button>
               </div>
             </form>

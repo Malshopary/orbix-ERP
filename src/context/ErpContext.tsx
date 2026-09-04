@@ -29,6 +29,8 @@ import {
   StockTransfer,
   StocktakingSession,
   StocktakingItem,
+  StockAdjustment,
+  StockAdjustmentItem,
   ScrapVoucher,
   ProductBatch,
   StockMovement,
@@ -61,6 +63,7 @@ import {
   INITIAL_WAREHOUSES,
   INITIAL_STOCK_TRANSFERS,
   INITIAL_STOCKTAKING_SESSIONS,
+  INITIAL_STOCK_ADJUSTMENTS,
   INITIAL_SCRAP_VOUCHERS,
   INITIAL_PRODUCT_BATCHES,
   INITIAL_CRM_LEADS,
@@ -144,6 +147,7 @@ interface ErpContextType {
   warehouses: Warehouse[];
   stockTransfers: StockTransfer[];
   stocktakingSessions: StocktakingSession[];
+  stockAdjustments: StockAdjustment[];
   scrapVouchers: ScrapVoucher[];
   productBatches: ProductBatch[];
   stockMovements: StockMovement[];
@@ -180,6 +184,8 @@ interface ErpContextType {
   updateStocktakingSession: (id: string, data: Partial<StocktakingSession>) => void;
   completeStocktakingSession: (sessionId: string, updatedItems?: StocktakingItem[]) => void;
   deleteStocktakingSession: (id: string) => void;
+  addStockAdjustment: (adjustment: Omit<StockAdjustment, 'id' | 'adjustmentNumber' | 'createdAt'>) => StockAdjustment;
+  deleteStockAdjustment: (id: string) => void;
   addScrapVoucher: (voucher: Omit<ScrapVoucher, 'id' | 'voucherNumber' | 'createdAt'>) => ScrapVoucher;
   deleteScrapVoucher: (id: string) => void;
   addProductBatch: (batch: Omit<ProductBatch, 'id'>) => void;
@@ -430,7 +436,7 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
     if (subTab === 'barcodes') return { id: 'inventory_barcodes', tab: 'inventory', subTab: 'barcodes', title: 'طباعة الباركود', iconName: 'Barcode' };
     if (subTab === 'warehouses') return { id: 'inventory_warehouses', tab: 'inventory', subTab: 'warehouses', title: 'المستودعات والفروع', iconName: 'Warehouse' };
     if (subTab === 'low_stock') return { id: 'inventory_low_stock', tab: 'inventory', subTab: 'low_stock', title: 'نواقص وتنبيهات المخزون', iconName: 'AlertTriangle' };
-    if (subTab === 'adjust') return { id: 'inventory_adjust', tab: 'inventory', subTab: 'adjust', title: 'التسوية الجردية', iconName: 'ArrowDownUp' };
+    if (subTab === 'adjust' || subTab === 'adjustments') return { id: 'inventory_adjustments', tab: 'inventory', subTab: 'adjustments', title: 'التسوية المخزنية', iconName: 'ArrowUpDown' };
     return { id: 'inventory_all', tab: 'inventory', subTab: 'all', title: 'الأصناف والمخزون', iconName: 'Layers' };
   }
   if (tab === 'crm_collections') {
@@ -865,6 +871,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_STOCKTAKING_SESSIONS;
   });
 
+  const [stockAdjustments, setStockAdjustments] = useState<StockAdjustment[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}stock_adjustments`);
+    return saved ? JSON.parse(saved) : INITIAL_STOCK_ADJUSTMENTS;
+  });
+
   const [scrapVouchers, setScrapVouchers] = useState<ScrapVoucher[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}scrap_vouchers`);
     return saved ? JSON.parse(saved) : INITIAL_SCRAP_VOUCHERS;
@@ -999,6 +1010,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_PREFIX}warehouses`, JSON.stringify(warehouses));
     localStorage.setItem(`${STORAGE_PREFIX}stock_transfers`, JSON.stringify(stockTransfers));
     localStorage.setItem(`${STORAGE_PREFIX}stocktaking_sessions`, JSON.stringify(stocktakingSessions));
+    localStorage.setItem(`${STORAGE_PREFIX}stock_adjustments`, JSON.stringify(stockAdjustments));
     localStorage.setItem(`${STORAGE_PREFIX}scrap_vouchers`, JSON.stringify(scrapVouchers));
     localStorage.setItem(`${STORAGE_PREFIX}product_batches`, JSON.stringify(productBatches));
     localStorage.setItem(`${STORAGE_PREFIX}stock_movements`, JSON.stringify(stockMovements));
@@ -1735,6 +1747,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { canDelete: true };
   };
 
+  const canDeleteStockAdjustment = (id: string): { canDelete: boolean; reason?: string } => {
+    const target = stockAdjustments.find((a) => a.id === id);
+    if (!target) return { canDelete: false, reason: 'إذن التسوية غير موجود.' };
+    return { canDelete: true };
+  };
+
   const canDeleteScrapVoucher = (id: string): { canDelete: boolean; reason?: string } => {
     const target = scrapVouchers.find((s) => s.id === id);
     if (!target) return { canDelete: false, reason: 'إذن التالف غير موجود.' };
@@ -1758,6 +1776,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       | 'warehouse'
       | 'stockTransfer'
       | 'stocktakingSession'
+      | 'stockAdjustment'
       | 'scrapVoucher',
     id: string
   ): { canDelete: boolean; reason?: string } => {
@@ -1776,6 +1795,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return canDeleteSalesRep(id);
       case 'priceList':
         return canDeletePriceList(id);
+      case 'stockAdjustment':
+        return canDeleteStockAdjustment(id);
       case 'invoice':
         return canDeleteSalesInvoice(id);
       case 'purchase':
@@ -3096,6 +3117,134 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setStocktakingSessions((prev) => prev.filter((s) => s.id !== id));
     logAuditEvent('حذف محضر جرد', 'المخازن', `تم حذف محضر الجرد ${target?.sessionNumber || id}`);
+  };
+
+  // Stock Adjustments (تسويات المخزون والأرصدة)
+  const addStockAdjustment = (
+    adjustmentData: Omit<StockAdjustment, 'id' | 'adjustmentNumber' | 'createdAt'>
+  ): StockAdjustment => {
+    const adjustmentNumber = `ADJ-${new Date().getFullYear()}-${String(stockAdjustments.length + 1).padStart(3, '0')}`;
+    const currentTime = adjustmentData.time || new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    const newAdjustment: StockAdjustment = {
+      ...adjustmentData,
+      id: `adj-${Date.now()}`,
+      adjustmentNumber,
+      time: currentTime,
+      items: (adjustmentData.items || []).map((item) => ({
+        ...item,
+        time: item.time || currentTime,
+      })),
+      createdAt: new Date().toISOString(),
+    };
+
+    setStockAdjustments((prev) => [newAdjustment, ...prev]);
+
+    // If posted, update warehouse stock and post journal entry
+    if (newAdjustment.status === 'posted') {
+      newAdjustment.items.forEach((item) => {
+        if (item.deltaQuantity !== 0) {
+          updateProductStock(item.productId, item.deltaQuantity, undefined, newAdjustment.warehouseId);
+
+          addStockMovement({
+            productId: item.productId,
+            productName: item.productName,
+            sku: item.sku,
+            warehouseId: newAdjustment.warehouseId,
+            warehouseName: newAdjustment.warehouseName,
+            type: 'adjustment',
+            quantity: Math.abs(item.deltaQuantity),
+            referenceType: 'adjustment',
+            referenceNumber: adjustmentNumber,
+            notes: `تسوية مخزنية (${item.deltaQuantity > 0 ? 'إضافة/زيادة' : 'خصم/عجز'}): ${item.reason || newAdjustment.reasonLabel || newAdjustment.reason}`,
+            date: newAdjustment.date,
+          });
+        }
+      });
+
+      // Post Accounting Journal Entry
+      const netFinancialImpact = newAdjustment.totalCostImpact;
+      if (netFinancialImpact !== 0) {
+        if (netFinancialImpact > 0) {
+          addJournalEntry({
+            entryNumber: `JE-${adjustmentNumber}`,
+            date: newAdjustment.date,
+            reference: adjustmentNumber,
+            description: `تسوية مخزنية (زيادة وفائض بضاعة) - إذن ${adjustmentNumber}`,
+            lines: [
+              {
+                accountId: '1140',
+                accountCode: '1140',
+                accountName: 'المخزون السلعي والبضاعة',
+                debit: Math.abs(netFinancialImpact),
+                credit: 0,
+                description: `زيادة بضاعة مستودع ${newAdjustment.warehouseName || ''} - إذن ${adjustmentNumber}`,
+              },
+              {
+                accountId: '4300',
+                accountCode: '4300',
+                accountName: 'أرباح وفروقات تسويات المخزون السلعي',
+                debit: 0,
+                credit: Math.abs(netFinancialImpact),
+                description: `إثبات أرباح وفائض تسوية بضاعة - ${newAdjustment.reasonLabel || newAdjustment.reason}`,
+              },
+            ],
+            totalDebit: Math.abs(netFinancialImpact),
+            totalCredit: Math.abs(netFinancialImpact),
+            isAutomatic: true,
+            sourceModule: 'inventory',
+          });
+        } else {
+          addJournalEntry({
+            entryNumber: `JE-${adjustmentNumber}`,
+            date: newAdjustment.date,
+            reference: adjustmentNumber,
+            description: `تسوية مخزنية (عجز وتسوية بضاعة) - إذن ${adjustmentNumber}`,
+            lines: [
+              {
+                accountId: '5400',
+                accountCode: '5400',
+                accountName: 'خسائر وفروقات تسويات المخزون السلعي',
+                debit: Math.abs(netFinancialImpact),
+                credit: 0,
+                description: `عجز وتسوية بضاعة مستودع ${newAdjustment.warehouseName || ''} - إذن ${adjustmentNumber}`,
+              },
+              {
+                accountId: '1140',
+                accountCode: '1140',
+                accountName: 'المخزون السلعي والبضاعة',
+                debit: 0,
+                credit: Math.abs(netFinancialImpact),
+                description: `تخفيض المخزون بإذن تسوية ${adjustmentNumber}`,
+              },
+            ],
+            totalDebit: Math.abs(netFinancialImpact),
+            totalCredit: Math.abs(netFinancialImpact),
+            isAutomatic: true,
+            sourceModule: 'inventory',
+          });
+        }
+      }
+    }
+
+    logAuditEvent('إذن تسوية مخزنية', 'المخازن', `تم تسجيل إذن تسوية مخزنية ${adjustmentNumber} بعدد أصناف ${newAdjustment.items.length} وأثر مالي ${newAdjustment.totalCostImpact} ${currency}`);
+    return newAdjustment;
+  };
+
+  const deleteStockAdjustment = (id: string) => {
+    const target = stockAdjustments.find((a) => a.id === id);
+    if (!target) return;
+
+    if (target.status === 'posted') {
+      // Revert stock adjustments
+      target.items.forEach((item) => {
+        if (item.deltaQuantity !== 0) {
+          updateProductStock(item.productId, -item.deltaQuantity, undefined, target.warehouseId);
+        }
+      });
+    }
+
+    setStockAdjustments((prev) => prev.filter((a) => a.id !== id));
+    logAuditEvent('حذف إذن تسوية مخزنية', 'المخازن', `تم حذف إذن التسوية ${target.adjustmentNumber}`);
   };
 
   // Scrap / Damaged Goods Vouchers
@@ -6204,6 +6353,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setWarehouses(INITIAL_WAREHOUSES);
         setStockTransfers(INITIAL_STOCK_TRANSFERS);
         setStocktakingSessions(INITIAL_STOCKTAKING_SESSIONS);
+        setStockAdjustments(INITIAL_STOCK_ADJUSTMENTS);
         setScrapVouchers(INITIAL_SCRAP_VOUCHERS);
         setProductBatches(INITIAL_PRODUCT_BATCHES);
         setStockMovements([]);
@@ -6252,6 +6402,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       warehouses,
       stockTransfers,
       stocktakingSessions,
+      stockAdjustments,
       scrapVouchers,
       productBatches,
       stockMovements,
@@ -6307,6 +6458,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (parsed.warehouses && Array.isArray(parsed.warehouses)) setWarehouses(parsed.warehouses);
       if (parsed.stockTransfers && Array.isArray(parsed.stockTransfers)) setStockTransfers(parsed.stockTransfers);
       if (parsed.stocktakingSessions && Array.isArray(parsed.stocktakingSessions)) setStocktakingSessions(parsed.stocktakingSessions);
+      if (parsed.stockAdjustments && Array.isArray(parsed.stockAdjustments)) setStockAdjustments(parsed.stockAdjustments);
       if (parsed.scrapVouchers && Array.isArray(parsed.scrapVouchers)) setScrapVouchers(parsed.scrapVouchers);
       if (parsed.productBatches && Array.isArray(parsed.productBatches)) setProductBatches(parsed.productBatches);
       if (parsed.stockMovements && Array.isArray(parsed.stockMovements)) setStockMovements(parsed.stockMovements);
@@ -6388,6 +6540,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         warehouses,
         stockTransfers,
         stocktakingSessions,
+        stockAdjustments,
         scrapVouchers,
         productBatches,
         stockMovements,
@@ -6410,6 +6563,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateStocktakingSession,
         completeStocktakingSession,
         deleteStocktakingSession,
+        addStockAdjustment,
+        deleteStockAdjustment,
         addScrapVoucher,
         deleteScrapVoucher,
         addProductBatch,
