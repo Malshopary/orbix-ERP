@@ -46,6 +46,8 @@ import {
   Trash2,
   Warehouse,
   ArrowRightLeft,
+  ArrowUpRight,
+  ArrowDownLeft,
 } from 'lucide-react';
 import { useErp } from '../context/ErpContext';
 import { OrbixLogo } from './OrbixLogo';
@@ -93,6 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     currency,
     accounts,
     journalEntries,
+    receipts,
     salesInvoices,
     quotations,
     salesOrders,
@@ -188,7 +191,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
         {
           id: 'collections',
           label: 'القبض',
-          icon: Receipt,
+          icon: ArrowDownLeft,
+          badge: receipts.filter((r) => r.type === 'collection').length || undefined,
+        },
+        {
+          id: 'payments',
+          label: 'الصرف',
+          icon: ArrowUpRight,
+          badge: receipts.filter((r) => r.type !== 'collection').length || undefined,
         },
         {
           id: 'commissions',

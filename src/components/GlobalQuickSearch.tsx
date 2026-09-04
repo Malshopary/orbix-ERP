@@ -31,7 +31,9 @@ import {
   Mail,
   MapPin,
   Tag,
-  Hash
+  Hash,
+  ArrowDownLeft,
+  ArrowUpRight
 } from 'lucide-react';
 
 export type SearchCategory = 
@@ -230,18 +232,32 @@ export const GlobalQuickSearch: React.FC = () => {
       tag: 'شجرة حسابات دليل قيود خزينة بنك دفتر أستاذ',
     },
     {
-      id: 'nav-receipts',
+      id: 'nav-collections',
       category: 'navigation',
       categoryLabel: 'الخزينة والسندات',
-      categoryIcon: CreditCard,
+      categoryIcon: ArrowDownLeft,
       categoryColor: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      title: 'سندات القبض والصرف (Vouchers)',
-      subtitle: 'تحصيل مقبوضات نقدية وشيكات وصرف نفقات وسداد موردين',
-      metaBadge: 'سندات مالية',
+      title: 'سندات القبض والتحصيل (Receipt Vouchers)',
+      subtitle: 'تحصيل مقبوضات العملاء، الشيكات الواردة، وإيداعات الخزينة',
+      metaBadge: 'سندات قبض',
       metaBadgeColor: 'bg-emerald-700 text-white',
       actionTab: 'accounts',
-      actionSubTab: 'receipts',
-      tag: 'سند قبض سند صرف شيكات خزينة تحصيل سداد',
+      actionSubTab: 'collections',
+      tag: 'سند قبض شيكات واردة تحصيل عميل دفعة خزينة receipt',
+    },
+    {
+      id: 'nav-payments',
+      category: 'navigation',
+      categoryLabel: 'الخزينة والسندات',
+      categoryIcon: ArrowUpRight,
+      categoryColor: 'bg-rose-100 text-rose-800 border-rose-300',
+      title: 'سندات الصرف والمصروفات (Payment Vouchers)',
+      subtitle: 'صرف النفقات والمصروفات الإدارية وسداد مستحقات الموردين',
+      metaBadge: 'سندات صرف',
+      metaBadgeColor: 'bg-rose-700 text-white',
+      actionTab: 'accounts',
+      actionSubTab: 'payments',
+      tag: 'سند صرف مصروفات نفقات سداد مورد إيجار صيانة كهرباء payment',
     },
     {
       id: 'nav-journal-entries',

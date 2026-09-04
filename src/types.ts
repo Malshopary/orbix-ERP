@@ -108,7 +108,7 @@ export interface JournalEntry {
   totalCredit: number;
   isPosted?: boolean;
   isAutomatic?: boolean;
-  sourceModule?: 'sales' | 'purchases' | 'payroll' | 'collection' | 'pos' | 'manual' | 'commission' | 'inventory';
+  sourceModule?: 'sales' | 'purchases' | 'payroll' | 'collection' | 'pos' | 'manual' | 'commission' | 'inventory' | 'expenses' | 'accounting';
   createdAt: string;
 }
 
@@ -652,11 +652,13 @@ export interface PurchaseInvoice {
 
 export type PaymentMethod = 'cash' | 'bank_transfer' | 'cheque' | 'card' | 'credit';
 
+export type PaymentReceiptType = 'collection' | 'vendor_payment' | 'expense_payment' | 'general_payment';
+
 export interface PaymentReceipt {
   id: string;
   receiptNumber: string;
-  type: 'collection' | 'vendor_payment'; // سند قبض أو سند صرف
-  partyId: string;
+  type: PaymentReceiptType; // سند قبض أو صرف مورد أو صرف مصروف أو عام
+  partyId?: string;
   partyName: string;
   salesRepId?: string;
   salesRepName?: string;
@@ -666,7 +668,20 @@ export interface PaymentReceipt {
   date: string;
   referenceNumber?: string;
   notes?: string;
-  accountId: string; // الخزينة أو البنك
+  accountId: string; // الخزينة أو البنك المصروف منه أو المحصل إليه
+  accountName?: string;
+  expenseAccountId?: string; // حساب المصروف المدين في سندات الصرف
+  expenseAccountName?: string;
+  expenseCategory?: string; // تصنيف المصروف (إيجار، صيانة، مرافق، نثرية، إعلانات، إلخ)
+  payeeName?: string; // اسم المستفيد / المستلم
+  checkNumber?: string;
+  checkDueDate?: string;
+  bankName?: string;
+  taxAmount?: number;
+  taxNumber?: string;
+  costCenterId?: string;
+  costCenterName?: string;
+  createdAt?: string;
 }
 
 export interface Employee {

@@ -14,6 +14,8 @@ import {
   LoyaltyTransaction,
 } from '../types';
 import { CustomerStatementModal } from './CustomerStatementModal';
+import { PaymentVouchersSection } from './PaymentVouchersSection';
+import { VoucherPrintModal } from './VoucherPrintModal';
 import {
   BookOpenCheck,
   PlusCircle,
@@ -93,20 +95,37 @@ export const AccountsView: React.FC = () => {
 
   // Primary Accounts Subtab
   const [activeTab, setActiveTabLocal] = useState<
-    'chart' | 'journal' | 'collections' | 'commissions' | 'loyalty' | 'pricelists'
-  >('chart');
+    'chart' | 'journal' | 'collections' | 'payments' | 'commissions' | 'loyalty' | 'pricelists'
+  >(() => {
+    if (activeSubTab === 'receipts') return 'collections';
+    if (activeSubTab === 'expenses') return 'payments';
+    if (
+      activeSubTab &&
+      ['chart', 'journal', 'collections', 'payments', 'commissions', 'loyalty', 'pricelists'].includes(activeSubTab)
+    ) {
+      return activeSubTab as any;
+    }
+    return 'chart';
+  });
 
   // Sync with activeSubTab from sidebar
   React.useEffect(() => {
-    if (
-      activeSubTab &&
-      ['chart', 'journal', 'collections', 'commissions', 'loyalty', 'pricelists'].includes(activeSubTab)
-    ) {
-      setActiveTabLocal(activeSubTab as any);
+    if (activeSubTab) {
+      if (activeSubTab === 'receipts') {
+        setActiveTabLocal('collections');
+      } else if (activeSubTab === 'expenses') {
+        setActiveTabLocal('payments');
+      } else if (
+        ['chart', 'journal', 'collections', 'payments', 'commissions', 'loyalty', 'pricelists'].includes(activeSubTab)
+      ) {
+        setActiveTabLocal(activeSubTab as any);
+      }
     }
   }, [activeSubTab]);
 
-  const setActiveTab = (tab: 'chart' | 'journal' | 'collections' | 'commissions' | 'loyalty' | 'pricelists') => {
+  const setActiveTab = (
+    tab: 'chart' | 'journal' | 'collections' | 'payments' | 'commissions' | 'loyalty' | 'pricelists'
+  ) => {
     setActiveTabLocal(tab);
     setActiveSubTab(tab);
   };
@@ -1233,14 +1252,24 @@ export const AccountsView: React.FC = () => {
                         <td className="p-4 font-mono text-slate-600">{rec.date}</td>
                         <td className="p-4 text-slate-500 max-w-xs truncate">{rec.notes || '—'}</td>
                         <td className="p-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => deletePaymentReceipt(rec.id)}
-                            className="text-slate-300 hover:text-rose-600 p-1.5 cursor-pointer"
-                            title="حذف السند"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedReceiptForPrint(rec)}
+                              className="text-slate-500 hover:text-slate-900 p-1.5 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors"
+                              title="معاينة وطباعة سند القبض"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deletePaymentReceipt(rec.id)}
+                              className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg cursor-pointer transition-colors"
+                              title="حذف السند"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1250,6 +1279,9 @@ export const AccountsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* SUBTAB: PAYMENT & EXPENSE VOUCHERS */}
+      {activeTab === 'payments' && <PaymentVouchersSection />}
 
       {/* SUBTAB 4: COMMISSIONS & PAYOUTS */}
       {activeTab === 'commissions' && (
@@ -2808,6 +2840,14 @@ export const AccountsView: React.FC = () => {
         <CustomerStatementModal
           customerId={statementCustomerId}
           onClose={() => setStatementCustomerId(null)}
+        />
+      )}
+
+      {/* VOUCHER PRINT MODAL */}
+      {selectedReceiptForPrint && (
+        <VoucherPrintModal
+          receipt={selectedReceiptForPrint}
+          onClose={() => setSelectedReceiptForPrint(null)}
         />
       )}
     </div>

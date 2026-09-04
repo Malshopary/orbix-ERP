@@ -341,6 +341,7 @@ interface ErpContextType {
   // Receipts / Vouchers
   receipts: PaymentReceipt[];
   addReceiptVoucher: (receipt: Omit<PaymentReceipt, 'id' | 'receiptNumber'>) => void;
+  addPaymentVoucher: (voucher: Omit<PaymentReceipt, 'id' | 'receiptNumber'>) => void;
   editPaymentReceipt: (id: string, data: Partial<PaymentReceipt>) => void;
   deletePaymentReceipt: (id: string) => void;
 
@@ -422,7 +423,8 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
   }
   if (tab === 'accounts') {
     if (subTab === 'journal') return { id: 'accounts_journal', tab: 'accounts', subTab: 'journal', title: 'سجل قيود اليومية', iconName: 'FileText' };
-    if (subTab === 'collections') return { id: 'accounts_collections', tab: 'accounts', subTab: 'collections', title: 'التحصيلات وسندات القبض', iconName: 'Receipt' };
+    if (subTab === 'collections' || subTab === 'receipts') return { id: 'accounts_collections', tab: 'accounts', subTab: 'collections', title: 'سندات القبض والتحصيل', iconName: 'ArrowDownLeft' };
+    if (subTab === 'payments' || subTab === 'expenses') return { id: 'accounts_payments', tab: 'accounts', subTab: 'payments', title: 'سندات الصرف والمصروفات', iconName: 'ArrowUpRight' };
     if (subTab === 'commissions') return { id: 'accounts_commissions', tab: 'accounts', subTab: 'commissions', title: 'عمولات المناديب', iconName: 'CreditCard' };
     if (subTab === 'loyalty') return { id: 'accounts_loyalty', tab: 'accounts', subTab: 'loyalty', title: 'نقاط الولاء والمكافآت', iconName: 'Award' };
     if (subTab === 'pricelists') return { id: 'accounts_pricelists', tab: 'accounts', subTab: 'pricelists', title: 'قوائم الأسعار وتسعير العملاء', iconName: 'Tag' };
@@ -1762,6 +1764,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { canDelete: true };
   };
 
+  const canDeletePaymentReceipt = (id: string): { canDelete: boolean; reason?: string } => {
+    const target = receipts.find((r) => r.id === id);
+    if (!target) return { canDelete: false, reason: 'السند المالي غير موجود بالنظام.' };
+    return { canDelete: true };
+  };
+
   const canDeleteEntity = (
     type:
       | 'account'
@@ -1780,7 +1788,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       | 'stockTransfer'
       | 'stocktakingSession'
       | 'stockAdjustment'
-      | 'scrapVoucher',
+      | 'scrapVoucher'
+      | 'paymentReceipt',
     id: string
   ): { canDelete: boolean; reason?: string } => {
     switch (type) {
@@ -1818,6 +1827,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return canDeleteStocktakingSession(id);
       case 'scrapVoucher':
         return canDeleteScrapVoucher(id);
+      case 'paymentReceipt':
+        return canDeletePaymentReceipt(id);
       default:
         return { canDelete: true };
     }
@@ -5472,21 +5483,34 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAuditEvent('سند صرف مورد', 'المشتريات', `سداد مبلغ ${amount} ${currency} للمورد ${pur.vendorName}`);
   };
 
-  // Receipts / Vouchers
+  // Receipts / Vouchers (سندات القبض وسندات الصرف والمصروفات)
   const addReceiptVoucher = (receiptData: Omit<PaymentReceipt, 'id' | 'receiptNumber'>) => {
     const isCollection = receiptData.type === 'collection';
-    const prefix = isCollection ? 'REC' : 'PAY';
+    const isExpense = receiptData.type === 'expense_payment';
+    const isVendorPay = receiptData.type === 'vendor_payment';
+    const isGeneralPay = receiptData.type === 'general_payment';
+
+    let prefix = 'REC';
+    if (isExpense) prefix = 'EXP';
+    else if (isVendorPay || isGeneralPay || !isCollection) prefix = 'PAY';
+
     const receiptNumber = `${prefix}-${new Date().getFullYear()}-${String(receipts.length + 1).padStart(3, '0')}`;
+
+    // Target treasury or bank account
+    const targetAccount =
+      accounts.find((a) => a.id === receiptData.accountId || a.code === receiptData.accountId) ||
+      accounts.find((a) => a.code === '1110') ||
+      accounts[2];
 
     const newReceipt: PaymentReceipt = {
       ...receiptData,
       id: `rec-${Date.now()}`,
       receiptNumber,
+      accountName: targetAccount.name,
+      createdAt: new Date().toISOString(),
     };
 
     setReceipts((prev) => [newReceipt, ...prev]);
-
-    const targetAccount = accounts.find((a) => a.id === receiptData.accountId) || accounts[2];
 
     if (isCollection) {
       // 1. Settle customer sales invoices (either specific invoice or FIFO across unpaid invoices)
@@ -5538,7 +5562,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         )
       );
 
-      // 3. Post Automatic Accounting Journal Entry
+      // 3. Post Automatic Accounting Journal Entry (Debit: Cash/Bank, Credit: Receivables)
       addJournalEntry({
         entryNumber: `JE-REC-${new Date().getFullYear()}-${String(journalEntries.length + 1).padStart(4, '0')}`,
         date: receiptData.date,
@@ -5549,7 +5573,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             accountId: targetAccount.id,
             accountCode: targetAccount.code,
             accountName: targetAccount.name,
-            debit: receiptData.amount,
+            debit: Number(receiptData.amount),
             credit: 0,
             description: receiptData.notes || 'سند قبض',
           },
@@ -5558,16 +5582,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             accountCode: '1130',
             accountName: `العملاء والمدينون (${receiptData.partyName})`,
             debit: 0,
-            credit: receiptData.amount,
+            credit: Number(receiptData.amount),
             description: 'تسوية حساب عميل',
           },
         ],
-        totalDebit: receiptData.amount,
-        totalCredit: receiptData.amount,
+        totalDebit: Number(receiptData.amount),
+        totalCredit: Number(receiptData.amount),
         isAutomatic: true,
         sourceModule: 'collection',
       });
-    } else {
+
+      logAuditEvent('سند تحصيل وقبض', 'الحسابات العامة', `تم تحصيل مبلغ ${receiptData.amount} ${currency} من العميل ${receiptData.partyName} بالسند ${receiptNumber}`);
+    } else if (isVendorPay) {
       // Settle vendor purchase invoices if any
       let amountToAllocate = Number(receiptData.amount) || 0;
       setPurchaseInvoices((prev) => {
@@ -5619,13 +5645,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         entryNumber: `JE-PAY-${new Date().getFullYear()}-${String(journalEntries.length + 1).padStart(4, '0')}`,
         date: receiptData.date,
         reference: receiptNumber,
-        description: `سند صرف ${receiptNumber} - ${receiptData.partyName}`,
+        description: `سند صرف مورد ${receiptNumber} - ${receiptData.partyName}`,
         lines: [
           {
             accountId: '2110',
             accountCode: '2110',
             accountName: `الموردون والدائنون (${receiptData.partyName})`,
-            debit: receiptData.amount,
+            debit: Number(receiptData.amount),
             credit: 0,
             description: 'سداد ذمة مورد',
           },
@@ -5634,16 +5660,126 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             accountCode: targetAccount.code,
             accountName: targetAccount.name,
             debit: 0,
-            credit: receiptData.amount,
-            description: receiptData.notes || 'سند صرف',
+            credit: Number(receiptData.amount),
+            description: receiptData.notes || 'سند صرف مورد',
           },
         ],
-        totalDebit: receiptData.amount,
-        totalCredit: receiptData.amount,
+        totalDebit: Number(receiptData.amount),
+        totalCredit: Number(receiptData.amount),
         isAutomatic: true,
         sourceModule: 'purchases',
       });
+
+      logAuditEvent('سند صرف مورد', 'الحسابات العامة', `سداد مبلغ ${receiptData.amount} ${currency} للمورد ${receiptData.partyName} بالسند ${receiptNumber}`);
+    } else if (isExpense) {
+      // Expense Voucher: Debit Expense Account, Credit Treasury/Bank (With optional VAT Input split)
+      const debitAccount =
+        accounts.find((a) => a.id === receiptData.expenseAccountId || a.code === receiptData.expenseAccountId) ||
+        accounts.find((a) => a.code === '5300') ||
+        accounts.find((a) => a.type === 'expense') ||
+        accounts[0];
+
+      const tax = Number(receiptData.taxAmount) || 0;
+      const totalAmt = Number(receiptData.amount) || 0;
+      const netAmount = Math.max(0, totalAmt - tax);
+
+      const lines: JournalEntry['lines'] = [];
+
+      if (tax > 0) {
+        lines.push({
+          accountId: debitAccount.id,
+          accountCode: debitAccount.code,
+          accountName: debitAccount.name,
+          debit: netAmount,
+          credit: 0,
+          description: `${receiptData.expenseCategory ? `[${receiptData.expenseCategory}] ` : ''}${receiptData.notes || 'مصروف عام'}`,
+        });
+        const vatAccount = accounts.find((a) => a.code === '1150') || debitAccount;
+        lines.push({
+          accountId: vatAccount.id,
+          accountCode: vatAccount.code,
+          accountName: vatAccount.name,
+          debit: tax,
+          credit: 0,
+          description: `ضريبة مدخلات ${receiptData.referenceNumber || receiptNumber}`,
+        });
+      } else {
+        lines.push({
+          accountId: debitAccount.id,
+          accountCode: debitAccount.code,
+          accountName: debitAccount.name,
+          debit: totalAmt,
+          credit: 0,
+          description: `${receiptData.expenseCategory ? `[${receiptData.expenseCategory}] ` : ''}${receiptData.notes || 'مصروف عام'}`,
+        });
+      }
+
+      lines.push({
+        accountId: targetAccount.id,
+        accountCode: targetAccount.code,
+        accountName: targetAccount.name,
+        debit: 0,
+        credit: totalAmt,
+        description: `صرف من ${targetAccount.name} - ${receiptData.payeeName || receiptData.partyName}`,
+      });
+
+      addJournalEntry({
+        entryNumber: `JE-EXP-${new Date().getFullYear()}-${String(journalEntries.length + 1).padStart(4, '0')}`,
+        date: receiptData.date,
+        reference: receiptNumber,
+        description: `سند صرف مصروفات ${receiptNumber} - ${receiptData.payeeName || receiptData.partyName} (${receiptData.expenseCategory || debitAccount.name})`,
+        lines,
+        totalDebit: totalAmt,
+        totalCredit: totalAmt,
+        isAutomatic: true,
+        sourceModule: 'expenses',
+      });
+
+      logAuditEvent('سند صرف مصروف', 'الحسابات العامة', `تم صرف مصروف بقيمة ${totalAmt} ${currency} لصالح ${receiptData.payeeName || receiptData.partyName} بالسند ${receiptNumber}`);
+    } else {
+      // General Payment
+      const debitAccount =
+        accounts.find((a) => a.id === receiptData.expenseAccountId || a.code === receiptData.expenseAccountId) ||
+        accounts.find((a) => a.code === '3300') ||
+        accounts[0];
+
+      const totalAmt = Number(receiptData.amount) || 0;
+
+      addJournalEntry({
+        entryNumber: `JE-PAY-${new Date().getFullYear()}-${String(journalEntries.length + 1).padStart(4, '0')}`,
+        date: receiptData.date,
+        reference: receiptNumber,
+        description: `سند صرف عام ${receiptNumber} - ${receiptData.payeeName || receiptData.partyName}`,
+        lines: [
+          {
+            accountId: debitAccount.id,
+            accountCode: debitAccount.code,
+            accountName: debitAccount.name,
+            debit: totalAmt,
+            credit: 0,
+            description: receiptData.notes || 'صرف عام',
+          },
+          {
+            accountId: targetAccount.id,
+            accountCode: targetAccount.code,
+            accountName: targetAccount.name,
+            debit: 0,
+            credit: totalAmt,
+            description: `صرف من ${targetAccount.name}`,
+          },
+        ],
+        totalDebit: totalAmt,
+        totalCredit: totalAmt,
+        isAutomatic: true,
+        sourceModule: 'accounting',
+      });
+
+      logAuditEvent('سند صرف عام', 'الحسابات العامة', `تم إصدار سند صرف عام ${receiptNumber} بقيمة ${totalAmt} ${currency}`);
     }
+  };
+
+  const addPaymentVoucher = (voucherData: Omit<PaymentReceipt, 'id' | 'receiptNumber'>) => {
+    addReceiptVoucher(voucherData);
   };
 
   const editPaymentReceipt = (id: string, data: Partial<PaymentReceipt>) => {
@@ -5699,8 +5835,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
+    // Revert associated Journal Entry if exists
+    const matchingJe = journalEntries.find(
+      (je) => je.reference === target.receiptNumber || je.entryNumber.includes(target.receiptNumber)
+    );
+    if (matchingJe) {
+      deleteJournalEntry(matchingJe.id);
+    }
+
     setReceipts((prev) => prev.filter((r) => r.id !== id));
-    logAuditEvent('حذف سند مالي', 'التحصيل والخزينة', `تم حذف السند رقم ${target.receiptNumber} وتسوية الأرصدة`);
+    logAuditEvent('حذف سند مالي', 'التحصيل والخزينة', `تم حذف السند رقم ${target.receiptNumber} وتسوية الأرصدة والقيود`);
   };
 
   // HR & Payroll
@@ -6649,6 +6793,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordVendorPayment,
         receipts,
         addReceiptVoucher,
+        addPaymentVoucher,
         editPaymentReceipt,
         deletePaymentReceipt,
         employees,
