@@ -50,6 +50,7 @@ export const HrPayrollView: React.FC = () => {
     showAlert,
     showConfirm,
     companyProfile,
+    currency,
   } = useErp();
 
   const [activeTab, setActiveTabLocal] = useState<'payroll' | 'employees'>('payroll');
@@ -843,7 +844,7 @@ export const HrPayrollView: React.FC = () => {
                 badgeColor="bg-slate-900 text-white"
                 additionalMeta={[
                   { label: 'شهر الاستحقاق', value: `${selectedPayslip.month} / ${selectedPayslip.year}` },
-                  { label: 'العملة', value: companyProfile.currency || 'SAR' },
+                  { label: 'العملة', value: currency },
                 ]}
                 orientation={orientation}
               />
@@ -910,7 +911,7 @@ export const HrPayrollView: React.FC = () => {
               {/* Net Pay */}
               <div className="bg-slate-900 text-white p-4 rounded-xl flex justify-between items-center font-extrabold text-sm">
                 <span>صافي الراتب المستحق للتحويل:</span>
-                <span className="text-emerald-400 font-mono font-black text-lg">{formatMoney(selectedPayslip.netSalary)} {companyProfile.currency || 'SAR'}</span>
+                <span className="text-emerald-400 font-mono font-black text-lg">{formatMoney(selectedPayslip.netSalary)}</span>
               </div>
 
               {/* Standardized Footer */}

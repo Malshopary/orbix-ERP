@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { StocktakingSession, StocktakingItem } from '../../types';
 import { SearchableSelect } from '../SearchableSelect';
+import { PrintPreviewModal } from '../PrintPreviewModal';
 import { PrintHeader } from '../PrintHeader';
 import { PrintFooter } from '../PrintFooter';
 import {
@@ -170,7 +171,7 @@ export const StocktakingTab: React.FC = () => {
     const netDiscrepancy = updatedItems.reduce((sum, i) => sum + i.differenceValue, 0);
 
     showConfirm(
-      `هل أنت متأكد من اعتماد وإتمام محضر الجرد رقم (${activeSession.sessionNumber})؟\n\nملخص الفروقات الجردية:\n• أصناف بها زيادة: ${surplusCount}\n• أصناف بها عجز: ${deficitCount}\n• صافي قيمة التسوية: ${formatMoney(netDiscrepancy)} ${currency}\n\nسيتم تحديث أرصدة المستودع فوراً وإنشاء القيود المحاسبية للتسوية آلياً.`,
+      `هل أنت متأكد من اعتماد وإتمام محضر الجرد رقم (${activeSession.sessionNumber})؟\n\nملخص الفروقات الجردية:\n• أصناف بها زيادة: ${surplusCount}\n• أصناف بها عجز: ${deficitCount}\n• صافي قيمة التسوية: ${formatMoney(netDiscrepancy)}\n\nسيتم تحديث أرصدة المستودع فوراً وإنشاء القيود المحاسبية للتسوية آلياً.`,
       () => {
         completeStocktakingSession(activeSession.id, updatedItems);
         setActiveSession(null);
@@ -182,10 +183,6 @@ export const StocktakingTab: React.FC = () => {
 
   const handleOpenPrintPreview = (session: StocktakingSession) => {
     setPreviewSession(session);
-  };
-
-  const handleDirectPrint = () => {
-    window.print();
   };
 
   return (
@@ -312,7 +309,7 @@ export const StocktakingTab: React.FC = () => {
                           <div className="flex flex-col gap-0.5">
                             <span className="inline-flex items-center gap-1 text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
                               <TrendingUp className="w-3.5 h-3.5" />
-                              زيادة: +{formatMoney(totalDiffVal)} {currency}
+                              زيادة: +{formatMoney(totalDiffVal)}
                             </span>
                             <span className="text-[10px] text-slate-500">
                               {surplusItems.length} صنف بزيادة
@@ -323,7 +320,7 @@ export const StocktakingTab: React.FC = () => {
                           <div className="flex flex-col gap-0.5">
                             <span className="inline-flex items-center gap-1 text-rose-700 font-bold bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
                               <TrendingDown className="w-3.5 h-3.5" />
-                              عجز: {formatMoney(totalDiffVal)} {currency}
+                              عجز: {formatMoney(totalDiffVal)}
                             </span>
                             <span className="text-[10px] text-slate-500">
                               {deficitItems.length} صنف بعجز
@@ -686,46 +683,31 @@ export const StocktakingTab: React.FC = () => {
 
       {/* MODAL: Official Print Preview Popup with Company Layout */}
       {previewSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
-            {/* Modal Top Bar (Hidden in Print) */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between print:hidden">
-              <div className="flex items-center gap-2">
-                <Printer className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-sm font-extrabold">معاينة محضر جرد المخزون الفعلي والطباعة</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleDirectPrint}
-                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  طباعة المحضر (Print)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreviewSession(null)}
-                  className="text-slate-400 hover:text-white p-1.5 rounded-lg cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Printable Document Body */}
-            <div className="p-6 sm:p-8 overflow-y-auto flex-1 space-y-6 text-slate-800 bg-white" id="stocktaking-print-area">
+        <PrintPreviewModal
+          isOpen={!!previewSession}
+          onClose={() => setPreviewSession(null)}
+          title="معاينة محضر جرد المخزون الفعلي"
+          docNumber={previewSession.sessionNumber}
+          badgeText={previewSession.status === 'completed' ? 'معتمد ومرحل' : 'مسودة جاري التدقيق'}
+          badgeColor={previewSession.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}
+          elementId="stocktaking-print-sheet"
+        >
+          {({ orientation }) => (
+            <div className="space-y-6 text-xs text-slate-800">
               {/* Header with full company details */}
               <PrintHeader
                 docTitle="محضر جرد وتدقيق المخزون الفعلي"
                 docSubtitle="تقرير حصر ومطابقة الأرصدة المستودعية والتسويات الجردية"
                 docNumber={previewSession.sessionNumber}
                 date={previewSession.date}
+                badgeColor="bg-emerald-700 text-white"
                 additionalMeta={[
                   { label: 'المستودع', value: getWarehouseName(previewSession.warehouseId) },
                   { label: 'حالة المحضر', value: previewSession.status === 'completed' ? 'معتمد ومرحل' : 'مسودة جاري التدقيق' },
                   { label: 'عدد الأصناف', value: `${previewSession.items.length} صنف` },
+                  { label: 'صافي الفروقات', value: `${formatMoney(previewSession.totalDiscrepancyValue || previewSession.items.reduce((s, i) => s + (i.differenceValue || 0), 0))}` },
                 ]}
+                orientation={orientation}
               />
 
               {/* KPI Summary Blocks */}
@@ -734,7 +716,6 @@ export const StocktakingTab: React.FC = () => {
                 const surplus = items.filter((i) => (i.difference || 0) > 0);
                 const deficit = items.filter((i) => (i.difference || 0) < 0);
                 const matched = items.filter((i) => (i.difference || 0) === 0);
-                const netDiscrepancy = items.reduce((sum, i) => sum + (i.differenceValue || 0), 0);
 
                 return (
                   <div className="grid grid-cols-4 gap-3 bg-slate-50 border border-slate-200 p-3.5 rounded-xl text-xs">
@@ -759,8 +740,8 @@ export const StocktakingTab: React.FC = () => {
               })()}
 
               {/* Items Table */}
-              <div className="border border-slate-300 rounded-xl overflow-hidden">
-                <table className="w-full text-right border-collapse text-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-right border-collapse text-xs border border-slate-200">
                   <thead className="bg-slate-100 text-slate-800 font-extrabold border-b border-slate-300">
                     <tr>
                       <th className="py-2.5 px-3">#</th>
@@ -822,7 +803,7 @@ export const StocktakingTab: React.FC = () => {
                         صافي قيمة الفروقات والتسوية الجردية:
                       </td>
                       <td className="py-2.5 px-3 text-center font-mono font-black text-sm text-slate-900">
-                        {formatMoney(previewSession.totalDiscrepancyValue || previewSession.items.reduce((s, i) => s + (i.differenceValue || 0), 0))} {currency}
+                        {formatMoney(previewSession.totalDiscrepancyValue || previewSession.items.reduce((s, i) => s + (i.differenceValue || 0), 0))}
                       </td>
                       <td></td>
                     </tr>
@@ -830,38 +811,17 @@ export const StocktakingTab: React.FC = () => {
                 </table>
               </div>
 
-              {/* Notes */}
-              {previewSession.notes && (
-                <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl text-xs">
-                  <span className="font-bold text-slate-700 block mb-1">ملاحظات وقرار اللجنة:</span>
-                  <p className="text-slate-600">{previewSession.notes}</p>
-                </div>
-              )}
-
-              {/* Official Signatures Section */}
-              <div className="grid grid-cols-3 gap-6 pt-6 border-t border-slate-200 text-center text-xs">
-                <div className="space-y-8">
-                  <span className="font-bold text-slate-700 block">رئيس لجنة الجرد</span>
-                  <div className="border-b border-dashed border-slate-400 w-32 mx-auto"></div>
-                  <span className="text-[10px] text-slate-400 block">التوقيع والاسم</span>
-                </div>
-                <div className="space-y-8">
-                  <span className="font-bold text-slate-700 block">أمين المستودع المسؤول</span>
-                  <div className="border-b border-dashed border-slate-400 w-32 mx-auto"></div>
-                  <span className="text-[10px] text-slate-400 block">التوقيع والاسم</span>
-                </div>
-                <div className="space-y-8">
-                  <span className="font-bold text-slate-700 block">المدير المالي / رئيس الحسابات</span>
-                  <div className="border-b border-dashed border-slate-400 w-32 mx-auto"></div>
-                  <span className="text-[10px] text-slate-400 block">الاعتماد والختم</span>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <PrintFooter />
+              {/* Standardized Footer with Signatures */}
+              <PrintFooter
+                preparedByTitle="أمين المستودع المسؤول"
+                approvedByTitle="رئيس لجنة الجرد"
+                receivedByTitle="المدير المالي / رئيس الحسابات"
+                notes={previewSession.notes || 'تم اعتماد محضر الجرد الفعلي ومطابقته مع الدفاتر المحاسبية وإقرار التسويات الناتجة.'}
+                orientation={orientation}
+              />
             </div>
-          </div>
-        </div>
+          )}
+        </PrintPreviewModal>
       )}
     </div>
   );

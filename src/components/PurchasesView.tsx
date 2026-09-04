@@ -1804,7 +1804,7 @@ export const PurchasesView: React.FC = () => {
                       <th className="p-2.5">الصنف / البيان والمواصفات</th>
                       <th className="p-2.5 text-center">الكمية المستلمة</th>
                       <th className="p-2.5 text-center">تكلفة الوحدة</th>
-                      <th className="p-2.5 text-left">الإجمالي ({companyProfile.currency || 'SAR'})</th>
+                      <th className="p-2.5 text-left">الإجمالي</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 font-mono">
@@ -1826,23 +1826,23 @@ export const PurchasesView: React.FC = () => {
                 <div className="w-80 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>المجموع قبل الضريبة:</span>
-                    <span className="font-mono font-bold">{formatMoney(selectedBill.subtotal)} {companyProfile.currency || 'SAR'}</span>
+                    <span className="font-mono font-bold">{formatMoney(selectedBill.subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>ضريبة القيمة المضافة:</span>
-                    <span className="font-mono font-bold text-emerald-700">+{formatMoney(selectedBill.vatTotal)} {companyProfile.currency || 'SAR'}</span>
+                    <span className="font-mono font-bold text-emerald-700">+{formatMoney(selectedBill.vatTotal)}</span>
                   </div>
                   <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-2 border-t border-slate-300">
                     <span>الإجمالي النهائي للفاتورة:</span>
-                    <span className="font-mono text-emerald-700 text-base font-black">{formatMoney(selectedBill.grandTotal)} {companyProfile.currency || 'SAR'}</span>
+                    <span className="font-mono text-emerald-700 text-base font-black">{formatMoney(selectedBill.grandTotal)}</span>
                   </div>
                   <div className="flex justify-between text-slate-600 pt-1 border-t border-slate-200">
                     <span>المبلغ المسدد:</span>
-                    <span className="font-mono font-bold text-emerald-600">{formatMoney(selectedBill.paidAmount)} {companyProfile.currency || 'SAR'}</span>
+                    <span className="font-mono font-bold text-emerald-600">{formatMoney(selectedBill.paidAmount)}</span>
                   </div>
                   <div className="flex justify-between text-rose-700 font-bold pt-1">
                     <span>المتبقي للمورد:</span>
-                    <span className="font-mono font-extrabold">{formatMoney(selectedBill.remainingAmount)} {companyProfile.currency || 'SAR'}</span>
+                    <span className="font-mono font-extrabold">{formatMoney(selectedBill.remainingAmount)}</span>
                   </div>
                 </div>
               </div>

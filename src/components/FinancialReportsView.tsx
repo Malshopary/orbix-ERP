@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export const FinancialReportsView: React.FC = () => {
-  const { accounts, journalEntries, formatMoney, activeSubTab, setActiveSubTab, companyProfile } = useErp();
+  const { accounts, journalEntries, formatMoney, activeSubTab, setActiveSubTab, companyProfile, currency } = useErp();
   const [reportType, setReportTypeLocal] = useState<'income' | 'balance_sheet' | 'trial_balance' | 'statement'>('income');
   const [activeDocViewer, setActiveDocViewer] = useState<DocumentViewerTarget | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -501,7 +501,7 @@ export const FinancialReportsView: React.FC = () => {
                 date={new Date().toISOString().split('T')[0]}
                 badgeColor="bg-slate-900 text-white"
                 additionalMeta={[
-                  { label: 'العملة', value: companyProfile.currency || 'SAR' },
+                  { label: 'العملة', value: currency },
                   { label: 'الفترة', value: `حتى ${new Date().toISOString().split('T')[0]}` },
                 ]}
                 orientation={orientation}
@@ -554,7 +554,7 @@ export const FinancialReportsView: React.FC = () => {
                   <div className="border-t-2 border-slate-900 pt-3">
                     <div className="bg-slate-900 text-white p-3.5 rounded-xl font-extrabold text-sm flex justify-between items-center">
                       <span>صافي أرباح النشاط للفترة (Net Income):</span>
-                      <span className="text-emerald-400 text-base font-mono font-black">{formatMoney(netIncome)} {companyProfile.currency || 'SAR'}</span>
+                      <span className="text-emerald-400 text-base font-mono font-black">{formatMoney(netIncome)}</span>
                     </div>
                   </div>
                 </div>
@@ -687,7 +687,7 @@ export const FinancialReportsView: React.FC = () => {
                     </div>
                     <div className="text-left">
                       <span className="text-slate-500 block">الرصيد الدفتري الحالي:</span>
-                      <span className="font-extrabold text-sm text-slate-900 font-mono">{formatMoney(targetAccount.balance)} {companyProfile.currency || 'SAR'}</span>
+                      <span className="font-extrabold text-sm text-slate-900 font-mono">{formatMoney(targetAccount.balance)}</span>
                     </div>
                   </div>
 

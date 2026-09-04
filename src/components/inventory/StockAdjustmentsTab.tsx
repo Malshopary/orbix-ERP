@@ -2,6 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { StockAdjustment, StockAdjustmentItem, Product } from '../../types';
 import { SearchableSelect } from '../SearchableSelect';
+import { PrintPreviewModal } from '../PrintPreviewModal';
+import { PrintHeader } from '../PrintHeader';
+import { PrintFooter } from '../PrintFooter';
 import {
   ArrowUpDown,
   Plus,
@@ -1382,67 +1385,51 @@ export const StockAdjustmentsTab: React.FC = () => {
 
       {/* VIEW & PRINT ADJUSTMENT VOUCHER MODAL */}
       {viewAdjustment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
-            {/* Modal Bar */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between no-print">
-              <div className="flex items-center gap-2">
-                <Printer className="w-5 h-5 text-indigo-600" />
-                <span className="font-bold text-slate-800">معاينة وطباعة إذن تسوية مخزنية</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-                >
-                  <Printer className="w-4 h-4" />
-                  طباعة الإذن
-                </button>
-                <button
-                  onClick={() => setViewAdjustment(null)}
-                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Printable Document Content */}
-            <div className="p-8 overflow-y-auto space-y-6 text-slate-800 bg-white" id="printable-voucher">
-              {/* Header with Company details */}
-              <div className="flex items-center justify-between border-b-2 border-slate-800 pb-4">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">{companyProfile?.nameAr || 'اسم المنشأة'}</h2>
-                  <p className="text-xs text-slate-500">{companyProfile?.activity || 'إدارة المستودعات والمخازن'}</p>
-                  <p className="text-xs text-slate-500">هاتف: {companyProfile?.phone || '—'} | س.ت: {companyProfile?.crNumber || '—'}</p>
-                </div>
-                <div className="text-left">
-                  <div className="inline-block px-3 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-800 font-bold text-sm">
-                    إذن تسوية مخزنية
-                  </div>
-                  <p className="text-xs font-mono font-bold text-slate-700 mt-1">الرقم: {viewAdjustment.adjustmentNumber}</p>
-                  <p className="text-xs text-slate-500">التاريخ: {viewAdjustment.date} {viewAdjustment.time ? `(${viewAdjustment.time})` : ''}</p>
-                </div>
-              </div>
+        <PrintPreviewModal
+          isOpen={!!viewAdjustment}
+          onClose={() => setViewAdjustment(null)}
+          title="معاينة إذن تسوية مخزنية"
+          docNumber={viewAdjustment.adjustmentNumber}
+          badgeText={viewAdjustment.status === 'posted' ? 'معتمد ومرحل' : 'مسودة تسوية'}
+          badgeColor={viewAdjustment.status === 'posted' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}
+          elementId="stock-adjustment-print-sheet"
+        >
+          {({ orientation }) => (
+            <div className="space-y-6 text-xs text-slate-800">
+              {/* Standardized Header */}
+              <PrintHeader
+                docTitle="إذن تسوية ومطابقة مخزنية (Stock Adjustment)"
+                docSubtitle="مستند رسمي لتسوية فروقات الجرد والأرصدة الافتتاحية وترحيل الأثر المالي دفترياً ومحاسبياً"
+                docNumber={viewAdjustment.adjustmentNumber}
+                date={viewAdjustment.date}
+                badgeColor="bg-indigo-700 text-white"
+                additionalMeta={[
+                  { label: 'المستودع', value: viewAdjustment.warehouseName || getWarehouseName(viewAdjustment.warehouseId) },
+                  { label: 'نوع وسبب التسوية', value: viewAdjustment.reasonLabel || viewAdjustment.reason },
+                  { label: 'المسؤول', value: viewAdjustment.responsiblePerson || '—' },
+                  { label: 'صافي الأثر المالي', value: `${viewAdjustment.totalCostImpact > 0 ? '+' : ''}${formatMoney(viewAdjustment.totalCostImpact)}` },
+                ]}
+                orientation={orientation}
+              />
 
               {/* Voucher Meta Info Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
                 <div>
-                  <span className="text-slate-500 block">المستودع:</span>
-                  <span className="font-bold text-slate-800">{viewAdjustment.warehouseName || getWarehouseName(viewAdjustment.warehouseId)}</span>
+                  <span className="text-slate-500 font-semibold block">المستودع:</span>
+                  <span className="font-bold text-slate-900 text-sm mt-0.5">{viewAdjustment.warehouseName || getWarehouseName(viewAdjustment.warehouseId)}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block">سبب التسوية:</span>
-                  <span className="font-bold text-slate-800">{viewAdjustment.reasonLabel || viewAdjustment.reason}</span>
+                  <span className="text-slate-500 font-semibold block">سبب التسوية:</span>
+                  <span className="font-bold text-indigo-800 mt-0.5">{viewAdjustment.reasonLabel || viewAdjustment.reason}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block">المسؤول / أمين المخزن:</span>
-                  <span className="font-bold text-slate-800">{viewAdjustment.responsiblePerson || '—'}</span>
+                  <span className="text-slate-500 font-semibold block">المسؤول / أمين المخزن:</span>
+                  <span className="font-bold text-slate-800 mt-0.5">{viewAdjustment.responsiblePerson || '—'}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block">الحالة:</span>
-                  <span className={`font-bold ${viewAdjustment.status === 'posted' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    {viewAdjustment.status === 'posted' ? 'معتمد ومرحل' : 'مسودة'}
+                  <span className="text-slate-500 font-semibold block">حالة التسوية:</span>
+                  <span className={`inline-flex items-center gap-1 font-bold mt-0.5 ${viewAdjustment.status === 'posted' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {viewAdjustment.status === 'posted' ? 'معتمد ومرحل' : 'مسودة قيد المراجعة'}
                   </span>
                 </div>
                 {viewAdjustment.notes && (
@@ -1454,61 +1441,61 @@ export const StockAdjustmentsTab: React.FC = () => {
               </div>
 
               {/* Items Table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full text-right text-xs">
-                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs border border-slate-200">
+                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
                     <tr>
-                      <th className="p-3 text-center">#</th>
-                      <th className="p-3">الصنف / SKU</th>
-                      <th className="p-3 text-center">الرصيد الدفتري</th>
-                      <th className="p-3 text-center">الرصيد الفعلي المعدل</th>
-                      <th className="p-3 text-center">فرق الكمية (+ / -)</th>
-                      <th className="p-3 text-center">تكلفة الوحدة</th>
-                      <th className="p-3 text-left">الأثر المالي</th>
+                      <th className="py-2.5 px-3 text-center">#</th>
+                      <th className="py-2.5 px-3">الصنف / كود SKU</th>
+                      <th className="py-2.5 px-3 text-center">الرصيد الدفتري</th>
+                      <th className="py-2.5 px-3 text-center">الرصيد الفعلي المعدل</th>
+                      <th className="py-2.5 px-3 text-center">فرق الكمية (+ / -)</th>
+                      <th className="py-2.5 px-3 text-center">تكلفة الوحدة</th>
+                      <th className="py-2.5 px-3 text-left">الأثر المالي</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {viewAdjustment.items.map((item, index) => (
-                      <tr key={index}>
-                        <td className="p-3 text-center font-mono text-slate-400">{index + 1}</td>
-                        <td className="p-3 font-semibold text-slate-800">
-                          <div>{item.productName}</div>
+                      <tr key={index} className="hover:bg-slate-50">
+                        <td className="py-2 px-3 text-center font-mono text-slate-400">{index + 1}</td>
+                        <td className="py-2 px-3">
+                          <div className="font-bold text-slate-900">{item.productName}</div>
                           <div className="text-[10px] text-slate-500 font-mono">{item.sku}</div>
                         </td>
-                        <td className="p-3 text-center text-slate-600">
+                        <td className="py-2 px-3 text-center font-mono text-slate-600">
                           {item.currentQuantity} {item.unit || 'قطعة'}
                         </td>
-                        <td className="p-3 text-center font-bold text-indigo-700">
+                        <td className="py-2 px-3 text-center font-bold font-mono text-indigo-700">
                           {item.adjustedQuantity} {item.unit || 'قطعة'}
                         </td>
-                        <td className="p-3 text-center font-bold">
+                        <td className="py-2 px-3 text-center font-bold font-mono">
                           <span
                             className={
-                              item.deltaQuantity > 0 ? 'text-emerald-700' : 'text-rose-700'
+                              item.deltaQuantity > 0 ? 'text-emerald-700' : item.deltaQuantity < 0 ? 'text-rose-700' : 'text-slate-600'
                             }
                           >
                             {item.deltaQuantity > 0 ? `+${item.deltaQuantity}` : item.deltaQuantity} {item.unit || 'قطعة'}
                           </span>
                         </td>
-                        <td className="p-3 text-center text-slate-600">
+                        <td className="py-2 px-3 text-center font-mono text-slate-600">
                           {formatMoney(item.costPrice)}
                         </td>
-                        <td className={`p-3 text-left font-bold ${item.totalCostImpact >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        <td className={`py-2 px-3 text-left font-bold font-mono ${item.totalCostImpact >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                           {item.totalCostImpact > 0 ? `+${formatMoney(item.totalCostImpact)}` : formatMoney(item.totalCostImpact)}
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-slate-50 font-bold text-xs border-t border-slate-200">
+                  <tfoot className="bg-slate-50 font-bold border-t border-slate-300 text-slate-800">
                     <tr>
-                      <td colSpan={4} className="p-3 text-right text-slate-700">
+                      <td colSpan={4} className="py-2.5 px-3 text-right">
                         الإجمالي: ({viewAdjustment.items.length} صنف)
                       </td>
-                      <td className="p-3 text-center text-slate-800">
-                        صافي الكمية: {viewAdjustment.netQuantityDelta > 0 ? `+${viewAdjustment.netQuantityDelta}` : viewAdjustment.netQuantityDelta}
+                      <td className="py-2.5 px-3 text-center font-mono">
+                        صافي الكمية: <span className={viewAdjustment.netQuantityDelta > 0 ? 'text-emerald-700' : viewAdjustment.netQuantityDelta < 0 ? 'text-rose-700' : ''}>{viewAdjustment.netQuantityDelta > 0 ? `+${viewAdjustment.netQuantityDelta}` : viewAdjustment.netQuantityDelta}</span>
                       </td>
-                      <td className="p-3 text-center text-slate-500">صافي الأثر المالي:</td>
-                      <td className={`p-3 text-left text-sm ${viewAdjustment.totalCostImpact >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      <td className="py-2.5 px-3 text-center text-slate-500">صافي الأثر المالي:</td>
+                      <td className={`py-2.5 px-3 text-left font-mono text-sm ${viewAdjustment.totalCostImpact >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                         {viewAdjustment.totalCostImpact > 0 ? `+${formatMoney(viewAdjustment.totalCostImpact)}` : formatMoney(viewAdjustment.totalCostImpact)}
                       </td>
                     </tr>
@@ -1516,30 +1503,17 @@ export const StockAdjustmentsTab: React.FC = () => {
                 </table>
               </div>
 
-              {/* Signatures */}
-              <div className="pt-8 border-t border-slate-200 grid grid-cols-3 gap-6 text-center text-xs">
-                <div>
-                  <p className="text-slate-500 mb-8">أمين المستودع</p>
-                  <p className="border-t border-dotted border-slate-400 pt-2 font-bold text-slate-700">
-                    {viewAdjustment.responsiblePerson || '...........................'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-slate-500 mb-8">المحاسب المالي</p>
-                  <p className="border-t border-dotted border-slate-400 pt-2 font-bold text-slate-700">
-                    ...........................
-                  </p>
-                </div>
-                <div>
-                  <p className="text-slate-500 mb-8">اعتماد مدير المخازن / الإدارة</p>
-                  <p className="border-t border-dotted border-slate-400 pt-2 font-bold text-slate-700">
-                    {viewAdjustment.approvedBy || '...........................'}
-                  </p>
-                </div>
-              </div>
+              {/* Standardized Footer with Signatures */}
+              <PrintFooter
+                preparedByTitle="أمين المستودع"
+                approvedByTitle="المحاسب المالي"
+                receivedByTitle="اعتماد مدير المخازن / الإدارة"
+                notes={viewAdjustment.notes || 'تم إجراء التسوية المخزنية ومطابقة الأرصدة الدفترية مع الفعلية واعتماد الأثر المحاسبي وفقاً للائحة الحسابات والمخازن.'}
+                orientation={orientation}
+              />
             </div>
-          </div>
-        </div>
+          )}
+        </PrintPreviewModal>
       )}
     </div>
   );

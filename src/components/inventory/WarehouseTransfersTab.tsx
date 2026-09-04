@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { StockTransfer, StockTransferItem } from '../../types';
 import { SearchableSelect } from '../SearchableSelect';
+import { PrintPreviewModal } from '../PrintPreviewModal';
+import { PrintHeader } from '../PrintHeader';
+import { PrintFooter } from '../PrintFooter';
 import {
   ArrowRightLeft,
   Plus,
@@ -44,6 +47,7 @@ export const WarehouseTransfersTab: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [viewTransfer, setViewTransfer] = useState<StockTransfer | null>(null);
+  const [printTransfer, setPrintTransfer] = useState<StockTransfer | null>(null);
 
   // Form State
   const [transferNumber, setTransferNumber] = useState(`TR-${Date.now().toString().slice(-6)}`);
@@ -217,81 +221,7 @@ export const WarehouseTransfersTab: React.FC = () => {
   };
 
   const handlePrintTransfer = (tr: StockTransfer) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    const fromName = getWarehouseName(tr.fromWarehouseId);
-    const toName = getWarehouseName(tr.toWarehouseId);
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
-      <head>
-        <title>إذن تحويل مخزني - ${tr.transferNumber}</title>
-        <style>
-          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 24px; direction: rtl; color: #1e293b; }
-          .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 20px; }
-          .title { font-size: 20px; font-weight: bold; margin: 0; }
-          .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; font-size: 13px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
-          th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: right; }
-          th { background-color: #f1f5f9; font-weight: bold; }
-          .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 40px; text-align: center; font-size: 13px; }
-          .sign-box { border-top: 1px dashed #94a3b8; padding-top: 8px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="title">إذن تحويل ونقل مخزني بين المستودعات</div>
-          <div style="font-size: 14px; margin-top: 4px; color: #64748b;">رقم الإذن: ${tr.transferNumber}</div>
-        </div>
-        <div class="meta-grid">
-          <div><strong>تاريخ التحويل:</strong> ${tr.date}</div>
-          <div><strong>المستودع المصدر:</strong> ${fromName}</div>
-          <div><strong>المستودع الوجهة:</strong> ${toName}</div>
-          <div><strong>الحالة:</strong> ${tr.status === 'completed' ? 'تم التنفيذ' : tr.status}</div>
-          <div><strong>المسؤول:</strong> ${tr.createdBy || 'المدير'}</div>
-          <div><strong>الملاحظات:</strong> ${tr.notes || 'لا يوجد'}</div>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>كود الصنف</th>
-              <th>اسم الصنف</th>
-              <th>الكمية المحولة</th>
-              <th>الوحدة</th>
-              <th>ملاحظات</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tr.items
-              .map(
-                (item, idx) => `
-              <tr>
-                <td>${idx + 1}</td>
-                <td>${item.sku}</td>
-                <td>${item.productName}</td>
-                <td style="font-weight: bold;">${item.quantity}</td>
-                <td>${item.unit}</td>
-                <td>${item.notes || '-'}</td>
-              </tr>
-            `
-              )
-              .join('')}
-          </tbody>
-        </table>
-        <div class="signatures">
-          <div class="sign-box">أمين المستودع المصدر<br><br>.........................</div>
-          <div class="sign-box">مسؤول الشحن والنقل<br><br>.........................</div>
-          <div class="sign-box">أمين المستودع المستلم<br><br>.........................</div>
-        </div>
-        <script>
-          window.onload = function() { window.print(); }
-        </script>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
+    setPrintTransfer(tr);
   };
 
   return (
@@ -899,6 +829,139 @@ export const WarehouseTransfersTab: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* PRINT PREVIEW MODAL */}
+      {printTransfer && (
+        <PrintPreviewModal
+          isOpen={!!printTransfer}
+          onClose={() => setPrintTransfer(null)}
+          title="معاينة إذن تحويل مخزني"
+          docNumber={printTransfer.transferNumber}
+          badgeText={
+            printTransfer.status === 'completed'
+              ? 'تم التنفيذ'
+              : printTransfer.status === 'in_transit'
+              ? 'في الطريق'
+              : printTransfer.status === 'pending'
+              ? 'قيد الانتظار'
+              : 'مسودة'
+          }
+          badgeColor={
+            printTransfer.status === 'completed'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : printTransfer.status === 'in_transit'
+              ? 'bg-blue-50 text-blue-700 border-blue-200'
+              : 'bg-amber-50 text-amber-700 border-amber-200'
+          }
+          elementId="warehouse-transfer-print-sheet"
+        >
+          {({ orientation }) => (
+            <div className="space-y-6 text-xs text-slate-800">
+              {/* Standardized Print Header */}
+              <PrintHeader
+                docTitle="إذن تحويل ونقل مخزني بين المستودعات (Stock Transfer)"
+                docSubtitle="مستند رسمي لترحيل ومناقلة الأصناف بين المستودعات والفروع واعتماد الأرصدة"
+                docNumber={printTransfer.transferNumber}
+                date={printTransfer.date}
+                badgeColor="bg-emerald-700 text-white"
+                additionalMeta={[
+                  { label: 'المستودع المصدر', value: getWarehouseName(printTransfer.fromWarehouseId) },
+                  { label: 'المستودع المستلم', value: getWarehouseName(printTransfer.toWarehouseId) },
+                  { label: 'المسؤول المنفذ', value: printTransfer.createdBy || '—' },
+                  { label: 'عدد الأصناف', value: `${printTransfer.items.length} صنف` },
+                ]}
+                orientation={orientation}
+              />
+
+              {/* Transfer Details Meta Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                <div>
+                  <span className="text-slate-500 font-semibold block">من مستودع (المصدر):</span>
+                  <span className="font-bold text-slate-900 text-sm mt-0.5 block">{getWarehouseName(printTransfer.fromWarehouseId)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-semibold block">إلى مستودع (الوجهة):</span>
+                  <span className="font-bold text-emerald-700 text-sm mt-0.5 block">{getWarehouseName(printTransfer.toWarehouseId)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-semibold block">تاريخ وأمر التحويل:</span>
+                  <span className="font-bold text-slate-800 mt-0.5 block">{printTransfer.date}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-semibold block">حالة التحويل:</span>
+                  <span className="font-bold text-slate-800 mt-0.5 block">
+                    {printTransfer.status === 'completed'
+                      ? 'مكتمل وتم الاستلام'
+                      : printTransfer.status === 'in_transit'
+                      ? 'في الطريق (شحن)'
+                      : printTransfer.status === 'pending'
+                      ? 'قيد الانتظار'
+                      : 'مسودة تحويل'}
+                  </span>
+                </div>
+                {printTransfer.notes && (
+                  <div className="col-span-2 sm:col-span-4 mt-2 pt-2 border-t border-slate-200 text-slate-600">
+                    <span className="font-semibold text-slate-700">بيان وملاحظات الشحن: </span>
+                    {printTransfer.notes}
+                  </div>
+                )}
+              </div>
+
+              {/* Items Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs border border-slate-200">
+                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+                    <tr>
+                      <th className="py-2.5 px-3 text-center">#</th>
+                      <th className="py-2.5 px-3">كود الصنف (SKU)</th>
+                      <th className="py-2.5 px-3">اسم الصنف والمواصفات</th>
+                      <th className="py-2.5 px-3 text-center">الكمية المحولة</th>
+                      <th className="py-2.5 px-3 text-center">الوحدة</th>
+                      <th className="py-2.5 px-3">ملاحظات التحويل</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {printTransfer.items.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="py-2 px-3 text-center font-mono text-slate-400">{idx + 1}</td>
+                        <td className="py-2 px-3 font-mono font-bold text-slate-800">{item.sku}</td>
+                        <td className="py-2 px-3 font-bold text-slate-900">{item.productName}</td>
+                        <td className="py-2 px-3 text-center font-mono font-black text-emerald-700 text-sm">
+                          {item.quantity}
+                        </td>
+                        <td className="py-2 px-3 text-center text-slate-600">{item.unit || 'قطعة'}</td>
+                        <td className="py-2 px-3 text-slate-500 text-[11px]">{item.notes || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-slate-50 font-bold border-t border-slate-300 text-slate-800">
+                    <tr>
+                      <td colSpan={3} className="py-2.5 px-3 text-right">
+                        إجمالي الأصناف: ({printTransfer.items.length} صنف)
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-800">
+                        {printTransfer.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)}
+                      </td>
+                      <td colSpan={2} className="py-2.5 px-3 text-slate-500">
+                        إجمالي الوحدات المحولة
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Standardized Footer with Signatures */}
+              <PrintFooter
+                preparedByTitle="أمين المستودع المصدر"
+                approvedByTitle="مسؤول الشحن والترحيل"
+                receivedByTitle="أمين المستودع المستلم"
+                notes={printTransfer.notes || 'تمت مناقلة وتحويل الأصناف المذكورة أعلاه وفقاً لأذونات التحويل المخزني المعتمدة والتأكد من سلامتها.'}
+                orientation={orientation}
+              />
+            </div>
+          )}
+        </PrintPreviewModal>
       )}
     </div>
   );

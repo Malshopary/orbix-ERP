@@ -625,7 +625,7 @@ export const SalesReturnsView: React.FC = () => {
                         value: inv.id,
                         label: `${inv.invoiceNumber} - ${inv.customerName}`,
                         subLabel: `${inv.date} • ${inv.items.length} أصناف`,
-                        badge: `${formatMoney(inv.grandTotal)} ${currency}`,
+                        badge: `${formatMoney(inv.grandTotal)}`,
                         badgeColor: 'bg-emerald-50 text-emerald-700',
                       }))}
                     />
@@ -928,15 +928,15 @@ export const SalesReturnsView: React.FC = () => {
                 <div className="w-72 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1.5 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>الإجمالي قبل الضريبة:</span>
-                    <span className="font-bold font-mono">{formatMoney(selectedReturn.subtotal)} {currency}</span>
+                    <span className="font-bold font-mono">{formatMoney(selectedReturn.subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>ضريبة القيمة المضافة ({selectedReturn.vatRate}%):</span>
-                    <span className="font-bold text-emerald-700 font-mono">+{formatMoney(selectedReturn.vatTotal)} {currency}</span>
+                    <span className="font-bold text-emerald-700 font-mono">+{formatMoney(selectedReturn.vatTotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm font-extrabold text-slate-900 border-t border-slate-300 pt-1.5">
                     <span>إجمالي قيمة المرتجع:</span>
-                    <span className="text-amber-700 font-mono font-black text-base">{formatMoney(selectedReturn.totalRefundAmount)} {currency}</span>
+                    <span className="text-amber-700 font-mono font-black text-base">{formatMoney(selectedReturn.totalRefundAmount)}</span>
                   </div>
                 </div>
               </div>

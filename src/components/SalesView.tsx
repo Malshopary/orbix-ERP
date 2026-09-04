@@ -46,6 +46,7 @@ import {
 export const SalesView: React.FC = () => {
   const {
     companyProfile,
+    currency,
     salesInvoices,
     quotations,
     salesOrders,
@@ -1935,8 +1936,7 @@ export const SalesView: React.FC = () => {
                   date={selectedInvoice.date}
                   dueDate={selectedInvoice.dueDate}
                   badgeColor={!isVatZero ? 'bg-slate-900 text-white' : 'bg-emerald-800 text-white'}
-                  showQrCode={true}
-                  qrData={`فاتورة: ${selectedInvoice.invoiceNumber} | العميل: ${selectedInvoice.customerName} | الإجمالي: ${selectedInvoice.grandTotal} ${companyProfile.currency || 'SAR'} | الضريبة: ${selectedInvoice.vatTotal || 0}`}
+                  showQrCode={false}
                   additionalMeta={[
                     { label: 'حالة السداد', value: selectedInvoice.status === 'paid' ? 'مسدد بالكامل' : selectedInvoice.status === 'partially_paid' ? 'مسدد جزئياً' : 'غير مسدد' },
                     { label: 'طريقة الدفع', value: selectedInvoice.paymentType === 'cash' ? 'نقدي' : selectedInvoice.paymentType === 'bank' ? 'تحويل بنكي' : selectedInvoice.paymentType === 'credit' ? 'آجل' : 'شبكة/مدى' },
@@ -2070,7 +2070,7 @@ export const SalesView: React.FC = () => {
                     )}
                     <div className="flex justify-between text-sm font-extrabold text-slate-900 border-t border-slate-300 pt-2">
                       <span>إجمالي الفاتورة المستحق:</span>
-                      <span className="text-emerald-700 font-black text-base font-mono">{formatMoney(selectedInvoice.grandTotal)} {companyProfile.currency || 'SAR'}</span>
+                      <span className="text-emerald-700 font-black text-base font-mono">{formatMoney(selectedInvoice.grandTotal)}</span>
                     </div>
                     {selectedInvoice.paidAmount > 0 && (
                       <div className="flex justify-between text-xs text-slate-600 border-t border-slate-200 pt-1.5">

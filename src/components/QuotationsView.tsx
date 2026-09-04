@@ -366,7 +366,7 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
     setShowCreateModal(false);
     showAlert({
       title: 'تم إصدار عرض السعر بنجاح',
-      message: `تم إنشاء عرض السعر رقم ${newQuo.quotationNumber} للعميل (${cust?.name}) بإجمالي ${formatMoney(grandTotal)} ${currency}.`,
+      message: `تم إنشاء عرض السعر رقم ${newQuo.quotationNumber} للعميل (${cust?.name}) بإجمالي ${formatMoney(grandTotal)}.`,
       type: 'success',
     });
   };
@@ -446,7 +446,7 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
     } else {
       showConfirm({
         title: `حذف عرض السعر (${quo.quotationNumber})`,
-        message: `هل أنت متأكد من رغبتك في حذف عرض السعر الخاص بالعميل (${quo.customerName}) بقيمة ${formatMoney(quo.grandTotal)} ${currency}؟`,
+        message: `هل أنت متأكد من رغبتك في حذف عرض السعر الخاص بالعميل (${quo.customerName}) بقيمة ${formatMoney(quo.grandTotal)}؟`,
         confirmText: 'نعم، احذف',
         cancelText: 'إلغاء',
         isDestructive: true,
@@ -504,7 +504,7 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
           const newInv = convertQuotationToInvoice(quo.id);
           showAlert({
             title: 'تم إصدار فاتورة المبيعات بنجاح 🧾',
-            message: `تم إصدار الفاتورة الضريبية رقم (${newInv.invoiceNumber}) بمبلغ ${formatMoney(newInv.grandTotal)} ${currency} وتم ترحيل القيود وتحديث المخازن.`,
+            message: `تم إصدار الفاتورة الضريبية رقم (${newInv.invoiceNumber}) بمبلغ ${formatMoney(newInv.grandTotal)} وتم ترحيل القيود وتحديث المخازن.`,
             type: 'success',
             confirmText: 'عرض الفواتير',
             onConfirm: () => {
@@ -599,7 +599,7 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
             <Tag className="w-4 h-4 text-slate-400" />
           </div>
           <p className="text-lg font-bold text-slate-900 mt-2 font-mono">
-            {formatMoney(totalValue)} <span className="text-xs text-slate-500 font-sans">{currency}</span>
+            {formatMoney(totalValue)}
           </p>
           <span className="text-[11px] text-slate-400">شاملة الضريبة</span>
         </div>
@@ -801,20 +801,8 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
                             <Printer className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* When converted, show indicator; when not converted, show conversion buttons */}
-                          {isConverted ? (
-                            displayInvoiceNumber ? (
-                              <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 inline-flex items-center gap-1">
-                                <FileSpreadsheet className="w-3.5 h-3.5 text-purple-600" />
-                                <span>مرحل لفاتورة ({displayInvoiceNumber})</span>
-                              </span>
-                            ) : (
-                              <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 inline-flex items-center gap-1">
-                                <ClipboardList className="w-3.5 h-3.5 text-blue-600" />
-                                <span>مرحل لأمر بيع ({displayOrderNumber})</span>
-                              </span>
-                            )
-                          ) : (
+                          {/* Conversion buttons when not converted */}
+                          {!isConverted && (
                             <>
                               {/* Quick Convert to Sales Invoice */}
                               <button
@@ -1127,7 +1115,7 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
                 <div className="space-y-2 border-r md:border-r-slate-200 md:pr-4">
                   <div className="flex justify-between text-xs text-slate-600">
                     <span>إجمالي الأصناف:</span>
-                    <span className="font-mono font-bold">{formatMoney(grossSubtotal)} {currency}</span>
+                    <span className="font-mono font-bold">{formatMoney(grossSubtotal)}</span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-slate-600 gap-2">
@@ -1157,12 +1145,12 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
 
                   <div className="flex justify-between text-xs text-slate-600">
                     <span>مبلغ الضريبة:</span>
-                    <span className="font-mono font-bold">{formatMoney(vatTotal)} {currency}</span>
+                    <span className="font-mono font-bold">{formatMoney(vatTotal)}</span>
                   </div>
 
                   <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
                     <span>الإجمالي النهائي للعرض:</span>
-                    <span className="font-mono text-amber-700 text-base">{formatMoney(grandTotal)} {currency}</span>
+                    <span className="font-mono text-amber-700 text-base">{formatMoney(grandTotal)}</span>
                   </div>
                 </div>
               </div>
@@ -1443,7 +1431,7 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
                 <div className="space-y-2 border-r md:border-r-slate-200 md:pr-4">
                   <div className="flex justify-between text-xs text-slate-600">
                     <span>إجمالي الأصناف:</span>
-                    <span className="font-mono font-bold">{formatMoney(editGrossSubtotal)} {currency}</span>
+                    <span className="font-mono font-bold">{formatMoney(editGrossSubtotal)}</span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-slate-600 gap-2">
@@ -1473,12 +1461,12 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
 
                   <div className="flex justify-between text-xs text-slate-600">
                     <span>مبلغ الضريبة:</span>
-                    <span className="font-mono font-bold">{formatMoney(editVatTotal)} {currency}</span>
+                    <span className="font-mono font-bold">{formatMoney(editVatTotal)}</span>
                   </div>
 
                   <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
                     <span>الإجمالي النهائي للعرض:</span>
-                    <span className="font-mono text-amber-700 text-base">{formatMoney(editGrandTotal)} {currency}</span>
+                    <span className="font-mono text-amber-700 text-base">{formatMoney(editGrandTotal)}</span>
                   </div>
                 </div>
               </div>
@@ -1568,7 +1556,7 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
                       <th className="p-2.5 text-center">الخصم</th>
                       <th className="p-2.5 text-center">الصافي</th>
                       <th className="p-2.5 text-center">الضريبة</th>
-                      <th className="p-2.5 text-left">الإجمالي ({currency})</th>
+                      <th className="p-2.5 text-left">الإجمالي</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -1596,21 +1584,21 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
                 <div className="w-72 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>إجمالي القيمة:</span>
-                    <span className="font-mono font-bold">{formatMoney(selectedQuotation.subtotal)} {currency}</span>
+                    <span className="font-mono font-bold">{formatMoney(selectedQuotation.subtotal)}</span>
                   </div>
                   {selectedQuotation.discountTotal > 0 && (
                     <div className="flex justify-between text-rose-600">
                       <span>إجمالي الخصم:</span>
-                      <span className="font-mono font-bold">-{formatMoney(selectedQuotation.discountTotal)} {currency}</span>
+                      <span className="font-mono font-bold">-{formatMoney(selectedQuotation.discountTotal)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-slate-600">
                     <span>ضريبة القيمة المضافة ({selectedQuotation.vatRate}%):</span>
-                    <span className="font-mono font-bold">{formatMoney(selectedQuotation.vatTotal)} {currency}</span>
+                    <span className="font-mono font-bold">{formatMoney(selectedQuotation.vatTotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-300">
                     <span>صافي العرض النهائي:</span>
-                    <span className="font-mono text-amber-700 text-base font-black">{formatMoney(selectedQuotation.grandTotal)} {currency}</span>
+                    <span className="font-mono text-amber-700 text-base font-black">{formatMoney(selectedQuotation.grandTotal)}</span>
                   </div>
                 </div>
               </div>

@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { useErp } from '../../context/ErpContext';
 import { ScrapVoucher, ScrapVoucherItem } from '../../types';
 import { SearchableSelect } from '../SearchableSelect';
+import { PrintPreviewModal } from '../PrintPreviewModal';
+import { PrintHeader } from '../PrintHeader';
+import { PrintFooter } from '../PrintFooter';
 import {
   Trash2,
   Plus,
@@ -38,6 +41,8 @@ export const ScrapVouchersTab: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [viewVoucher, setViewVoucher] = useState<ScrapVoucher | null>(null);
+  const [selectedVoucherForPrint, setSelectedVoucherForPrint] = useState<ScrapVoucher | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState(false);
 
   // Form State
   const [voucherNumber, setVoucherNumber] = useState(`SCR-${Date.now().toString().slice(-6)}`);
@@ -162,82 +167,8 @@ export const ScrapVouchersTab: React.FC = () => {
   };
 
   const handlePrintVoucher = (v: ScrapVoucher) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    const whName = getWarehouseName(v.warehouseId);
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
-      <head>
-        <title>محضر إتلاف وهوالك مخزون - ${v.voucherNumber}</title>
-        <style>
-          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 24px; direction: rtl; color: #1e293b; }
-          .header { text-align: center; border-bottom: 2px solid #b91c1c; padding-bottom: 12px; margin-bottom: 20px; }
-          .title { font-size: 20px; font-weight: bold; color: #b91c1c; margin: 0; }
-          .meta-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; font-size: 13px; background: #fef2f2; padding: 12px; border-radius: 8px; border: 1px solid #fecaca; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
-          th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: right; }
-          th { background-color: #fee2e2; font-weight: bold; }
-          .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 40px; text-align: center; font-size: 13px; }
-          .sign-box { border-top: 1px dashed #94a3b8; padding-top: 8px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="title">محضر إتلاف وإعدام بضاعة ومخزون</div>
-          <div style="font-size: 14px; margin-top: 4px; color: #64748b;">رقم المحضر: ${v.voucherNumber}</div>
-        </div>
-        <div class="meta-grid">
-          <div><strong>المستودع:</strong> ${whName}</div>
-          <div><strong>تاريخ الإتلاف:</strong> ${v.date}</div>
-          <div><strong>السبب الرئيسي:</strong> ${getReasonLabel(v.reason)}</div>
-          <div><strong>المعتمد:</strong> ${v.createdBy || 'لجنة الإتلاف'}</div>
-          <div><strong>إجمالي قيمة الخسائر:</strong> ${v.totalLossValue.toFixed(2)} ${currency}</div>
-          <div><strong>الملاحظات:</strong> ${v.notes || 'لا يوجد'}</div>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>كود الصنف</th>
-              <th>اسم الصنف</th>
-              <th>الكمية التالفة</th>
-              <th>سعر التكلفة</th>
-              <th>إجمالي الخسارة</th>
-              <th>سبب الإتلاف</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${v.items
-              .map(
-                (item, idx) => `
-              <tr>
-                <td>${idx + 1}</td>
-                <td>${item.sku}</td>
-                <td>${item.productName}</td>
-                <td style="font-weight: bold; color: #b91c1c;">${item.quantity} ${item.unit}</td>
-                <td>${item.costPrice.toFixed(2)}</td>
-                <td style="font-weight: bold;">${item.totalCost.toFixed(2)}</td>
-                <td>${item.reason || '-'}</td>
-              </tr>
-            `
-              )
-              .join('')}
-          </tbody>
-        </table>
-        <div class="signatures">
-          <div class="sign-box">أمين المستودع<br><br>.........................</div>
-          <div class="sign-box">لجنة الإتلاف والرقابة<br><br>.........................</div>
-          <div class="sign-box">المدير العام / الاعتماد المالي<br><br>.........................</div>
-        </div>
-        <script>
-          window.onload = function() { window.print(); }
-        </script>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
+    setSelectedVoucherForPrint(v);
+    setShowPrintModal(true);
   };
 
   return (
@@ -664,15 +595,132 @@ export const ScrapVouchersTab: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handlePrintVoucher(viewVoucher)}
+                onClick={() => {
+                  const v = viewVoucher;
+                  setViewVoucher(null);
+                  handlePrintVoucher(v);
+                }}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs"
               >
                 <Printer className="w-4 h-4" />
-                طباعة المحضر
+                معاينة وطباعة المحضر
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* PRINTABLE SCRAP VOUCHER PREVIEW MODAL */}
+      {showPrintModal && selectedVoucherForPrint && (
+        <PrintPreviewModal
+          isOpen={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          title="معاينة محضر إتلاف وهوالك المخزون"
+          docNumber={selectedVoucherForPrint.voucherNumber}
+          badgeText="محضر إتلاف معتمد"
+          badgeColor="bg-rose-50 text-rose-700 border-rose-200"
+          elementId="scrap-voucher-print-sheet"
+        >
+          {({ orientation }) => (
+            <div className="space-y-6 text-xs text-slate-800">
+              {/* Standardized Header */}
+              <PrintHeader
+                docTitle="محضر إتلاف وإعدام بضاعة ومخزون"
+                docSubtitle="محضر رسمي لحصر وإهلاك المواد التالفة وإثبات خسائر المخزون دفترياً ومحاسبياً"
+                docNumber={selectedVoucherForPrint.voucherNumber}
+                date={selectedVoucherForPrint.date}
+                badgeColor="bg-rose-700 text-white"
+                additionalMeta={[
+                  { label: 'المستودع', value: getWarehouseName(selectedVoucherForPrint.warehouseId) },
+                  { label: 'السبب الرئيسي', value: getReasonLabel(selectedVoucherForPrint.reason) },
+                  { label: 'المعتمد', value: selectedVoucherForPrint.createdBy || 'لجنة الإتلاف' },
+                  { label: 'إجمالي الخسائر', value: `${formatMoney(selectedVoucherForPrint.totalLossValue)}` },
+                ]}
+                orientation={orientation}
+              />
+
+              {/* Voucher Meta Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-rose-50/60 p-4 rounded-xl border border-rose-200 text-xs">
+                <div>
+                  <span className="text-slate-500 font-semibold block">المستودع التابع له:</span>
+                  <div className="font-bold text-slate-900 text-sm mt-0.5">{getWarehouseName(selectedVoucherForPrint.warehouseId)}</div>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-semibold block">السبب الرئيسي للإتلاف:</span>
+                  <div className="font-bold text-rose-800 mt-0.5">{getReasonLabel(selectedVoucherForPrint.reason)}</div>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-semibold block">المسؤول / المعتمد:</span>
+                  <div className="font-bold text-slate-800 mt-0.5">{selectedVoucherForPrint.createdBy || 'لجنة الإتلاف'}</div>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-semibold block">إجمالي التكلفة المهدرة:</span>
+                  <div className="font-bold text-rose-700 font-mono text-sm mt-0.5">
+                    {formatMoney(selectedVoucherForPrint.totalLossValue)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs border border-slate-200">
+                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+                    <tr>
+                      <th className="py-2.5 px-3">#</th>
+                      <th className="py-2.5 px-3">كود الصنف</th>
+                      <th className="py-2.5 px-3">اسم الصنف المتلف</th>
+                      <th className="py-2.5 px-3 text-center">الكمية التالفة</th>
+                      <th className="py-2.5 px-3">سعر التكلفة</th>
+                      <th className="py-2.5 px-3 text-left">إجمالي الخسارة</th>
+                      <th className="py-2.5 px-3">سبب الإتلاف التفصيلي</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {selectedVoucherForPrint.items.map((it, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="py-2 px-3 text-slate-400 font-mono">{idx + 1}</td>
+                        <td className="py-2 px-3 font-mono font-bold text-slate-700">{it.sku}</td>
+                        <td className="py-2 px-3 font-bold text-slate-900">{it.productName}</td>
+                        <td className="py-2 px-3 text-center font-bold font-mono text-rose-700">
+                          {it.quantity} {it.unit || 'قطعة'}
+                        </td>
+                        <td className="py-2 px-3 font-mono">{formatMoney(it.costPrice)}</td>
+                        <td className="py-2 px-3 text-left font-bold font-mono text-rose-700">
+                          {formatMoney(it.totalCost)}
+                        </td>
+                        <td className="py-2 px-3 text-slate-600">{it.reason || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-slate-50 font-bold border-t border-slate-300 text-slate-800">
+                    <tr>
+                      <td colSpan={3} className="py-2.5 px-3 text-right">
+                        الإجمالي: ({selectedVoucherForPrint.items.length} أصناف)
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-mono text-rose-700">
+                        {selectedVoucherForPrint.items.reduce((sum, i) => sum + i.quantity, 0)} قطعة
+                      </td>
+                      <td className="py-2.5 px-3 text-left text-slate-500">إجمالي الخسارة:</td>
+                      <td className="py-2.5 px-3 text-left font-mono text-sm text-rose-700">
+                        {formatMoney(selectedVoucherForPrint.totalLossValue)}
+                      </td>
+                      <td className="py-2.5 px-3"></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Standardized Footer with Signatures */}
+              <PrintFooter
+                preparedByTitle="أمين المستودع"
+                approvedByTitle="لجنة الإتلاف والرقابة"
+                receivedByTitle="المدير العام / الاعتماد المالي"
+                notes={selectedVoucherForPrint.notes || 'تم إهلاك وتخريد الأصناف المذكورة أعلاه بعد المعاينة والتأكد من عدم صلاحيتها للاستخدام أو البيع وفقاً للائحة المخازن.'}
+                orientation={orientation}
+              />
+            </div>
+          )}
+        </PrintPreviewModal>
       )}
     </div>
   );

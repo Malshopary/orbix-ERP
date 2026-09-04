@@ -436,7 +436,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
     setShowCreateModal(false);
     showAlert({
       title: 'تم إنشاء أمر البيع بنجاح 🎉',
-      message: `تم تسجيل أمر البيع برقم (${newOrder.orderNumber}) للعميل (${cust?.name}) بإجمالي ${formatMoney(grandTotal)} ${currency}.`,
+      message: `تم تسجيل أمر البيع برقم (${newOrder.orderNumber}) للعميل (${cust?.name}) بإجمالي ${formatMoney(grandTotal)}.`,
       type: 'success',
     });
   };
@@ -520,7 +520,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
     } else {
       showConfirm({
         title: `حذف أمر البيع (${order.orderNumber})`,
-        message: `هل أنت متأكد من حذف أمر البيع الخاص بالعميل (${order.customerName}) بقيمة ${formatMoney(order.grandTotal)} ${currency}؟`,
+        message: `هل أنت متأكد من حذف أمر البيع الخاص بالعميل (${order.customerName}) بقيمة ${formatMoney(order.grandTotal)}؟`,
         confirmText: 'نعم، احذف',
         cancelText: 'إلغاء',
         isDestructive: true,
@@ -548,7 +548,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
           const newInv = convertSalesOrderToInvoice(order.id);
           showAlert({
             title: 'تم إصدار فاتورة المبيعات بنجاح 🧾',
-            message: `تم إصدار الفاتورة الضريبية رقم (${newInv.invoiceNumber}) بمبلغ ${formatMoney(newInv.grandTotal)} ${currency} وتم ربطها بأمر البيع.`,
+            message: `تم إصدار الفاتورة الضريبية رقم (${newInv.invoiceNumber}) بمبلغ ${formatMoney(newInv.grandTotal)} وتم ربطها بأمر البيع.`,
             type: 'success',
             confirmText: 'عرض الفواتير',
             onConfirm: () => {
@@ -658,7 +658,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
             <Tag className="w-4 h-4 text-slate-400" />
           </div>
           <p className="text-lg font-bold text-slate-900 mt-2 font-mono">
-            {formatMoney(totalValue)} <span className="text-xs text-slate-500 font-sans">{currency}</span>
+            {formatMoney(totalValue)}
           </p>
           <span className="text-[11px] text-slate-400">شاملة الضريبة</span>
         </div>
@@ -850,13 +850,8 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
                             <Printer className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Convert to Invoice Button or Invoiced Badge */}
-                          {isInvoiced ? (
-                            <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 inline-flex items-center gap-1">
-                              <FileSpreadsheet className="w-3.5 h-3.5 text-purple-600" />
-                              <span>مفوتر ({displayInvoiceNumber})</span>
-                            </span>
-                          ) : (
+                          {/* Convert to Invoice Button (only when not already invoiced) */}
+                          {!isInvoiced && (
                             <button
                               type="button"
                               onClick={() => handleConvertToInvoice(order)}
@@ -965,7 +960,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
                         العميل: {quo.customerName}
                       </p>
                       <p className="text-[11px] text-slate-500 font-mono">
-                        {quo.items.length} أصناف • إجمالي {formatMoney(quo.grandTotal)} {currency}
+                        {quo.items.length} أصناف • إجمالي {formatMoney(quo.grandTotal)}
                       </p>
                     </div>
 
@@ -1250,7 +1245,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
                 <div className="space-y-2 border-r md:border-r-slate-200 md:pr-4">
                   <div className="flex justify-between text-xs text-slate-600">
                     <span>إجمالي الأصناف:</span>
-                    <span className="font-mono font-bold">{formatMoney(grossSubtotal)} {currency}</span>
+                    <span className="font-mono font-bold">{formatMoney(grossSubtotal)}</span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-slate-600 gap-2">
@@ -1280,12 +1275,12 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
 
                   <div className="flex justify-between text-xs text-slate-600">
                     <span>مبلغ الضريبة:</span>
-                    <span className="font-mono font-bold">{formatMoney(vatTotal)} {currency}</span>
+                    <span className="font-mono font-bold">{formatMoney(vatTotal)}</span>
                   </div>
 
                   <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
                     <span>الإجمالي النهائي لأمر البيع:</span>
-                    <span className="font-mono text-blue-700 text-base">{formatMoney(grandTotal)} {currency}</span>
+                    <span className="font-mono text-blue-700 text-base">{formatMoney(grandTotal)}</span>
                   </div>
                 </div>
               </div>
@@ -1575,7 +1570,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
                 <div className="space-y-2 border-r md:border-r-slate-200 md:pr-4">
                   <div className="flex justify-between text-xs text-slate-600">
                     <span>إجمالي الأصناف:</span>
-                    <span className="font-mono font-bold">{formatMoney(editGrossSubtotal)} {currency}</span>
+                    <span className="font-mono font-bold">{formatMoney(editGrossSubtotal)}</span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-slate-600 gap-2">
@@ -1605,12 +1600,12 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
 
                   <div className="flex justify-between text-xs text-slate-600">
                     <span>مبلغ الضريبة:</span>
-                    <span className="font-mono font-bold">{formatMoney(editVatTotal)} {currency}</span>
+                    <span className="font-mono font-bold">{formatMoney(editVatTotal)}</span>
                   </div>
 
                   <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
                     <span>الإجمالي النهائي لأمر البيع:</span>
-                    <span className="font-mono text-blue-700 text-base">{formatMoney(editGrandTotal)} {currency}</span>
+                    <span className="font-mono text-blue-700 text-base">{formatMoney(editGrandTotal)}</span>
                   </div>
                 </div>
               </div>
@@ -1699,7 +1694,7 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
                       <th className="p-2.5 text-center">الخصم</th>
                       <th className="p-2.5 text-center">الصافي</th>
                       <th className="p-2.5 text-center">الضريبة</th>
-                      <th className="p-2.5 text-left">الإجمالي ({currency})</th>
+                      <th className="p-2.5 text-left">الإجمالي</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -1727,21 +1722,21 @@ export const SalesOrdersView: React.FC<SalesOrdersViewProps> = ({
                 <div className="w-72 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>إجمالي القيمة:</span>
-                    <span className="font-mono font-bold">{formatMoney(selectedOrder.subtotal)} {currency}</span>
+                    <span className="font-mono font-bold">{formatMoney(selectedOrder.subtotal)}</span>
                   </div>
                   {selectedOrder.discountTotal > 0 && (
                     <div className="flex justify-between text-rose-600">
                       <span>إجمالي الخصم:</span>
-                      <span className="font-mono font-bold">-{formatMoney(selectedOrder.discountTotal)} {currency}</span>
+                      <span className="font-mono font-bold">-{formatMoney(selectedOrder.discountTotal)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-slate-600">
                     <span>ضريبة القيمة المضافة ({selectedOrder.vatRate}%):</span>
-                    <span className="font-mono font-bold">{formatMoney(selectedOrder.vatTotal)} {currency}</span>
+                    <span className="font-mono font-bold">{formatMoney(selectedOrder.vatTotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-300">
                     <span>الإجمالي النهائي لأمر البيع:</span>
-                    <span className="font-mono text-blue-700 text-base font-black">{formatMoney(selectedOrder.grandTotal)} {currency}</span>
+                    <span className="font-mono text-blue-700 text-base font-black">{formatMoney(selectedOrder.grandTotal)}</span>
                   </div>
                 </div>
               </div>
