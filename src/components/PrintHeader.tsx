@@ -44,13 +44,16 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
         {/* Right Section: Company Logo & Detailed Business Profile */}
         <div className="flex items-center gap-3.5 max-w-[65%]">
           {/* Company Logo container with soft light background & light border so even white/transparent logos stand out */}
-          <div className="shrink-0 bg-slate-100/90 border border-slate-200/90 rounded-xl p-1.5 flex items-center justify-center min-w-[50px] min-h-[50px] max-w-[150px] shadow-2xs">
+          <div
+            style={{ maxWidth: `${Math.max(160, (companyProfile.logoWidth || 160) + 16)}px` }}
+            className="shrink-0 bg-slate-100/90 border border-slate-200/90 rounded-xl p-1.5 flex items-center justify-center min-w-[50px] min-h-[50px] shadow-2xs"
+          >
             {companyProfile.logoBase64 ? (
               <img
                 src={companyProfile.logoBase64}
                 alt={companyProfile.nameAr}
-                style={{ width: `${companyProfile.logoWidth || 120}px` }}
-                className="max-h-16 w-auto object-contain rounded-lg"
+                style={{ width: `${companyProfile.logoWidth || 160}px` }}
+                className="max-h-20 w-auto object-contain rounded-lg"
               />
             ) : (
               <div className="flex items-center gap-1.5">

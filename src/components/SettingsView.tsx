@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useErp } from '../context/ErpContext';
 import { AppUser, CompanyProfile, Currency, UserRole } from '../types';
+import { ImageCropModal } from './ImageCropModal';
 import {
   Building2,
   Users2,
@@ -49,6 +50,7 @@ import {
   ArrowUp,
   ArrowDown,
   Calendar,
+  Crop,
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -111,6 +113,9 @@ export const SettingsView: React.FC = () => {
   const [logoPreview, setLogoPreview] = useState<string | undefined>(companyProfile.logoBase64);
   const [logoWidth, setLogoWidth] = useState<number>(companyProfile.logoWidth || 160);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+  const [isCroppingLogo, setIsCroppingLogo] = useState<boolean>(false);
+  const [showLiveInvoiceHeaderPreview, setShowLiveInvoiceHeaderPreview] = useState<boolean>(true);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
 
   // Currencies Local State
   const [showAddCurrencyModal, setShowAddCurrencyModal] = useState(false);
@@ -278,10 +283,10 @@ export const SettingsView: React.FC = () => {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
+      if (file.size > 5 * 1024 * 1024) {
         showAlert({
           title: 'حجم الملف كبير',
-          message: 'حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 2 ميجابايت لضمان سرعة تحميل النظام.',
+          message: 'حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت لضمان سرعة تحميل النظام.',
           type: 'warning',
           confirmText: 'فهمت',
         });
@@ -292,9 +297,61 @@ export const SettingsView: React.FC = () => {
         const base64 = event.target?.result as string;
         setLogoPreview(base64);
         setProfileForm((prev) => ({ ...prev, logoBase64: base64 }));
+        updateCompanyProfile({
+          ...profileForm,
+          logoBase64: base64,
+          logoWidth,
+        });
+        setSaveSuccessMsg('تم رفع الشعار وحفظه بنجاح.');
+        setTimeout(() => setSaveSuccessMsg(null), 3000);
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  // Immediate Logo Removal & Reset to Orbix Default
+  const handleRemoveLogo = () => {
+    setLogoPreview(undefined);
+    setProfileForm((p) => {
+      const next = { ...p };
+      delete next.logoBase64;
+      return next;
+    });
+    updateCompanyProfile({
+      ...profileForm,
+      logoBase64: undefined,
+      logoWidth: 160,
+    });
+    if (logoFileInputRef.current) {
+      logoFileInputRef.current.value = '';
+    }
+    setSaveSuccessMsg('تمت إزالة الشعار واستعادة شعار أوربكس الافتراضي للنظام بنجاح.');
+    setTimeout(() => setSaveSuccessMsg(null), 3000);
+  };
+
+  // Immediate Crop Completion
+  const handleCropComplete = (croppedBase64: string) => {
+    setLogoPreview(croppedBase64);
+    setProfileForm((prev) => ({ ...prev, logoBase64: croppedBase64 }));
+    updateCompanyProfile({
+      ...profileForm,
+      logoBase64: croppedBase64,
+      logoWidth,
+    });
+    setSaveSuccessMsg('تم قص وتحديث الشعار بنجاح وحفظه فورياً.');
+    setTimeout(() => setSaveSuccessMsg(null), 3500);
+  };
+
+  // Immediate Logo Width Update & Persistence
+  const handleUpdateLogoWidth = (newWidth: number) => {
+    const clamped = Math.max(50, Math.min(360, newWidth));
+    setLogoWidth(clamped);
+    setProfileForm((prev) => ({ ...prev, logoWidth: clamped }));
+    updateCompanyProfile({
+      ...profileForm,
+      logoBase64: logoPreview,
+      logoWidth: clamped,
+    });
   };
 
   const handleSaveCompanyProfile = (e: React.FormEvent) => {
@@ -646,79 +703,224 @@ pause
         <form onSubmit={handleSaveCompanyProfile} className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left: Logo Uploader & Real-Time Resizer */}
-            <div className="lg:col-span-4 space-y-4">
+            <div className="lg:col-span-5 space-y-4">
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs space-y-4">
-                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                  <Upload className="w-4 h-4 text-emerald-600" />
-                  شعار المنشأة (Company Logo)
-                </h3>
-                <p className="text-xs text-slate-500">
-                  ارفع لوجو الشركة، وحدد مقاس العرض بالبكسل ليظهر بشكل متناسق في الفواتير والتقارير:
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <Upload className="w-4 h-4 text-emerald-600" />
+                    شعار المنشأة (Company Logo)
+                  </h3>
+                  {logoPreview && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      شعار نشط
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  ارفع لوجو الشركة، وحدد مقاس العرض بالبكسل، أو استخدم أداة القص (Crop) لضبط الشعار وحذف الحواف الزائدة:
                 </p>
 
-                {/* Logo Preview Canvas */}
-                <div className="p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center min-h-[160px] text-center relative overflow-hidden">
-                  {logoPreview ? (
-                    <div className="space-y-2">
-                      <img
-                        src={logoPreview}
-                        alt="Logo Preview"
-                        style={{ width: `${logoWidth}px`, maxWidth: '100%' }}
-                        className="mx-auto object-contain transition-all"
-                      />
+                {/* Hidden file input controlled programmatically */}
+                <input
+                  ref={logoFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  onChange={handleLogoUpload}
+                  className="hidden"
+                  id="company-logo-input"
+                />
+
+                {/* Logo Display Canvas / Drop Area */}
+                {logoPreview ? (
+                  <div className="space-y-3">
+                    {/* Visual Box with subtle checkered pattern */}
+                    <div className="p-4 bg-slate-50/80 rounded-2xl border-2 border-slate-200 flex flex-col items-center justify-center min-h-[160px] text-center relative overflow-hidden group">
+                      <div className="relative py-2 px-4 max-w-full">
+                        <img
+                          src={logoPreview}
+                          alt="معاينة شعار الشركة"
+                          style={{ width: `${logoWidth}px`, maxWidth: '100%' }}
+                          className="mx-auto object-contain transition-all drop-shadow-xs max-h-32"
+                        />
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono mt-1">
+                        العرض المطبق حالياً: {logoWidth} بكسل
+                      </div>
+                    </div>
+
+                    {/* Action Buttons Bar: Crop, Change, Delete */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* Crop Button */}
                       <button
                         type="button"
-                        onClick={() => {
-                          setLogoPreview(undefined);
-                          setProfileForm((p) => ({ ...p, logoBase64: undefined }));
-                        }}
-                        className="text-[11px] text-rose-600 hover:text-rose-700 font-bold underline block mx-auto"
+                        onClick={() => setIsCroppingLogo(true)}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                        title="قص وتعديل حواف الشعار"
                       >
-                        إزالة الشعار
+                        <Crop className="w-3.5 h-3.5" />
+                        <span>قص وتعديل</span>
+                      </button>
+
+                      {/* Change Image Button */}
+                      <button
+                        type="button"
+                        onClick={() => logoFileInputRef.current?.click()}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                        title="اختيار صورة أخرى"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>تغيير</span>
+                      </button>
+
+                      {/* Remove Logo Button */}
+                      <button
+                        type="button"
+                        onClick={handleRemoveLogo}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                        title="حذف الشعار نهائياً"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>إزالة</span>
                       </button>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Building2 className="w-12 h-12 text-slate-300 mx-auto" />
-                      <p className="text-xs text-slate-500 font-medium">
-                        اسحب ملف الشعار هنا أو انقر للاختيار
-                      </p>
-                      <span className="text-[10px] text-slate-400 block">PNG, JPG, SVG, WebP (بحد أقصى 2MB)</span>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => logoFileInputRef.current?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file && logoFileInputRef.current) {
+                        const dt = new DataTransfer();
+                        dt.items.add(file);
+                        logoFileInputRef.current.files = dt.files;
+                        handleLogoUpload({ target: logoFileInputRef.current } as any);
+                      }
+                    }}
+                    className="p-6 bg-slate-50 hover:bg-slate-100/80 rounded-2xl border-2 border-dashed border-slate-300 hover:border-emerald-500 flex flex-col items-center justify-center min-h-[160px] text-center cursor-pointer transition-all group"
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:scale-110 transition-all shadow-xs mb-2">
+                      <Upload className="w-6 h-6" />
                     </div>
-                  )}
+                    <p className="text-xs text-slate-700 font-bold group-hover:text-emerald-700">
+                      انقر هنا لاختيار الشعار أو اسحب الملف
+                    </p>
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      PNG, JPG, SVG, WebP (بحد أقصى 5MB)
+                    </span>
+                  </div>
+                )}
 
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoUpload}
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                    title="اختر صورة الشعار"
-                  />
-                </div>
-
-                {/* Live Logo Dimension Slider */}
+                {/* Live Logo Dimension Slider & Presets */}
                 {logoPreview && (
-                  <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                  <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                     <div className="flex items-center justify-between text-xs font-bold text-slate-700">
                       <span className="flex items-center gap-1.5">
                         <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
                         عرض الشعار بالفاتورة:
                       </span>
-                      <span className="font-mono text-emerald-700">{logoWidth} px</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="50"
+                          max="360"
+                          value={logoWidth}
+                          onChange={(e) => handleUpdateLogoWidth(parseInt(e.target.value) || 160)}
+                          className="w-16 text-center font-mono font-bold text-emerald-700 bg-white border border-slate-200 rounded-lg py-0.5 px-1 text-xs"
+                        />
+                        <span className="text-slate-400 text-[11px]">px</span>
+                      </div>
                     </div>
+
+                    {/* Range Slider */}
                     <input
                       type="range"
                       min="60"
-                      max="320"
-                      step="10"
+                      max="340"
+                      step="5"
                       value={logoWidth}
-                      onChange={(e) => setLogoWidth(parseInt(e.target.value))}
-                      className="w-full accent-slate-900 cursor-pointer"
+                      onChange={(e) => handleUpdateLogoWidth(parseInt(e.target.value))}
+                      className="w-full accent-emerald-600 cursor-pointer h-2 bg-slate-200 rounded-lg"
                     />
-                    <div className="flex justify-between text-[10px] text-slate-400">
-                      <span>صغير (60px)</span>
-                      <span>افتراضي (160px)</span>
-                      <span>كبير (320px)</span>
+
+                    {/* Quick Presets */}
+                    <div className="flex flex-wrap items-center justify-between gap-1 pt-1">
+                      {[
+                        { width: 80, label: 'صغير (80px)' },
+                        { width: 140, label: 'متوسط (140px)' },
+                        { width: 180, label: 'قياسي (180px)' },
+                        { width: 240, label: 'كبير (240px)' },
+                        { width: 300, label: 'عريض (300px)' },
+                      ].map((preset) => (
+                        <button
+                          key={preset.width}
+                          type="button"
+                          onClick={() => handleUpdateLogoWidth(preset.width)}
+                          className={`text-[10px] px-2 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                            logoWidth === preset.width
+                              ? 'bg-slate-900 text-white shadow-xs'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Live Header Simulation Toggle */}
+                    <div className="pt-2 border-t border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setShowLiveInvoiceHeaderPreview(!showLiveInvoiceHeaderPreview)}
+                        className="flex items-center justify-between w-full text-[11px] font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                          معاينة حية لشكل الشعار في ترويسة الفاتورة
+                        </span>
+                        <span className="text-slate-400 text-[10px]">
+                          {showLiveInvoiceHeaderPreview ? 'إخفاء' : 'إظهار'}
+                        </span>
+                      </button>
+
+                      {showLiveInvoiceHeaderPreview && (
+                        <div className="mt-2.5 p-3 bg-white rounded-xl border border-slate-300 text-right space-y-2 shadow-2xs">
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                            <div className="text-[10px] text-slate-400 font-bold">نموذج ترويسة الفاتورة المطبوعة</div>
+                            <span className="text-[9px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold">
+                              مباشر ومحفوظ
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 pt-1">
+                            <div className="flex items-center gap-2">
+                              <div
+                                style={{ maxWidth: `${Math.max(120, logoWidth + 12)}px` }}
+                                className="p-1 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center shrink-0"
+                              >
+                                <img
+                                  src={logoPreview}
+                                  alt="Logo"
+                                  style={{ width: `${logoWidth}px` }}
+                                  className="max-h-12 w-auto object-contain"
+                                />
+                              </div>
+                              <div className="space-y-0.5">
+                                <div className="font-extrabold text-xs text-slate-900">
+                                  {profileForm.nameAr || 'شركة أوربكس للتجارة'}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  الرقم الضريبي: {profileForm.taxNumber || '300000000000003'}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-left text-[9px] font-mono text-slate-400">
+                              <div>فاتورة ضريبية</div>
+                              <div>INV-2026-001</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -751,7 +953,7 @@ pause
             </div>
 
             {/* Right: Company Profile Form Fields */}
-            <div className="lg:col-span-8 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+            <div className="lg:col-span-7 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
               <h3 className="font-bold text-sm text-slate-900 pb-3 border-b border-slate-100 flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-emerald-600" />
                 بيانات المنشأة والترخيص التجاري والضريبي
@@ -2696,6 +2898,15 @@ app.whenReady().then(createWindow);`}
             </pre>
           </div>
         </div>
+      )}
+      {/* Image Crop Modal for Company Logo */}
+      {logoPreview && (
+        <ImageCropModal
+          isOpen={isCroppingLogo}
+          imageSrc={logoPreview}
+          onClose={() => setIsCroppingLogo(false)}
+          onCropComplete={handleCropComplete}
+        />
       )}
     </div>
   );

@@ -1217,6 +1217,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateCompanyProfile = (profile: Partial<CompanyProfile>) => {
     setCompanyProfile((prev) => {
       const updated = { ...prev, ...profile };
+      if ('logoBase64' in profile && (profile.logoBase64 === undefined || profile.logoBase64 === null)) {
+        delete updated.logoBase64;
+      }
       if (profile.defaultCurrency) {
         setCurrency(profile.defaultCurrency);
       }

@@ -57,6 +57,8 @@ export const WatermarkWorkspace: React.FC<WatermarkWorkspaceProps> = ({ setActiv
             x="250"
             y="420"
             textAnchor="middle"
+            direction="ltr"
+            unicodeBidi="isolate"
             fontFamily="'Readex Pro', 'Segoe UI', 'Arial Black', sans-serif"
             fontSize="64"
             fontWeight="900"
@@ -73,16 +75,8 @@ export const WatermarkWorkspace: React.FC<WatermarkWorkspaceProps> = ({ setActiv
       <div className="relative z-10 max-w-3xl w-full flex flex-col items-center text-center space-y-6">
         {/* Logo Icon & System Title */}
         <div className="flex flex-col items-center gap-4">
-          <div className="flex items-center justify-center p-1">
-            {companyProfile?.logoBase64 ? (
-              <img
-                src={companyProfile.logoBase64}
-                alt={companyProfile.nameAr || 'شعار المنشأة'}
-                className="max-h-20 max-w-[280px] object-contain drop-shadow-xs"
-              />
-            ) : (
-              <OrbixLogo size="xl" className="h-16 sm:h-20 w-auto drop-shadow-xs" />
-            )}
+          <div className="flex items-center justify-center p-1.5">
+            <OrbixLogo size="xl" className="h-14 sm:h-16 drop-shadow-xs" />
           </div>
           <div>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight flex items-center justify-center gap-2">
