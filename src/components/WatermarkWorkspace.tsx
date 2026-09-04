@@ -12,13 +12,14 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useErp } from '../context/ErpContext';
+import { OrbixLogo } from './OrbixLogo';
 
 interface WatermarkWorkspaceProps {
   setActiveTab: (tab: string) => void;
 }
 
 export const WatermarkWorkspace: React.FC<WatermarkWorkspaceProps> = ({ setActiveTab }) => {
-  const { openBrowserTab } = useErp();
+  const { openBrowserTab, companyProfile } = useErp();
 
   const quickLinks = [
     { id: 'dashboard', label: 'الرئيسية', icon: LayoutDashboard, color: 'text-emerald-500 hover:bg-emerald-50 hover:border-emerald-200' },
@@ -34,13 +35,38 @@ export const WatermarkWorkspace: React.FC<WatermarkWorkspaceProps> = ({ setActiv
 
   return (
     <div className="relative w-full h-full min-h-[380px] flex-1 flex flex-col items-center justify-center p-4 sm:p-6 select-none overflow-hidden my-auto">
-      {/* Background Giant Watermark from /img/ folder filling the entire page */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.06] select-none z-0">
-        <img
-          src="/img/watermark.svg"
-          alt="Orbix ERP Watermark"
+      {/* Background Giant Watermark - Native Inline Vector SVG immune to any path/host/GitHub 404 errors */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.05] select-none z-0 overflow-hidden">
+        <svg
+          viewBox="0 0 500 500"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
           className="w-[85vw] max-w-[760px] max-h-[65vh] object-contain filter grayscale"
-        />
+          aria-hidden="true"
+        >
+          <g transform="translate(100, 50) scale(3)">
+            <g fill="#07215C" opacity="0.85">
+              <path d="M 45 7 L 18 22.5 C 14.5 24.8 14 28 14 33 L 14 42 L 31 32 C 33.5 30.5 35.5 31 37 32.5 L 45 40.5 Z" />
+              <path d="M 55 7 L 82 22.5 C 85.5 24.8 86 28 86 33 L 86 42 L 69 32 C 66.5 30.5 64.5 31 63 32.5 L 55 40.5 Z" />
+              <path d="M 45 93 L 18 77.5 C 14.5 75.2 14 72 14 67 L 14 58 L 31 68 C 33.5 69.5 35.5 69 37 67.5 L 45 59.5 Z" />
+              <path d="M 55 93 L 82 77.5 C 85.5 75.2 86 72 86 67 L 86 58 L 69 68 C 66.5 69.5 64.5 69 63 67.5 L 55 59.5 Z" />
+            </g>
+            <circle cx="50" cy="50" r="14" fill="#00C078" opacity="0.9" />
+          </g>
+          <text
+            x="250"
+            y="420"
+            textAnchor="middle"
+            fontFamily="'Readex Pro', 'Segoe UI', 'Arial Black', sans-serif"
+            fontSize="64"
+            fontWeight="900"
+            letterSpacing="8"
+            fill="#07215C"
+            opacity="0.85"
+          >
+            ORBIX ERP
+          </text>
+        </svg>
       </div>
 
       {/* Foreground Content Card */}
@@ -48,11 +74,15 @@ export const WatermarkWorkspace: React.FC<WatermarkWorkspaceProps> = ({ setActiv
         {/* Logo Icon & System Title */}
         <div className="flex flex-col items-center gap-4">
           <div className="flex items-center justify-center p-1">
-            <img
-              src="/img/logo.svg"
-              alt="Orbix Logo"
-              className="w-48 sm:w-64 md:w-72 h-16 sm:h-20 object-contain drop-shadow-xs"
-            />
+            {companyProfile?.logoBase64 ? (
+              <img
+                src={companyProfile.logoBase64}
+                alt={companyProfile.nameAr || 'شعار المنشأة'}
+                className="max-h-20 max-w-[280px] object-contain drop-shadow-xs"
+              />
+            ) : (
+              <OrbixLogo size="xl" className="h-16 sm:h-20 w-auto drop-shadow-xs" />
+            )}
           </div>
           <div>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight flex items-center justify-center gap-2">
