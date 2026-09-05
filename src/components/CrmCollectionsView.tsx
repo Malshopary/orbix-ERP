@@ -4,6 +4,9 @@ import { Customer, CRMLead, CRMInteraction, CRMTicket, SalesRep } from '../types
 import { CustomerStatementModal } from './CustomerStatementModal';
 import { CrmSalesRepDashboard } from './CrmSalesRepDashboard';
 import { CrmAnalyticsDashboard } from './CrmAnalyticsDashboard';
+import { CollectionPlansSection } from './crm/CollectionPlansSection';
+import { CollectionRemindersSection } from './crm/CollectionRemindersSection';
+import { CustomerAgingSection } from './crm/CustomerAgingSection';
 import { QuickAddModal } from './QuickAddModal';
 import { SearchableSelect } from './SearchableSelect';
 import {
@@ -27,6 +30,7 @@ import {
   Edit3,
   Trash2,
   Calendar,
+  CalendarDays,
   Sparkles,
   TrendingUp,
   Target,
@@ -45,17 +49,18 @@ import {
   BarChart3,
   MapPin,
   Briefcase,
+  Bell,
 } from 'lucide-react';
 
 export const CrmCollectionsView: React.FC = () => {
   const {
-    customers,
-    salesReps,
-    priceLists,
-    accounts,
-    crmLeads,
-    crmInteractions,
-    crmTickets,
+    customers = [],
+    salesReps = [],
+    priceLists = [],
+    accounts = [],
+    crmLeads = [],
+    crmInteractions = [],
+    crmTickets = [],
     formatMoney,
     canDeleteEntity,
     addCustomer,
@@ -78,9 +83,33 @@ export const CrmCollectionsView: React.FC = () => {
   } = useErp();
 
   // Active CRM Tab from Sidebar or Context
-  const activeTab = useMemo<'crm_analytics' | 'customers' | 'pipeline' | 'interactions' | 'tickets' | 'sales_reps'>(() => {
-    if (activeSubTab && ['crm_analytics', 'customers', 'pipeline', 'interactions', 'tickets', 'sales_reps'].includes(activeSubTab)) {
-      return activeSubTab as any;
+  type CrmSubTab =
+    | 'crm_analytics'
+    | 'customers'
+    | 'collection_plans'
+    | 'collection_reminders'
+    | 'customer_aging'
+    | 'pipeline'
+    | 'interactions'
+    | 'tickets'
+    | 'sales_reps';
+
+  const activeTab = useMemo<CrmSubTab>(() => {
+    if (
+      activeSubTab &&
+      [
+        'crm_analytics',
+        'customers',
+        'collection_plans',
+        'collection_reminders',
+        'customer_aging',
+        'pipeline',
+        'interactions',
+        'tickets',
+        'sales_reps',
+      ].includes(activeSubTab)
+    ) {
+      return activeSubTab as CrmSubTab;
     }
     return 'crm_analytics';
   }, [activeSubTab]);
@@ -427,100 +456,102 @@ export const CrmCollectionsView: React.FC = () => {
 
   return (
     <div className="space-y-6" dir="rtl">
-      {/* Top Header Card */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
-              <Users2 className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-black text-slate-900">
-                  إدارة علاقات العملاء والتحليلات (CRM 360)
-                </h1>
-                <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  Enterprise CRM
-                </span>
+      {/* Top Header Card - only for main CRM tabs */}
+      {['crm_analytics', 'customers', 'pipeline', 'interactions', 'tickets', 'sales_reps'].includes(activeTab) && (
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+                <Users2 className="w-6 h-6" />
               </div>
-              <p className="text-xs text-slate-500 mt-1">
-                التحليلات البيانية المتقدمة، أفضل 5 مناديب وعملاء، ملفات العملاء، الفرص البيعية، وخدمة العملاء.
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-black text-slate-900">
+                    إدارة علاقات العملاء والتحليلات (CRM 360)
+                  </h1>
+                  <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    Enterprise CRM
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  التحليلات البيانية المتقدمة، أفضل 5 مناديب وعملاء، ملفات العملاء، الفرص البيعية، وخدمة العملاء.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              {activeTab === 'customers' && (
+                <button
+                  type="button"
+                  id="btn-add-new-customer"
+                  onClick={() => setShowQuickAddCustomer(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
+                  title="إضافة عميل جديد للنظام والـ CRM"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  إضافة عميل جديد
+                </button>
+              )}
+              {activeTab === 'pipeline' && (
+                <button
+                  type="button"
+                  id="btn-add-new-lead"
+                  onClick={() => setShowAddLeadModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  إنشاء فرصة بيعية
+                </button>
+              )}
+              {activeTab === 'interactions' && (
+                <button
+                  type="button"
+                  id="btn-add-interaction"
+                  onClick={() => setShowAddInteractionModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  تسجيل نشاط / متابعة
+                </button>
+              )}
+              {activeTab === 'tickets' && (
+                <button
+                  type="button"
+                  id="btn-add-ticket"
+                  onClick={() => setShowAddTicketModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  فتح تذكرة دعم
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {activeTab === 'customers' && (
-              <button
-                type="button"
-                id="btn-add-new-customer"
-                onClick={() => setShowQuickAddCustomer(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
-                title="إضافة عميل جديد للنظام والـ CRM"
-              >
-                <UserPlus className="w-4 h-4" />
-                إضافة عميل جديد
-              </button>
-            )}
-            {activeTab === 'pipeline' && (
-              <button
-                type="button"
-                id="btn-add-new-lead"
-                onClick={() => setShowAddLeadModal(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
-              >
-                <PlusCircle className="w-4 h-4" />
-                إنشاء فرصة بيعية
-              </button>
-            )}
-            {activeTab === 'interactions' && (
-              <button
-                type="button"
-                id="btn-add-interaction"
-                onClick={() => setShowAddInteractionModal(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
-              >
-                <PlusCircle className="w-4 h-4" />
-                تسجيل نشاط / متابعة
-              </button>
-            )}
-            {activeTab === 'tickets' && (
-              <button
-                type="button"
-                id="btn-add-ticket"
-                onClick={() => setShowAddTicketModal(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
-              >
-                <PlusCircle className="w-4 h-4" />
-                فتح تذكرة دعم
-              </button>
-            )}
+          {/* CRM Metric Badges */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-100">
+            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+              <span className="text-slate-400 text-xs font-semibold block mb-1">إجمالي العملاء المسجلين</span>
+              <span className="text-xl font-black text-slate-800">{customers.length} عميل</span>
+            </div>
+            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+              <span className="text-slate-400 text-xs font-semibold block mb-1">قيمة مسار المبيعات (Pipeline)</span>
+              <span className="text-xl font-black text-emerald-600">{formatMoney(totalPipelineValue)}</span>
+            </div>
+            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+              <span className="text-slate-400 text-xs font-semibold block mb-1">مبيعات مغلقة بنجاح (Won)</span>
+              <span className="text-xl font-black text-blue-600">{formatMoney(wonPipelineValue)}</span>
+            </div>
+            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+              <span className="text-slate-400 text-xs font-semibold block mb-1">تذاكر الدعم المفتوحة</span>
+              <span className="text-xl font-black text-amber-600">{crmTickets.filter((t) => t.status !== 'resolved' && t.status !== 'closed').length} تذكرة</span>
+            </div>
           </div>
         </div>
-
-        {/* CRM Metric Badges */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-100">
-          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-            <span className="text-slate-400 text-xs font-semibold block mb-1">إجمالي العملاء المسجلين</span>
-            <span className="text-xl font-black text-slate-800">{customers.length} عميل</span>
-          </div>
-          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-            <span className="text-slate-400 text-xs font-semibold block mb-1">قيمة مسار المبيعات (Pipeline)</span>
-            <span className="text-xl font-black text-emerald-600">{formatMoney(totalPipelineValue)}</span>
-          </div>
-          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-            <span className="text-slate-400 text-xs font-semibold block mb-1">مبيعات مغلقة بنجاح (Won)</span>
-            <span className="text-xl font-black text-blue-600">{formatMoney(wonPipelineValue)}</span>
-          </div>
-          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-            <span className="text-slate-400 text-xs font-semibold block mb-1">تذاكر الدعم المفتوحة</span>
-            <span className="text-xl font-black text-amber-600">{crmTickets.filter((t) => t.status !== 'resolved' && t.status !== 'closed').length} تذكرة</span>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Filters Bar (Only for directory/pipeline/interactions/tickets) */}
-      {activeTab !== 'crm_analytics' && activeTab !== 'sales_reps' && (
+      {(activeTab === 'customers' || activeTab === 'pipeline' || activeTab === 'interactions' || activeTab === 'tickets') && (
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="relative w-full md:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
@@ -596,6 +627,21 @@ export const CrmCollectionsView: React.FC = () => {
 
       {/* TAB 0: ADVANCED CRM & PERFORMANCE ANALYTICS */}
       {activeTab === 'crm_analytics' && <CrmAnalyticsDashboard />}
+
+      {/* TAB: COLLECTION PLANS */}
+      {activeTab === 'collection_plans' && <CollectionPlansSection />}
+
+      {/* TAB: COLLECTION REMINDERS & ACTIONS */}
+      {activeTab === 'collection_reminders' && <CollectionRemindersSection />}
+
+      {/* TAB: CUSTOMER DEBT AGING (AR) */}
+      {activeTab === 'customer_aging' && (
+        <CustomerAgingSection
+          onOpenStatement={(custId) => setStatementCustomerId(custId)}
+          onNavigateToPlans={() => setActiveSubTab('collection_plans')}
+          onNavigateToReminders={() => setActiveSubTab('collection_reminders')}
+        />
+      )}
 
       {/* TAB 1: CUSTOMERS DIRECTORY */}
       {activeTab === 'customers' && (

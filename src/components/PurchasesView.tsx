@@ -8,6 +8,12 @@ import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
 import { SearchableSelect } from './SearchableSelect';
 import { QuickAddModal } from './QuickAddModal';
+import { PurchaseOrdersSection } from './purchases/PurchaseOrdersSection';
+import { GoodsReceiptsSection } from './purchases/GoodsReceiptsSection';
+import { LandedCostSection } from './purchases/LandedCostSection';
+import { PurchaseReturnsSection } from './purchases/PurchaseReturnsSection';
+import { VendorAgingSection } from './purchases/VendorAgingSection';
+import { PurchaseOrder } from '../types';
 import {
   ShoppingCart,
   PlusCircle,
@@ -28,16 +34,21 @@ import {
   Undo2,
   FileSpreadsheet,
   Printer,
+  FileCheck2,
+  PackageCheck,
+  Ship,
+  RotateCcw,
+  Clock,
 } from 'lucide-react';
 
 export const PurchasesView: React.FC = () => {
   const {
-    vendors,
-    purchaseInvoices,
-    products,
-    productBatches,
-    accounts,
-    warehouses,
+    vendors = [],
+    purchaseInvoices = [],
+    products = [],
+    productBatches = [],
+    accounts = [],
+    warehouses = [],
     companyProfile,
     formatMoney,
     canDeleteEntity,
@@ -55,15 +66,36 @@ export const PurchasesView: React.FC = () => {
     showConfirm,
   } = useErp();
 
-  const [activeSubTab, setActiveSubTabLocal] = useState<'bills' | 'vendors'>('bills');
+  type PurchasesSubTab =
+    | 'bills'
+    | 'purchase_orders'
+    | 'goods_receipts'
+    | 'landed_costs'
+    | 'returns'
+    | 'vendor_aging'
+    | 'vendors';
+
+  const [activeSubTab, setActiveSubTabLocal] = useState<PurchasesSubTab>('bills');
+  const [selectedPoForGrn, setSelectedPoForGrn] = useState<PurchaseOrder | null>(null);
 
   React.useEffect(() => {
-    if (globalSubTab && ['bills', 'vendors'].includes(globalSubTab)) {
-      setActiveSubTabLocal(globalSubTab as any);
+    if (
+      globalSubTab &&
+      [
+        'bills',
+        'purchase_orders',
+        'goods_receipts',
+        'landed_costs',
+        'returns',
+        'vendor_aging',
+        'vendors',
+      ].includes(globalSubTab)
+    ) {
+      setActiveSubTabLocal(globalSubTab as PurchasesSubTab);
     }
   }, [globalSubTab]);
 
-  const setActiveSubTab = (tab: 'bills' | 'vendors') => {
+  const setActiveSubTab = (tab: PurchasesSubTab) => {
     setActiveSubTabLocal(tab);
     setGlobalSubTab(tab);
   };
@@ -519,38 +551,77 @@ export const PurchasesView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-emerald-600" />
-            المشتريات وإدارة الموردين وحسابات الدائنين
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            إثبات فواتير التوريد، وزيادة أرصدة المخزون آلياً، ومتابعة التزامات السداد للموردين
-          </p>
-        </div>
+      {/* Header - displayed for bills and vendors views */}
+      {['bills', 'vendors'].includes(activeSubTab) && (
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-emerald-600" />
+              المشتريات وإدارة الموردين وحسابات الدائنين
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              إثبات فواتير التوريد، وأوامر الشراء، وأذونات الاستلام، وتكاليف الشحن، وأعمار الديون
+            </p>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowQuickAddVendor(true)}
-            className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-2 rounded-xl transition-all border border-slate-300 cursor-pointer"
-            title="إضافة مورد جديد للنظام والمشتريات"
-          >
-            <Building2 className="w-4 h-4 text-emerald-600" />
-            + مورد جديد
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowQuickAddVendor(true)}
+              className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-2 rounded-xl transition-all border border-slate-300 cursor-pointer"
+              title="إضافة مورد جديد للنظام والمشتريات"
+            >
+              <Building2 className="w-4 h-4 text-emerald-600" />
+              + مورد جديد
+            </button>
 
-          <button
-            onClick={() => setShowCreateBillModal(true)}
-            className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs"
-          >
-            <PlusCircle className="w-4 h-4" />
-            فاتورة مشتريات
-          </button>
+            <button
+              onClick={() => setShowCreateBillModal(true)}
+              className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs"
+            >
+              <PlusCircle className="w-4 h-4" />
+              فاتورة مشتريات
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Subtab: Purchase Orders */}
+      {activeSubTab === 'purchase_orders' && (
+        <PurchaseOrdersSection
+          onConvertToGrn={(po) => {
+            setSelectedPoForGrn(po);
+            setActiveSubTab('goods_receipts');
+          }}
+          onConvertToBill={(po) => {
+            setShowCreateBillModal(true);
+          }}
+        />
+      )}
+
+      {/* Subtab: Goods Receipts */}
+      {activeSubTab === 'goods_receipts' && (
+        <GoodsReceiptsSection
+          initialPoForGrn={selectedPoForGrn}
+          onClearInitialPo={() => setSelectedPoForGrn(null)}
+        />
+      )}
+
+      {/* Subtab: Landed Costs */}
+      {activeSubTab === 'landed_costs' && <LandedCostSection />}
+
+      {/* Subtab: Purchase Returns */}
+      {activeSubTab === 'returns' && <PurchaseReturnsSection />}
+
+      {/* Subtab: Vendor Aging */}
+      {activeSubTab === 'vendor_aging' && (
+        <VendorAgingSection
+          onPayVendor={(vendorId) => {
+            setVendorFilter(vendorId);
+            setActiveSubTab('bills');
+          }}
+        />
+      )}
 
       {/* Subtab 1: Bills */}
       {activeSubTab === 'bills' && (

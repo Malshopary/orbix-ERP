@@ -40,6 +40,22 @@ import {
   LoyaltyTransaction,
   CommissionPayment,
   CommissionTier,
+  ChequeItem,
+  BankReconciliationStatement,
+  BankReconciliationItem,
+  BankReconciliationAdjustment,
+  CostCenter,
+  FixedAsset,
+  AssetDepreciationRun,
+  PurchaseOrder,
+  PurchaseOrderItem,
+  GoodsReceiptNote,
+  GoodsReceiptItem,
+  LandedCostAllocation,
+  PurchaseReturn,
+  VendorAgingBucket,
+  CollectionPlan,
+  CollectionReminderLog,
 } from '../types';
 import {
   INITIAL_ACCOUNTS,
@@ -74,6 +90,17 @@ import {
   INITIAL_COMMISSION_TIERS,
   INITIAL_JOB_TITLES,
   INITIAL_DEPARTMENTS,
+  INITIAL_CHEQUES,
+  INITIAL_BANK_RECONCILIATIONS,
+  INITIAL_COST_CENTERS,
+  INITIAL_FIXED_ASSETS,
+  INITIAL_ASSET_DEPRECIATION_RUNS,
+  INITIAL_PURCHASE_ORDERS,
+  INITIAL_GOODS_RECEIPTS,
+  INITIAL_LANDED_COSTS,
+  INITIAL_PURCHASE_RETURNS,
+  INITIAL_COLLECTION_PLANS,
+  INITIAL_COLLECTION_REMINDER_LOGS,
 } from '../data/initialData';
 import {
   DEFAULT_SEQUENCE_CONFIG,
@@ -108,6 +135,7 @@ interface ErpContextType {
   currency: Currency;
   setCurrency: (c: Currency) => void;
   formatMoney: (amount: number) => string;
+  formatCurrency: (amount: number) => string;
   formatDualMoney: (amount: number, targetCode?: string) => string;
   currencies: ExchangeCurrency[];
   secondaryCurrency: string;
@@ -215,6 +243,16 @@ interface ErpContextType {
   addCrmTicket: (ticket: Omit<CRMTicket, 'id' | 'ticketNumber' | 'createdAt'>) => void;
   updateCrmTicket: (id: string, data: Partial<CRMTicket>) => void;
   deleteCrmTicket: (id: string) => void;
+
+  // Collection Plans & Reminders (خطط وجدولة التحصيل والتنبيهات)
+  collectionPlans: CollectionPlan[];
+  addCollectionPlan: (plan: Omit<CollectionPlan, 'id' | 'planNumber' | 'createdAt'>) => CollectionPlan;
+  updateCollectionPlan: (id: string, data: Partial<CollectionPlan>) => void;
+  recordInstallmentPayment: (planId: string, installmentNumber: number, amount: number, paymentMethod: string, accountId: string) => void;
+  deleteCollectionPlan: (id: string) => void;
+  collectionReminders: CollectionReminderLog[];
+  addCollectionReminder: (log: Omit<CollectionReminderLog, 'id' | 'createdAt'>) => void;
+  deleteCollectionReminder: (id: string) => void;
 
   // Sales Representatives & Commissions
   salesReps: SalesRep[];
@@ -331,12 +369,28 @@ interface ErpContextType {
     unpaidInvoices: SalesInvoice[];
   };
 
-  // Purchases
+  // Purchases & AP (فواتير المشتريات، أوامر الشراء، الاستلام المخزني، التكاليف الإضافية، المردودات، وأعمار الديون)
   purchaseInvoices: PurchaseInvoice[];
   addPurchaseInvoice: (invoice: Omit<PurchaseInvoice, 'id' | 'invoiceNumber' | 'paidAmount' | 'remainingAmount' | 'status'>) => void;
   editPurchaseInvoice: (id: string, data: Partial<PurchaseInvoice>) => void;
   deletePurchaseInvoice: (id: string) => void;
   recordVendorPayment: (purchaseId: string, amount: number, accountId: string, paymentMethod: PaymentReceipt['paymentMethod']) => void;
+  purchaseOrders: PurchaseOrder[];
+  addPurchaseOrder: (po: Omit<PurchaseOrder, 'id' | 'poNumber' | 'createdAt'>) => PurchaseOrder;
+  updatePurchaseOrder: (id: string, data: Partial<PurchaseOrder>) => void;
+  deletePurchaseOrder: (id: string) => void;
+  goodsReceipts: GoodsReceiptNote[];
+  goodsReceiptNotes: GoodsReceiptNote[];
+  addGoodsReceipt: (grn: Omit<GoodsReceiptNote, 'id' | 'grnNumber' | 'createdAt'>) => GoodsReceiptNote;
+  updateGoodsReceipt: (id: string, data: Partial<GoodsReceiptNote>) => void;
+  deleteGoodsReceipt: (id: string) => void;
+  landedCosts: LandedCostAllocation[];
+  addLandedCostAllocation: (cost: Omit<LandedCostAllocation, 'id' | 'costNumber' | 'createdAt'>) => LandedCostAllocation;
+  deleteLandedCostAllocation: (id: string) => void;
+  purchaseReturns: PurchaseReturn[];
+  addPurchaseReturn: (ret: Omit<PurchaseReturn, 'id' | 'returnNumber' | 'createdAt'>) => PurchaseReturn;
+  deletePurchaseReturn: (id: string) => void;
+  vendorAging: VendorAgingBucket[];
 
   // Receipts / Vouchers
   receipts: PaymentReceipt[];
@@ -344,6 +398,40 @@ interface ErpContextType {
   addPaymentVoucher: (voucher: Omit<PaymentReceipt, 'id' | 'receiptNumber'>) => void;
   editPaymentReceipt: (id: string, data: Partial<PaymentReceipt>) => void;
   deletePaymentReceipt: (id: string) => void;
+
+  // Cheques & Commercial Paper Portfolio (حافظة الشيكات وأوراق القبض والدفع)
+  cheques: ChequeItem[];
+  addCheque: (cheque: Omit<ChequeItem, 'id' | 'createdAt'>) => void;
+  updateCheque: (id: string, data: Partial<ChequeItem>) => void;
+  depositCheque: (id: string, depositBankAccountId: string, depositBankAccountName: string, date?: string) => void;
+  collectCheque: (id: string, date?: string) => void;
+  bounceCheque: (id: string, reason: string, date?: string) => void;
+  cancelCheque: (id: string, reason?: string) => void;
+  deleteCheque: (id: string) => void;
+
+  // Bank Reconciliation
+  bankReconciliations: BankReconciliationStatement[];
+  addBankReconciliation: (stmt: Omit<BankReconciliationStatement, 'id' | 'statementNumber' | 'createdAt'>) => BankReconciliationStatement;
+  updateBankReconciliation: (id: string, data: Partial<BankReconciliationStatement>) => void;
+  completeBankReconciliation: (id: string, reconciledBy?: string) => void;
+  deleteBankReconciliation: (id: string) => void;
+  addReconciliationAdjustment: (stmtId: string, adj: Omit<BankReconciliationAdjustment, 'id'>) => void;
+  toggleReconciliationItemCleared: (stmtId: string, itemId: string) => void;
+
+  // Cost Centers & Projects
+  costCenters: CostCenter[];
+  addCostCenter: (center: Omit<CostCenter, 'id' | 'createdAt'>) => void;
+  updateCostCenter: (id: string, data: Partial<CostCenter>) => void;
+  deleteCostCenter: (id: string) => void;
+
+  // Fixed Assets & Automated Depreciation
+  fixedAssets: FixedAsset[];
+  assetDepreciationRuns: AssetDepreciationRun[];
+  addFixedAsset: (asset: Omit<FixedAsset, 'id' | 'createdAt' | 'currentDepreciation' | 'bookValue' | 'monthlyDepreciation'>) => void;
+  updateFixedAsset: (id: string, data: Partial<FixedAsset>) => void;
+  deleteFixedAsset: (id: string) => void;
+  runAssetDepreciation: (periodMonth: string, notes?: string) => AssetDepreciationRun | null;
+  disposeFixedAsset: (id: string, reason: 'sold' | 'scrapped', saleAmount?: number, receivingAccountId?: string, notes?: string) => void;
 
   // HR & Payroll
   employees: Employee[];
@@ -418,6 +506,11 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
     return { id: 'sales_invoices', tab: 'sales', subTab: 'invoices', title: 'فواتير المبيعات الضريبية', iconName: 'FileSpreadsheet' };
   }
   if (tab === 'purchases') {
+    if (subTab === 'purchase_orders' || subTab === 'orders') return { id: 'purchases_orders', tab: 'purchases', subTab: 'purchase_orders', title: 'أوامر الشراء والتوريد', iconName: 'FileCheck2' };
+    if (subTab === 'goods_receipts' || subTab === 'grn') return { id: 'purchases_grn', tab: 'purchases', subTab: 'goods_receipts', title: 'أذونات استلام البضاعة (GRN)', iconName: 'Package' };
+    if (subTab === 'landed_costs') return { id: 'purchases_landed_costs', tab: 'purchases', subTab: 'landed_costs', title: 'تكاليف الشحن والجمارك', iconName: 'Truck' };
+    if (subTab === 'returns') return { id: 'purchases_returns', tab: 'purchases', subTab: 'returns', title: 'مردودات المشتريات', iconName: 'RotateCcw' };
+    if (subTab === 'vendor_aging') return { id: 'purchases_vendor_aging', tab: 'purchases', subTab: 'vendor_aging', title: 'أعمار ديون الموردين', iconName: 'Scale' };
     if (subTab === 'vendors') return { id: 'purchases_vendors', tab: 'purchases', subTab: 'vendors', title: 'سجل الموردين', iconName: 'Building' };
     return { id: 'purchases_bills', tab: 'purchases', subTab: 'bills', title: 'فواتير المشتريات', iconName: 'ShoppingCart' };
   }
@@ -425,6 +518,10 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
     if (subTab === 'journal') return { id: 'accounts_journal', tab: 'accounts', subTab: 'journal', title: 'سجل قيود اليومية', iconName: 'FileText' };
     if (subTab === 'collections' || subTab === 'receipts') return { id: 'accounts_collections', tab: 'accounts', subTab: 'collections', title: 'سندات القبض والتحصيل', iconName: 'ArrowDownLeft' };
     if (subTab === 'payments' || subTab === 'expenses') return { id: 'accounts_payments', tab: 'accounts', subTab: 'payments', title: 'سندات الصرف والمصروفات', iconName: 'ArrowUpRight' };
+    if (subTab === 'cheques') return { id: 'accounts_cheques', tab: 'accounts', subTab: 'cheques', title: 'حافظة الشيكات وأوراق القبض والدفع', iconName: 'Landmark' };
+    if (subTab === 'reconciliation') return { id: 'accounts_reconciliation', tab: 'accounts', subTab: 'reconciliation', title: 'التسوية ومطابقة كشف حساب البنك', iconName: 'FileCheck2' };
+    if (subTab === 'costcenters') return { id: 'accounts_costcenters', tab: 'accounts', subTab: 'costcenters', title: 'مراكز التكلفة والمشاريع', iconName: 'Target' };
+    if (subTab === 'fixedassets') return { id: 'accounts_fixedassets', tab: 'accounts', subTab: 'fixedassets', title: 'الأصول الثابتة والإهلاك الآلي', iconName: 'Building' };
     if (subTab === 'commissions') return { id: 'accounts_commissions', tab: 'accounts', subTab: 'commissions', title: 'عمولات المناديب', iconName: 'CreditCard' };
     if (subTab === 'loyalty') return { id: 'accounts_loyalty', tab: 'accounts', subTab: 'loyalty', title: 'نقاط الولاء والمكافآت', iconName: 'Award' };
     if (subTab === 'pricelists') return { id: 'accounts_pricelists', tab: 'accounts', subTab: 'pricelists', title: 'قوائم الأسعار وتسعير العملاء', iconName: 'Tag' };
@@ -442,6 +539,9 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
     return { id: 'inventory_all', tab: 'inventory', subTab: 'all', title: 'الأصناف والمخزون', iconName: 'Layers' };
   }
   if (tab === 'crm_collections') {
+    if (subTab === 'collection_plans') return { id: 'crm_collection_plans', tab: 'crm_collections', subTab: 'collection_plans', title: 'خطط وجدولة التحصيل', iconName: 'Calendar' };
+    if (subTab === 'collection_reminders') return { id: 'crm_collection_reminders', tab: 'crm_collections', subTab: 'collection_reminders', title: 'تذكيرات وتنبيهات التحصيل', iconName: 'PhoneCall' };
+    if (subTab === 'customer_aging') return { id: 'crm_customer_aging', tab: 'crm_collections', subTab: 'customer_aging', title: 'أعمار ديون العملاء', iconName: 'Scale' };
     if (subTab === 'crm_analytics' || subTab === 'analytics') return { id: 'crm_analytics', tab: 'crm_collections', subTab: 'crm_analytics', title: 'التحليلات والرسوم البيانية', iconName: 'BarChart3' };
     if (subTab === 'pipeline') return { id: 'crm_pipeline', tab: 'crm_collections', subTab: 'pipeline', title: 'مسار المبيعات والفرص', iconName: 'TrendingUp' };
     if (subTab === 'interactions') return { id: 'crm_interactions', tab: 'crm_collections', subTab: 'interactions', title: 'سجل المتابعات والاتصالات', iconName: 'PhoneCall' };
@@ -928,6 +1028,63 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_RECEIPTS;
   });
 
+  const [cheques, setCheques] = useState<ChequeItem[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}cheques`);
+    return saved ? JSON.parse(saved) : INITIAL_CHEQUES;
+  });
+
+  const [bankReconciliations, setBankReconciliations] = useState<BankReconciliationStatement[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}bank_reconciliations`);
+    return saved ? JSON.parse(saved) : INITIAL_BANK_RECONCILIATIONS;
+  });
+
+  const [costCenters, setCostCenters] = useState<CostCenter[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}cost_centers`);
+    return saved ? JSON.parse(saved) : INITIAL_COST_CENTERS;
+  });
+
+  const [fixedAssets, setFixedAssets] = useState<FixedAsset[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}fixed_assets`);
+    return saved ? JSON.parse(saved) : INITIAL_FIXED_ASSETS;
+  });
+
+  const [assetDepreciationRuns, setAssetDepreciationRuns] = useState<AssetDepreciationRun[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}asset_depreciation_runs`);
+    return saved ? JSON.parse(saved) : INITIAL_ASSET_DEPRECIATION_RUNS;
+  });
+
+  // Item 4: Purchasing & AP states
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}purchase_orders`);
+    return saved ? JSON.parse(saved) : INITIAL_PURCHASE_ORDERS;
+  });
+
+  const [goodsReceipts, setGoodsReceipts] = useState<GoodsReceiptNote[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}goods_receipts`);
+    return saved ? JSON.parse(saved) : INITIAL_GOODS_RECEIPTS;
+  });
+
+  const [landedCosts, setLandedCosts] = useState<LandedCostAllocation[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}landed_costs`);
+    return saved ? JSON.parse(saved) : INITIAL_LANDED_COSTS;
+  });
+
+  const [purchaseReturns, setPurchaseReturns] = useState<PurchaseReturn[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}purchase_returns`);
+    return saved ? JSON.parse(saved) : INITIAL_PURCHASE_RETURNS;
+  });
+
+  // Item 5: CRM & Collection Plans states
+  const [collectionPlans, setCollectionPlans] = useState<CollectionPlan[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}collection_plans`);
+    return saved ? JSON.parse(saved) : INITIAL_COLLECTION_PLANS;
+  });
+
+  const [collectionReminders, setCollectionReminders] = useState<CollectionReminderLog[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}collection_reminders`);
+    return saved ? JSON.parse(saved) : INITIAL_COLLECTION_REMINDER_LOGS;
+  });
+
   const [employees, setEmployees] = useState<Employee[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}employees`);
     return saved ? JSON.parse(saved) : INITIAL_EMPLOYEES;
@@ -1023,6 +1180,17 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_PREFIX}sales_orders`, JSON.stringify(salesOrders));
     localStorage.setItem(`${STORAGE_PREFIX}purchase_invoices`, JSON.stringify(purchaseInvoices));
     localStorage.setItem(`${STORAGE_PREFIX}receipts`, JSON.stringify(receipts));
+    localStorage.setItem(`${STORAGE_PREFIX}cheques`, JSON.stringify(cheques));
+    localStorage.setItem(`${STORAGE_PREFIX}bank_reconciliations`, JSON.stringify(bankReconciliations));
+    localStorage.setItem(`${STORAGE_PREFIX}cost_centers`, JSON.stringify(costCenters));
+    localStorage.setItem(`${STORAGE_PREFIX}fixed_assets`, JSON.stringify(fixedAssets));
+    localStorage.setItem(`${STORAGE_PREFIX}asset_depreciation_runs`, JSON.stringify(assetDepreciationRuns));
+    localStorage.setItem(`${STORAGE_PREFIX}purchase_orders`, JSON.stringify(purchaseOrders));
+    localStorage.setItem(`${STORAGE_PREFIX}goods_receipts`, JSON.stringify(goodsReceipts));
+    localStorage.setItem(`${STORAGE_PREFIX}landed_costs`, JSON.stringify(landedCosts));
+    localStorage.setItem(`${STORAGE_PREFIX}purchase_returns`, JSON.stringify(purchaseReturns));
+    localStorage.setItem(`${STORAGE_PREFIX}collection_plans`, JSON.stringify(collectionPlans));
+    localStorage.setItem(`${STORAGE_PREFIX}collection_reminders`, JSON.stringify(collectionReminders));
     localStorage.setItem(`${STORAGE_PREFIX}employees`, JSON.stringify(employees));
     localStorage.setItem(`${STORAGE_PREFIX}payroll_runs`, JSON.stringify(payrollRuns));
     localStorage.setItem(`${STORAGE_PREFIX}price_lists`, JSON.stringify(priceLists));
@@ -1059,7 +1227,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     quotations,
     salesOrders,
     purchaseInvoices,
+    purchaseOrders,
+    goodsReceipts,
+    landedCosts,
+    purchaseReturns,
+    collectionPlans,
+    collectionReminders,
     receipts,
+    cheques,
+    bankReconciliations,
+    costCenters,
+    fixedAssets,
+    assetDepreciationRuns,
     employees,
     payrollRuns,
     priceLists,
@@ -5483,6 +5662,422 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAuditEvent('سند صرف مورد', 'المشتريات', `سداد مبلغ ${amount} ${currency} للمورد ${pur.vendorName}`);
   };
 
+  // --------------------------------------------------------------------------
+  // Item 4: Purchasing & AP Extended Logic
+  // --------------------------------------------------------------------------
+  const addPurchaseOrder = (poData: Omit<PurchaseOrder, 'id' | 'poNumber' | 'createdAt'>): PurchaseOrder => {
+    const poNumber = `PO-${new Date().getFullYear()}-${String(purchaseOrders.length + 1).padStart(4, '0')}`;
+    const newPo: PurchaseOrder = {
+      ...poData,
+      id: `po-${Date.now()}`,
+      poNumber,
+      createdAt: new Date().toISOString(),
+    };
+
+    setPurchaseOrders((prev) => [newPo, ...prev]);
+    logAuditEvent('إنشاء أمر شراء', 'المشتريات والموردين', `أمر شراء رقم ${poNumber} للمورد ${poData.vendorName} بقيمة ${poData.grandTotal} ${currency}`);
+    return newPo;
+  };
+
+  const updatePurchaseOrder = (id: string, data: Partial<PurchaseOrder>) => {
+    setPurchaseOrders((prev) =>
+      prev.map((po) => (po.id === id ? { ...po, ...data } : po))
+    );
+    logAuditEvent('تحديث أمر شراء', 'المشتريات والموردين', `تحديث بيانات أمر الشراء`);
+  };
+
+  const deletePurchaseOrder = (id: string) => {
+    const target = purchaseOrders.find((p) => p.id === id);
+    if (!target) return;
+    setPurchaseOrders((prev) => prev.filter((p) => p.id !== id));
+    logAuditEvent('حذف أمر شراء', 'المشتريات والموردين', `حذف أمر الشراء ${target.poNumber}`);
+  };
+
+  const addGoodsReceipt = (grnData: Omit<GoodsReceiptNote, 'id' | 'grnNumber' | 'createdAt'>): GoodsReceiptNote => {
+    const grnNumber = `GRN-${new Date().getFullYear()}-${String(goodsReceipts.length + 1).padStart(4, '0')}`;
+    const newGrn: GoodsReceiptNote = {
+      ...grnData,
+      id: `grn-${Date.now()}`,
+      grnNumber,
+      createdAt: new Date().toISOString(),
+    };
+
+    setGoodsReceipts((prev) => [newGrn, ...prev]);
+
+    // Update PO received quantity if linked
+    if (newGrn.poId) {
+      setPurchaseOrders((prev) =>
+        prev.map((po) => {
+          if (po.id !== newGrn.poId) return po;
+          let allFullyReceived = true;
+          const updatedItems = po.items.map((item) => {
+            const grnItem = newGrn.items.find((gi) => gi.productId === item.productId);
+            const addedQty = grnItem ? grnItem.acceptedQuantity : 0;
+            const newRcvd = (item.receivedQuantity || 0) + addedQty;
+            if (newRcvd < item.quantity) allFullyReceived = false;
+            return {
+              ...item,
+              receivedQuantity: newRcvd,
+            };
+          });
+          const hasAnyReceived = updatedItems.some((i) => (i.receivedQuantity || 0) > 0);
+          const newStatus: PurchaseOrder['status'] = allFullyReceived
+            ? 'received'
+            : hasAnyReceived
+            ? 'partially_received'
+            : po.status;
+
+          return {
+            ...po,
+            items: updatedItems,
+            status: newStatus,
+          };
+        })
+      );
+    }
+
+    // Add accepted quantities to warehouse stock
+    const targetWhId = newGrn.warehouseId || warehouses[0]?.id || 'wh-1';
+    newGrn.items.forEach((item) => {
+      if (item.acceptedQuantity > 0) {
+        updateProductStock(item.productId, item.acceptedQuantity, item.unitPrice, targetWhId);
+
+        // Auto batch registration
+        if (item.batchNumber) {
+          const prod = products.find((p) => p.id === item.productId);
+          const newBatch: ProductBatch = {
+            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            batchNumber: item.batchNumber,
+            productId: item.productId,
+            productName: item.productName,
+            sku: prod?.sku,
+            warehouseId: targetWhId,
+            warehouseName: warehouses.find((w) => w.id === targetWhId)?.name,
+            productionDate: newGrn.date,
+            expiryDate: item.expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            quantity: item.acceptedQuantity,
+            initialQuantity: item.acceptedQuantity,
+            costPrice: item.unitPrice,
+            sellingPrice: prod?.sellingPrice,
+            status: 'valid',
+            notes: `استلام مخزني بموجب إذن ${grnNumber} من المورد ${newGrn.vendorName}`,
+          };
+          setProductBatches((prev) => [...prev, newBatch]);
+        }
+      }
+    });
+
+    logAuditEvent('إذن استلام مخزني', 'المشتريات والمخازن', `إذن استلام ${grnNumber} بموجب أمر الشراء ${newGrn.poNumber || '-'}`);
+    return newGrn;
+  };
+
+  const updateGoodsReceipt = (id: string, data: Partial<GoodsReceiptNote>) => {
+    setGoodsReceipts((prev) =>
+      prev.map((grn) => (grn.id === id ? { ...grn, ...data } : grn))
+    );
+  };
+
+  const deleteGoodsReceipt = (id: string) => {
+    const target = goodsReceipts.find((g) => g.id === id);
+    if (!target) return;
+    const targetWhId = target.warehouseId || warehouses[0]?.id || 'wh-1';
+    target.items.forEach((item) => {
+      if (item.acceptedQuantity > 0) {
+        updateProductStock(item.productId, -item.acceptedQuantity, undefined, targetWhId);
+      }
+    });
+    setGoodsReceipts((prev) => prev.filter((g) => g.id !== id));
+    logAuditEvent('حذف إذن استلام مخزني', 'المشتريات والمخازن', `حذف إذن الاستلام ${target.grnNumber}`);
+  };
+
+  const addLandedCostAllocation = (costData: Omit<LandedCostAllocation, 'id' | 'costNumber' | 'createdAt'>): LandedCostAllocation => {
+    const costNumber = `LC-${new Date().getFullYear()}-${String(landedCosts.length + 1).padStart(4, '0')}`;
+    const jeNumber = `JE-LC-${new Date().getFullYear()}-${String(journalEntries.length + 1).padStart(4, '0')}`;
+
+    const creditLines = costData.costs.map((c) => {
+      const acc = accounts.find((a) => a.id === c.paymentAccountId || a.code === c.paymentAccountId) || accounts.find((a) => a.code === '1110') || accounts[0];
+      return {
+        accountId: acc.id,
+        accountCode: acc.code,
+        accountName: acc.name,
+        description: `${c.name} (${c.reference || '-'})`,
+        debit: 0,
+        credit: c.amount,
+      };
+    });
+
+    addJournalEntry({
+      entryNumber: jeNumber,
+      date: costData.date,
+      reference: costNumber,
+      description: `توزيع تكاليف إضافية (شحن/جمارك) ${costNumber} على فاتورة ${costData.invoiceNumber || '-'}`,
+      lines: [
+        {
+          accountId: '1140',
+          accountCode: '1140',
+          accountName: 'مخزون البضائع والمنتجات (زيادة قيمة البضاعة بالتكاليف)',
+          description: `رسملة تكاليف شحن ومصاريف جمركية على المخزون`,
+          debit: costData.totalLandedCost,
+          credit: 0,
+        },
+        ...creditLines,
+      ],
+      totalDebit: costData.totalLandedCost,
+      totalCredit: costData.totalLandedCost,
+      isAutomatic: true,
+      sourceModule: 'purchases',
+    });
+
+    costData.allocatedItems.forEach((item) => {
+      const prod = products.find((p) => p.id === item.productId);
+      if (prod) {
+        updateProduct(item.productId, {
+          costPrice: item.newUnitCost,
+        });
+      }
+    });
+
+    const newLc: LandedCostAllocation = {
+      ...costData,
+      id: `lc-${Date.now()}`,
+      costNumber,
+      journalEntryId: jeNumber,
+      createdAt: new Date().toISOString(),
+    };
+
+    setLandedCosts((prev) => [newLc, ...prev]);
+    logAuditEvent('توزيع تكاليف إضافية', 'المشتريات والحسابات', `توزيع تكاليف استيرادية وشحن ${costNumber} بمبلغ ${costData.totalLandedCost} ${currency}`);
+    return newLc;
+  };
+
+  const deleteLandedCostAllocation = (id: string) => {
+    const target = landedCosts.find((l) => l.id === id);
+    if (!target) return;
+    setLandedCosts((prev) => prev.filter((l) => l.id !== id));
+    logAuditEvent('حذف توزيع تكاليف إضافية', 'المشتريات', `حذف توزيع تكاليف ${target.costNumber}`);
+  };
+
+  const addPurchaseReturn = (returnData: Omit<PurchaseReturn, 'id' | 'returnNumber' | 'createdAt'>): PurchaseReturn => {
+    const returnNumber = `PR-${new Date().getFullYear()}-${String(purchaseReturns.length + 1).padStart(4, '0')}`;
+    const jeNumber = `JE-PR-${new Date().getFullYear()}-${String(journalEntries.length + 1).padStart(4, '0')}`;
+
+    const targetWhId = returnData.warehouseId || warehouses[0]?.id || 'wh-1';
+    returnData.items.forEach((item) => {
+      updateProductStock(item.productId, -item.quantity, undefined, targetWhId);
+    });
+
+    setVendors((prev) =>
+      prev.map((v) => (v.id === returnData.vendorId ? { ...v, currentBalance: Math.max(0, v.currentBalance - returnData.grandTotal) } : v))
+    );
+
+    if (returnData.purchaseInvoiceId) {
+      setPurchaseInvoices((prev) =>
+        prev.map((p) => {
+          if (p.id !== returnData.purchaseInvoiceId) return p;
+          const newRem = Math.max(0, p.remainingAmount - returnData.grandTotal);
+          return {
+            ...p,
+            remainingAmount: newRem,
+            status: newRem === 0 && p.paidAmount > 0 ? 'paid' : p.status,
+          };
+        })
+      );
+    }
+
+    addJournalEntry({
+      entryNumber: jeNumber,
+      date: returnData.date,
+      reference: returnNumber,
+      description: `إشعار مدين / مردودات مشتريات ${returnNumber} للمورد ${returnData.vendorName}`,
+      lines: [
+        {
+          accountId: '2110',
+          accountCode: '2110',
+          accountName: `الموردون والدائنون (${returnData.vendorName})`,
+          description: `تخفيض مستحقات المورد بموجب إشعار مدين ${returnNumber}`,
+          debit: returnData.grandTotal,
+          credit: 0,
+        },
+        {
+          accountId: '1140',
+          accountCode: '1140',
+          accountName: 'مخزون البضائع والمنتجات',
+          description: `خروج بضاعة مرتجعة للمورد`,
+          debit: 0,
+          credit: returnData.subtotal,
+        },
+        ...(returnData.vatTotal > 0
+          ? [
+              {
+                accountId: '1150',
+                accountCode: '1150',
+                accountName: 'ضريبة القيمة المضافة - مدخلات',
+                description: 'عكس ضريبة مدخلات مشتريات مرتجعة',
+                debit: 0,
+                credit: returnData.vatTotal,
+              },
+            ]
+          : []),
+      ],
+      totalDebit: returnData.grandTotal,
+      totalCredit: returnData.grandTotal,
+      isAutomatic: true,
+      sourceModule: 'purchases',
+    });
+
+    const newPr: PurchaseReturn = {
+      ...returnData,
+      id: `pr-${Date.now()}`,
+      returnNumber,
+      journalEntryId: jeNumber,
+      createdAt: new Date().toISOString(),
+    };
+
+    setPurchaseReturns((prev) => [newPr, ...prev]);
+    logAuditEvent('إشعار مدين مردودات مشتريات', 'المشتريات والموردين', `مردودات مشتريات ${returnNumber} بمبلغ ${returnData.grandTotal} ${currency}`);
+    return newPr;
+  };
+
+  const deletePurchaseReturn = (id: string) => {
+    const target = purchaseReturns.find((p) => p.id === id);
+    if (!target) return;
+    setPurchaseReturns((prev) => prev.filter((p) => p.id !== id));
+    logAuditEvent('حذف مردودات مشتريات', 'المشتريات', `حذف مردود مشتريات ${target.returnNumber}`);
+  };
+
+  // --------------------------------------------------------------------------
+  // Item 5: Collections Plans & Reminders Extended Logic
+  // --------------------------------------------------------------------------
+  const addCollectionPlan = (planData: Omit<CollectionPlan, 'id' | 'planNumber' | 'createdAt'>): CollectionPlan => {
+    const planNumber = `PLAN-${new Date().getFullYear()}-${String(collectionPlans.length + 1).padStart(4, '0')}`;
+    const newPlan: CollectionPlan = {
+      ...planData,
+      id: `plan-${Date.now()}`,
+      planNumber,
+      createdAt: new Date().toISOString(),
+    };
+
+    setCollectionPlans((prev) => [newPlan, ...prev]);
+    logAuditEvent('إنشاء خطة تحصيل مجدولة', 'إدارة التحصيل CRM', `خطة جدولة ${planNumber} للعميل ${planData.customerName} بإجمالي ${planData.totalDebt} ${currency}`);
+    return newPlan;
+  };
+
+  const updateCollectionPlan = (id: string, data: Partial<CollectionPlan>) => {
+    setCollectionPlans((prev) =>
+      prev.map((plan) => (plan.id === id ? { ...plan, ...data } : plan))
+    );
+  };
+
+  const recordInstallmentPayment = (
+    planId: string,
+    installmentNumber: number,
+    amount: number,
+    paymentMethod: string,
+    accountId: string
+  ) => {
+    const plan = collectionPlans.find((p) => p.id === planId);
+    if (!plan) return;
+
+    const receiptNumber = `REC-${new Date().getFullYear()}-${String(receipts.length + 1).padStart(3, '0')}`;
+    const today = new Date().toISOString().split('T')[0];
+
+    const targetAccount = accounts.find((a) => a.id === accountId || a.code === accountId) || accounts.find((a) => a.code === '1110') || accounts[2];
+    const newReceipt: PaymentReceipt = {
+      id: `rec-${Date.now()}`,
+      receiptNumber,
+      type: 'collection',
+      partyId: plan.customerId,
+      partyName: plan.customerName,
+      amount,
+      paymentMethod: paymentMethod as any,
+      date: today,
+      referenceNumber: `${plan.planNumber}-Q${installmentNumber}`,
+      notes: `تحصيل قسط رقم ${installmentNumber} من خطة الجدولة ${plan.planNumber}`,
+      accountId: targetAccount.id,
+    };
+    setReceipts((prev) => [newReceipt, ...prev]);
+
+    setCustomers((prev) =>
+      prev.map((c) => (c.id === plan.customerId ? { ...c, currentBalance: Math.max(0, c.currentBalance - amount) } : c))
+    );
+
+    addJournalEntry({
+      entryNumber: `JE-REC-${new Date().getFullYear()}-${String(journalEntries.length + 1).padStart(4, '0')}`,
+      date: today,
+      reference: receiptNumber,
+      description: `سند قبض ${receiptNumber} تحصيل قسط جدولة ${plan.planNumber} من العميل ${plan.customerName}`,
+      lines: [
+        {
+          accountId: targetAccount.id,
+          accountCode: targetAccount.code,
+          accountName: targetAccount.name,
+          description: `استلام دفعة تحصيل قسط من العميل ${plan.customerName}`,
+          debit: amount,
+          credit: 0,
+        },
+        {
+          accountId: '1130',
+          accountCode: '1130',
+          accountName: `العملاء والمدينون (${plan.customerName})`,
+          description: `تسوية قسط جدولة رقم ${installmentNumber} - ${plan.planNumber}`,
+          debit: 0,
+          credit: amount,
+        },
+      ],
+      totalDebit: amount,
+      totalCredit: amount,
+      isAutomatic: true,
+      sourceModule: 'collection',
+    });
+
+    setCollectionPlans((prev) =>
+      prev.map((p) => {
+        if (p.id !== planId) return p;
+        const updatedInstallments = p.installments.map((inst) => {
+          if (inst.installmentNumber !== installmentNumber) return inst;
+          const newPaid = (inst.paidAmount || 0) + amount;
+          const isFull = newPaid >= inst.amount;
+          return {
+            ...inst,
+            paidAmount: newPaid,
+            paymentDate: today,
+            receiptId: newReceipt.id,
+            status: isFull ? ('paid' as const) : ('partially_paid' as const),
+          };
+        });
+        const allPaid = updatedInstallments.every((i) => i.status === 'paid');
+        return {
+          ...p,
+          installments: updatedInstallments,
+          status: allPaid ? ('completed' as const) : p.status,
+        };
+      })
+    );
+
+    logAuditEvent('تحصيل قسط جدولة', 'إدارة التحصيل CRM', `تحصيل قسط بقيمة ${amount} ${currency} من العميل ${plan.customerName}`);
+  };
+
+  const deleteCollectionPlan = (id: string) => {
+    const target = collectionPlans.find((p) => p.id === id);
+    if (!target) return;
+    setCollectionPlans((prev) => prev.filter((p) => p.id !== id));
+    logAuditEvent('حذف خطة جدولة تحصيل', 'إدارة التحصيل CRM', `حذف خطة الجدولة ${target.planNumber}`);
+  };
+
+  const addCollectionReminder = (logData: Omit<CollectionReminderLog, 'id' | 'createdAt'>) => {
+    const newLog: CollectionReminderLog = {
+      ...logData,
+      id: `crl-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setCollectionReminders((prev) => [newLog, ...prev]);
+    logAuditEvent('تسجيل تذكير تحصيل', 'إدارة التحصيل CRM', `تذكير تحصيل للعميل ${logData.customerName} بقناة ${logData.channel}`);
+  };
+
+  const deleteCollectionReminder = (id: string) => {
+    setCollectionReminders((prev) => prev.filter((r) => r.id !== id));
+  };
+
   // Receipts / Vouchers (سندات القبض وسندات الصرف والمصروفات)
   const addReceiptVoucher = (receiptData: Omit<PaymentReceipt, 'id' | 'receiptNumber'>) => {
     const isCollection = receiptData.type === 'collection';
@@ -5845,6 +6440,757 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setReceipts((prev) => prev.filter((r) => r.id !== id));
     logAuditEvent('حذف سند مالي', 'التحصيل والخزينة', `تم حذف السند رقم ${target.receiptNumber} وتسوية الأرصدة والقيود`);
+  };
+
+  // =========================================================================
+  // البند رقم 2: حافظة الشيكات وأوراق القبض والدفع (Post-Dated Cheques Portfolio)
+  // =========================================================================
+  const addCheque = (chequeData: Omit<ChequeItem, 'id' | 'createdAt'>) => {
+    const newId = `chq-${Date.now()}`;
+    const newCheque: ChequeItem = {
+      ...chequeData,
+      id: newId,
+      createdAt: new Date().toISOString(),
+    };
+    setCheques((prev) => [newCheque, ...prev]);
+    logAuditEvent(
+      'إضافة شيك للحافظة',
+      'حافظة الشيكات',
+      `تم تسجيل شيك رقم ${newCheque.chequeNumber} بقيمة ${newCheque.amount} ${currency} (${newCheque.type === 'received' ? 'ورقة قبض واردة' : 'ورقة دفع صادرة'})`
+    );
+  };
+
+  const updateCheque = (id: string, data: Partial<ChequeItem>) => {
+    setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, ...data } : c)));
+    logAuditEvent('تحديث بيانات شيك', 'حافظة الشيكات', `تم تعديل بيانات الشيك ${id}`);
+  };
+
+  const depositCheque = (
+    id: string,
+    depositBankAccountId: string,
+    depositBankAccountName: string,
+    date?: string
+  ) => {
+    const target = cheques.find((c) => c.id === id);
+    if (!target) return;
+
+    const opDate = date || new Date().toISOString().split('T')[0];
+    setCheques((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              status: 'under_collection',
+              depositBankAccountId,
+              depositBankAccountName,
+              statusDate: opDate,
+            }
+          : c
+      )
+    );
+
+    logAuditEvent(
+      'إيداع شيك برسم التحصيل',
+      'حافظة الشيكات',
+      `تم إيداع الشيك رقم ${target.chequeNumber} برسم التحصيل بحساب: ${depositBankAccountName} بتاريخ ${opDate}`
+    );
+  };
+
+  const collectCheque = (id: string, date?: string) => {
+    const target = cheques.find((c) => c.id === id);
+    if (!target) return;
+
+    const opDate = date || new Date().toISOString().split('T')[0];
+    const targetBankAcc =
+      accounts.find((a) => a.id === target.depositBankAccountId || a.code === target.depositBankAccountId) ||
+      accounts.find((a) => a.code === '1120') ||
+      accounts[3];
+
+    // Find receivable/payable account
+    const notesReceivableAcc = accounts.find((a) => a.code === '1160') || accounts.find((a) => a.code === '1125') || accounts[0];
+    const notesPayableAcc = accounts.find((a) => a.code === '2150') || accounts.find((a) => a.code === '2110') || accounts[0];
+
+    if (target.type === 'received') {
+      // Received cheque collected into bank:
+      // Dr: Bank (1120)
+      // Cr: Notes Receivable (1160)
+      addJournalEntry({
+        entryNumber: `JE-CHQ-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
+        date: opDate,
+        description: `تحصيل شيك مقاصة رقم ${target.chequeNumber} من ${target.partyName} وإيداعه بحساب ${targetBankAcc.name}`,
+        reference: target.chequeNumber,
+        lines: [
+          {
+            accountId: targetBankAcc.id,
+            accountCode: targetBankAcc.code,
+            accountName: targetBankAcc.name,
+            debit: target.amount,
+            credit: 0,
+            description: `إيداع شيك رقم ${target.chequeNumber}`,
+          },
+          {
+            accountId: notesReceivableAcc.id,
+            accountCode: notesReceivableAcc.code,
+            accountName: notesReceivableAcc.name,
+            debit: 0,
+            credit: target.amount,
+            description: `تحصيل ورقة قبض شيك ${target.chequeNumber}`,
+          },
+        ],
+        totalDebit: target.amount,
+        totalCredit: target.amount,
+        isAutomatic: true,
+        sourceModule: 'accounting',
+      });
+    } else {
+      // Issued cheque debited from bank by vendor:
+      // Dr: Notes Payable (2150)
+      // Cr: Bank (1120)
+      addJournalEntry({
+        entryNumber: `JE-CHQ-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
+        date: opDate,
+        description: `صرف شيك صادر مسحوب على البنك رقم ${target.chequeNumber} لصالح ${target.partyName}`,
+        reference: target.chequeNumber,
+        lines: [
+          {
+            accountId: notesPayableAcc.id,
+            accountCode: notesPayableAcc.code,
+            accountName: notesPayableAcc.name,
+            debit: target.amount,
+            credit: 0,
+            description: `سداد ورقة دفع شيك ${target.chequeNumber}`,
+          },
+          {
+            accountId: targetBankAcc.id,
+            accountCode: targetBankAcc.code,
+            accountName: targetBankAcc.name,
+            debit: 0,
+            credit: target.amount,
+            description: `صرف شيك صادر من ${targetBankAcc.name}`,
+          },
+        ],
+        totalDebit: target.amount,
+        totalCredit: target.amount,
+        isAutomatic: true,
+        sourceModule: 'accounting',
+      });
+    }
+
+    setCheques((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              status: 'collected',
+              statusDate: opDate,
+            }
+          : c
+      )
+    );
+
+    logAuditEvent(
+      'تحصيل شيك بالبنك',
+      'حافظة الشيكات',
+      `تم تأكيد تحصيل وقيد الشيك رقم ${target.chequeNumber} بقيمة ${target.amount} ${currency} بحساب ${targetBankAcc.name}`
+    );
+  };
+
+  const bounceCheque = (id: string, reason: string, date?: string) => {
+    const target = cheques.find((c) => c.id === id);
+    if (!target) return;
+
+    const opDate = date || new Date().toISOString().split('T')[0];
+    const notesReceivableAcc = accounts.find((a) => a.code === '1160') || accounts[0];
+    const customerReceivableAcc = accounts.find((a) => a.code === '1130') || accounts[0];
+
+    if (target.type === 'received') {
+      addJournalEntry({
+        entryNumber: `JE-BNC-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
+        date: opDate,
+        description: `ارتداد شيك رقم ${target.chequeNumber} من ${target.partyName} - السبب: ${reason}`,
+        reference: `BOUNCE-${target.chequeNumber}`,
+        lines: [
+          {
+            accountId: customerReceivableAcc.id,
+            accountCode: customerReceivableAcc.code,
+            accountName: customerReceivableAcc.name,
+            debit: target.amount,
+            credit: 0,
+            description: `إعادة إثبات مديونية عميل عن شيك مرتد ${target.chequeNumber}`,
+          },
+          {
+            accountId: notesReceivableAcc.id,
+            accountCode: notesReceivableAcc.code,
+            accountName: notesReceivableAcc.name,
+            debit: 0,
+            credit: target.amount,
+            description: `إلغاء قيد شيك مرتد رقم ${target.chequeNumber}`,
+          },
+        ],
+        totalDebit: target.amount,
+        totalCredit: target.amount,
+        isAutomatic: true,
+        sourceModule: 'accounting',
+      });
+
+      if (target.partyId) {
+        setCustomers((prev) =>
+          prev.map((c) => (c.id === target.partyId ? { ...c, currentBalance: c.currentBalance + target.amount } : c))
+        );
+      }
+    }
+
+    setCheques((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              status: 'bounced',
+              bounceReason: reason,
+              statusDate: opDate,
+            }
+          : c
+      )
+    );
+
+    logAuditEvent(
+      'ارتداد شيك بنكي',
+      'حافظة الشيكات',
+      `تم تسجيل ارتداد الشيك رقم ${target.chequeNumber} للعميل ${target.partyName} - السبب: ${reason}`
+    );
+  };
+
+  const cancelCheque = (id: string, reason?: string) => {
+    setCheques((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              status: 'cancelled',
+              notes: (c.notes ? `${c.notes} | ` : '') + `ملغى: ${reason || 'إلغاء بواسطة المستخدم'}`,
+              statusDate: new Date().toISOString().split('T')[0],
+            }
+          : c
+      )
+    );
+    logAuditEvent('إلغاء شيك', 'حافظة الشيكات', `تم إلغاء الشيك ${id}`);
+  };
+
+  const deleteCheque = (id: string) => {
+    const target = cheques.find((c) => c.id === id);
+    setCheques((prev) => prev.filter((c) => c.id !== id));
+    logAuditEvent('حذف شيك', 'حافظة الشيكات', `تم حذف الشيك رقم ${target?.chequeNumber || id}`);
+  };
+
+  // =========================================================================
+  // البند رقم 3: التسوية البنكية ومطابقة كشف الحساب (Bank Reconciliation)
+  // =========================================================================
+  const addBankReconciliation = (
+    stmtData: Omit<BankReconciliationStatement, 'id' | 'statementNumber' | 'createdAt'>
+  ): BankReconciliationStatement => {
+    const nextNum = `BR-${new Date().getFullYear()}-${String(bankReconciliations.length + 1).padStart(3, '0')}`;
+    const newStmt: BankReconciliationStatement = {
+      ...stmtData,
+      id: `recon-${Date.now()}`,
+      statementNumber: nextNum,
+      createdAt: new Date().toISOString(),
+    };
+    setBankReconciliations((prev) => [newStmt, ...prev]);
+    logAuditEvent(
+      'إنشاء مذكرة تسوية بنكية',
+      'التسوية البنكية',
+      `تم إنشاء جلسة تسوية بنكية جديدة رقم ${nextNum} لحساب ${stmtData.bankAccountName}`
+    );
+    return newStmt;
+  };
+
+  const updateBankReconciliation = (id: string, data: Partial<BankReconciliationStatement>) => {
+    setBankReconciliations((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        const updated = { ...s, ...data };
+        const clearedDeposits = updated.items
+          .filter((i) => i.isCleared)
+          .reduce((sum, i) => sum + (i.debit || 0), 0);
+        const clearedWithdrawals = updated.items
+          .filter((i) => i.isCleared)
+          .reduce((sum, i) => sum + (i.credit || 0), 0);
+        const adjNet = (updated.adjustments || []).reduce((sum, a) => {
+          if (a.type === 'bank_charge') return sum - a.amount;
+          if (a.type === 'interest_income') return sum + a.amount;
+          return sum;
+        }, 0);
+
+        const clearedBalance = updated.bookOpeningBalance + clearedDeposits - clearedWithdrawals + adjNet;
+        const difference = Number((updated.statementEndingBalance - clearedBalance).toFixed(2));
+
+        return {
+          ...updated,
+          clearedDeposits,
+          clearedWithdrawals,
+          clearedBalance,
+          difference,
+        };
+      })
+    );
+  };
+
+  const toggleReconciliationItemCleared = (stmtId: string, itemId: string) => {
+    setBankReconciliations((prev) =>
+      prev.map((s) => {
+        if (s.id !== stmtId) return s;
+        const newItems = s.items.map((it) =>
+          it.id === itemId
+            ? {
+                ...it,
+                isCleared: !it.isCleared,
+                clearedDate: !it.isCleared ? new Date().toISOString().split('T')[0] : undefined,
+              }
+            : it
+        );
+
+        const clearedDeposits = newItems
+          .filter((i) => i.isCleared)
+          .reduce((sum, i) => sum + (i.debit || 0), 0);
+        const clearedWithdrawals = newItems
+          .filter((i) => i.isCleared)
+          .reduce((sum, i) => sum + (i.credit || 0), 0);
+        const adjNet = (s.adjustments || []).reduce((sum, a) => {
+          if (a.type === 'bank_charge') return sum - a.amount;
+          if (a.type === 'interest_income') return sum + a.amount;
+          return sum;
+        }, 0);
+
+        const clearedBalance = s.bookOpeningBalance + clearedDeposits - clearedWithdrawals + adjNet;
+        const difference = Number((s.statementEndingBalance - clearedBalance).toFixed(2));
+
+        return {
+          ...s,
+          items: newItems,
+          clearedDeposits,
+          clearedWithdrawals,
+          clearedBalance,
+          difference,
+        };
+      })
+    );
+  };
+
+  const addReconciliationAdjustment = (
+    stmtId: string,
+    adjData: Omit<BankReconciliationAdjustment, 'id'>
+  ) => {
+    const targetStmt = bankReconciliations.find((s) => s.id === stmtId);
+    if (!targetStmt) return;
+
+    const newAdj: BankReconciliationAdjustment = {
+      ...adjData,
+      id: `adj-${Date.now()}`,
+    };
+
+    if (adjData.type === 'bank_charge') {
+      const bankExpenseAcc = accounts.find((a) => a.code === '5700') || accounts.find((a) => a.type === 'expense') || accounts[0];
+      const bankAcc = accounts.find((a) => a.id === targetStmt.bankAccountId || a.code === targetStmt.bankAccountCode) || accounts[3];
+
+      addJournalEntry({
+        entryNumber: `JE-REC-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
+        date: adjData.date,
+        description: `مصروفات وعمولات بنكية - تسوية ${targetStmt.statementNumber}: ${adjData.description}`,
+        reference: `BANK-FEE-${targetStmt.statementNumber}`,
+        lines: [
+          {
+            accountId: bankExpenseAcc.id,
+            accountCode: bankExpenseAcc.code,
+            accountName: bankExpenseAcc.name,
+            debit: adjData.amount,
+            credit: 0,
+            description: adjData.description || 'مصروفات بنكية',
+          },
+          {
+            accountId: bankAcc.id,
+            accountCode: bankAcc.code,
+            accountName: bankAcc.name,
+            debit: 0,
+            credit: adjData.amount,
+            description: `خصم عمولة من ${bankAcc.name}`,
+          },
+        ],
+        totalDebit: adjData.amount,
+        totalCredit: adjData.amount,
+        isAutomatic: true,
+        sourceModule: 'accounting',
+      });
+    }
+
+    setBankReconciliations((prev) =>
+      prev.map((s) => {
+        if (s.id !== stmtId) return s;
+        const newAdjustments = [...(s.adjustments || []), newAdj];
+        const adjNet = newAdjustments.reduce((sum, a) => {
+          if (a.type === 'bank_charge') return sum - a.amount;
+          if (a.type === 'interest_income') return sum + a.amount;
+          return sum;
+        }, 0);
+
+        const clearedBalance = s.bookOpeningBalance + s.clearedDeposits - s.clearedWithdrawals + adjNet;
+        const difference = Number((s.statementEndingBalance - clearedBalance).toFixed(2));
+
+        return {
+          ...s,
+          adjustments: newAdjustments,
+          clearedBalance,
+          difference,
+        };
+      })
+    );
+
+    logAuditEvent(
+      'تسجيل تعديل بنكي',
+      'التسوية البنكية',
+      `تم قيد تسوية ${adjData.type === 'bank_charge' ? 'مصروف بنكي' : 'عائد'} بقيمة ${adjData.amount} في مذكرة ${targetStmt.statementNumber}`
+    );
+  };
+
+  const completeBankReconciliation = (id: string, reconciledBy?: string) => {
+    setBankReconciliations((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              status: 'completed',
+              reconciledAt: new Date().toISOString(),
+              reconciledBy: reconciledBy || currentUser.name,
+            }
+          : s
+      )
+    );
+    logAuditEvent('اعتماد تسوية بنكية', 'التسوية البنكية', `تم اعتماد وإقفال مذكرة التسوية ${id}`);
+  };
+
+  const deleteBankReconciliation = (id: string) => {
+    const target = bankReconciliations.find((s) => s.id === id);
+    setBankReconciliations((prev) => prev.filter((s) => s.id !== id));
+    logAuditEvent('حذف مذكرة تسوية', 'التسوية البنكية', `تم حذف مذكرة التسوية رقم ${target?.statementNumber || id}`);
+  };
+
+  // =========================================================================
+  // مراكز التكلفة والمشاريع (Cost Centers & Project Accounting)
+  // =========================================================================
+  const addCostCenter = (centerData: Omit<CostCenter, 'id' | 'createdAt'>) => {
+    const newId = `cc-${Date.now()}`;
+    const newCenter: CostCenter = {
+      ...centerData,
+      id: newId,
+      code: centerData.code || `CC-${String(costCenters.length + 101)}`,
+      createdAt: new Date().toISOString(),
+    };
+    setCostCenters((prev) => [...prev, newCenter]);
+    logAuditEvent(
+      'إضافة مركز تكلفة',
+      'مراكز التكلفة',
+      `تم إنشاء مركز التكلفة: ${newCenter.name} برمز (${newCenter.code})`
+    );
+  };
+
+  const updateCostCenter = (id: string, data: Partial<CostCenter>) => {
+    setCostCenters((prev) => prev.map((c) => (c.id === id ? { ...c, ...data } : c)));
+    logAuditEvent('تعديل مركز تكلفة', 'مراكز التكلفة', `تم تحديث بيانات مركز التكلفة ${id}`);
+  };
+
+  const deleteCostCenter = (id: string) => {
+    const target = costCenters.find((c) => c.id === id);
+    setCostCenters((prev) => prev.filter((c) => c.id !== id));
+    logAuditEvent('حذف مركز تكلفة', 'مراكز التكلفة', `تم حذف مركز التكلفة: ${target?.name || id}`);
+  };
+
+  // =========================================================================
+  // الأصول الثابتة وإهلاكها الآلي (Fixed Assets & Automated Depreciation)
+  // =========================================================================
+  const addFixedAsset = (
+    assetData: Omit<FixedAsset, 'id' | 'createdAt' | 'currentDepreciation' | 'bookValue' | 'monthlyDepreciation'>
+  ) => {
+    const newId = `ast-${Date.now()}`;
+    const usefulMonths = Math.max(1, assetData.usefulLifeMonths || 60);
+    const depreciableBase = Math.max(0, assetData.purchaseCost - (assetData.salvageValue || 0));
+    const monthlyDep = Number((depreciableBase / usefulMonths).toFixed(2));
+    const bookVal = assetData.purchaseCost;
+
+    const newAsset: FixedAsset = {
+      ...assetData,
+      id: newId,
+      assetCode: assetData.assetCode || `AST-${String(fixedAssets.length + 1).padStart(3, '0')}`,
+      currentDepreciation: 0,
+      bookValue: bookVal,
+      monthlyDepreciation: monthlyDep,
+      createdAt: new Date().toISOString(),
+    };
+
+    setFixedAssets((prev) => [...prev, newAsset]);
+    logAuditEvent(
+      'إضافة أصل ثابت',
+      'الأصول الثابتة',
+      `تم إدراج الأصل: ${newAsset.name} برمز (${newAsset.assetCode}) وتكلفة ${newAsset.purchaseCost} ${currency}`
+    );
+  };
+
+  const updateFixedAsset = (id: string, data: Partial<FixedAsset>) => {
+    setFixedAssets((prev) =>
+      prev.map((ast) => {
+        if (ast.id !== id) return ast;
+        const updated = { ...ast, ...data };
+        const usefulMonths = Math.max(1, updated.usefulLifeMonths || 60);
+        const depreciableBase = Math.max(0, updated.purchaseCost - (updated.salvageValue || 0));
+        updated.monthlyDepreciation = Number((depreciableBase / usefulMonths).toFixed(2));
+        updated.bookValue = Number((updated.purchaseCost - updated.currentDepreciation).toFixed(2));
+        return updated;
+      })
+    );
+    logAuditEvent('تعديل أصل ثابت', 'الأصول الثابتة', `تم تحديث بيانات الأصل الثابت ${id}`);
+  };
+
+  const deleteFixedAsset = (id: string) => {
+    const target = fixedAssets.find((a) => a.id === id);
+    setFixedAssets((prev) => prev.filter((a) => a.id !== id));
+    logAuditEvent('حذف أصل ثابت', 'الأصول الثابتة', `تم حذف بطاقة الأصل: ${target?.name || id}`);
+  };
+
+  const runAssetDepreciation = (periodMonth: string, notes?: string): AssetDepreciationRun | null => {
+    const eligibleAssets = fixedAssets.filter(
+      (a) => a.status === 'active' && a.bookValue > (a.salvageValue || 0) && a.monthlyDepreciation > 0
+    );
+
+    if (eligibleAssets.length === 0) {
+      showAlert({
+        title: 'لا توجد أصول مستحقة للإهلاك',
+        message: 'جميع الأصول الثابتة مهلكة بالكامل أو تم استبعادها.',
+        type: 'warning',
+      });
+      return null;
+    }
+
+    const totalDepreciation = eligibleAssets.reduce((sum, a) => {
+      const remainingDepreciable = Math.max(0, a.bookValue - (a.salvageValue || 0));
+      const amountToDepreciate = Math.min(a.monthlyDepreciation, remainingDepreciable);
+      return sum + amountToDepreciate;
+    }, 0);
+
+    const roundedTotal = Number(totalDepreciation.toFixed(2));
+    const nextEntryNumber = `JE-DEP-${periodMonth.replace('-', '')}-${String(journalEntries.length + 1).padStart(3, '0')}`;
+
+    const expenseAcc =
+      accounts.find((a) => a.code === '5800') ||
+      accounts.find((a) => a.type === 'expense') ||
+      accounts[0];
+    const accumAcc =
+      accounts.find((a) => a.code === '1240') ||
+      accounts.find((a) => a.code === '1200') ||
+      accounts[0];
+
+    const lines: JournalEntry['lines'] = [];
+
+    eligibleAssets.forEach((ast) => {
+      const remainingDepreciable = Math.max(0, ast.bookValue - (ast.salvageValue || 0));
+      const depAmount = Number(Math.min(ast.monthlyDepreciation, remainingDepreciable).toFixed(2));
+      if (depAmount <= 0) return;
+
+      const astExpenseAcc = ast.depreciationExpenseAccountId
+        ? accounts.find((a) => a.id === ast.depreciationExpenseAccountId || a.code === ast.depreciationExpenseAccountId) || expenseAcc
+        : expenseAcc;
+
+      const astAccumAcc = ast.accumulatedDepreciationAccountId
+        ? accounts.find((a) => a.id === ast.accumulatedDepreciationAccountId || a.code === ast.accumulatedDepreciationAccountId) || accumAcc
+        : accumAcc;
+
+      lines.push({
+        accountId: astExpenseAcc.id,
+        accountCode: astExpenseAcc.code,
+        accountName: astExpenseAcc.name,
+        debit: depAmount,
+        credit: 0,
+        description: `إهلاك ${ast.name} (${ast.assetCode}) - فترة ${periodMonth}`,
+        costCenterId: ast.costCenterId,
+        costCenterName: ast.costCenterName,
+      });
+
+      lines.push({
+        accountId: astAccumAcc.id,
+        accountCode: astAccumAcc.code,
+        accountName: astAccumAcc.name,
+        debit: 0,
+        credit: depAmount,
+        description: `مجمع إهلاك ${ast.name} (${ast.assetCode}) - فترة ${periodMonth}`,
+        costCenterId: ast.costCenterId,
+        costCenterName: ast.costCenterName,
+      });
+    });
+
+    const entryId = `je-dep-${Date.now()}`;
+    addJournalEntry({
+      entryNumber: nextEntryNumber,
+      date: new Date().toISOString().split('T')[0],
+      reference: `DEP-RUN-${periodMonth}`,
+      description: `قيد إهلاك الأصول الثابتة الشهري الدوري عن فترة (${periodMonth}) - إجمالي ${eligibleAssets.length} أصل`,
+      lines,
+      totalDebit: roundedTotal,
+      totalCredit: roundedTotal,
+      isAutomatic: true,
+      sourceModule: 'accounting',
+    });
+
+    setFixedAssets((prev) =>
+      prev.map((ast) => {
+        const eligible = eligibleAssets.find((ea) => ea.id === ast.id);
+        if (!eligible) return ast;
+
+        const remainingDepreciable = Math.max(0, ast.bookValue - (ast.salvageValue || 0));
+        const depAmount = Number(Math.min(ast.monthlyDepreciation, remainingDepreciable).toFixed(2));
+        const newAccum = Number((ast.currentDepreciation + depAmount).toFixed(2));
+        const newBookVal = Number((ast.purchaseCost - newAccum).toFixed(2));
+        const isFullyDep = newBookVal <= (ast.salvageValue || 0);
+
+        return {
+          ...ast,
+          currentDepreciation: newAccum,
+          bookValue: newBookVal,
+          status: isFullyDep ? ('fully_depreciated' as const) : ast.status,
+          lastDepreciationDate: new Date().toISOString().split('T')[0],
+        };
+      })
+    );
+
+    const newRun: AssetDepreciationRun = {
+      id: `dep-run-${Date.now()}`,
+      runDate: new Date().toISOString(),
+      periodMonth,
+      totalDepreciationAmount: roundedTotal,
+      assetsCount: eligibleAssets.length,
+      journalEntryId: entryId,
+      journalEntryNumber: nextEntryNumber,
+      processedBy: currentUser.name,
+      notes: notes || `دورة إهلاك شهرية لفترة ${periodMonth}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    setAssetDepreciationRuns((prev) => [newRun, ...prev]);
+
+    logAuditEvent(
+      'تشغيل إهلاك الأصول',
+      'الأصول الثابتة',
+      `تم تشغيل دورة الإهلاك لشهر ${periodMonth} بإجمالي ${roundedTotal} ${currency} لعدد ${eligibleAssets.length} أصل بالقيد ${nextEntryNumber}`
+    );
+
+    return newRun;
+  };
+
+  const disposeFixedAsset = (
+    id: string,
+    reason: 'sold' | 'scrapped',
+    saleAmount = 0,
+    receivingAccountId?: string,
+    notes?: string
+  ) => {
+    const target = fixedAssets.find((a) => a.id === id);
+    if (!target) return;
+
+    const bookVal = target.bookValue;
+    const gainOrLoss = Number((saleAmount - bookVal).toFixed(2));
+
+    const accumAcc =
+      accounts.find((a) => a.id === target.accumulatedDepreciationAccountId || a.code === '1240') || accounts[0];
+    const assetAcc =
+      accounts.find((a) => a.id === target.assetAccountId || a.code === target.assetAccountCode) || accounts[0];
+    const targetTreasury = receivingAccountId
+      ? accounts.find((a) => a.id === receivingAccountId) || accounts[0]
+      : accounts.find((a) => a.code === '1110') || accounts[0];
+
+    const lines: JournalEntry['lines'] = [];
+
+    if (saleAmount > 0) {
+      lines.push({
+        accountId: targetTreasury.id,
+        accountCode: targetTreasury.code,
+        accountName: targetTreasury.name,
+        debit: saleAmount,
+        credit: 0,
+        description: `متحصلات بيع الأصل ${target.name} (${target.assetCode})`,
+      });
+    }
+
+    if (target.currentDepreciation > 0) {
+      lines.push({
+        accountId: accumAcc.id,
+        accountCode: accumAcc.code,
+        accountName: accumAcc.name,
+        debit: target.currentDepreciation,
+        credit: 0,
+        description: `إقفال مجمع إهلاك الأصل المستبعد ${target.name}`,
+      });
+    }
+
+    if (gainOrLoss < 0) {
+      const lossAcc = accounts.find((a) => a.code === '5900') || accounts.find((a) => a.type === 'expense') || accounts[0];
+      lines.push({
+        accountId: lossAcc.id,
+        accountCode: lossAcc.code,
+        accountName: lossAcc.name,
+        debit: Math.abs(gainOrLoss),
+        credit: 0,
+        description: `خسائر استبعاد وبيع أصل ثابت ${target.name}`,
+      });
+    } else if (gainOrLoss > 0) {
+      const gainAcc = accounts.find((a) => a.code === '4300') || accounts.find((a) => a.type === 'revenue') || accounts[0];
+      lines.push({
+        accountId: gainAcc.id,
+        accountCode: gainAcc.code,
+        accountName: gainAcc.name,
+        debit: 0,
+        credit: gainOrLoss,
+        description: `أرباح رأسمالية من بيع الأصل الثابت ${target.name}`,
+      });
+    }
+
+    lines.push({
+      accountId: assetAcc.id,
+      accountCode: assetAcc.code,
+      accountName: assetAcc.name,
+      debit: 0,
+      credit: target.purchaseCost,
+      description: `استبعاد التكلفة التاريخية للأصل ${target.name} (${target.assetCode})`,
+    });
+
+    const totalD = lines.reduce((s, l) => s + l.debit, 0);
+    const totalC = lines.reduce((s, l) => s + l.credit, 0);
+
+    const jeNumber = `JE-DISP-${new Date().getFullYear()}-${String(journalEntries.length + 1).padStart(4, '0')}`;
+    addJournalEntry({
+      entryNumber: jeNumber,
+      date: new Date().toISOString().split('T')[0],
+      reference: target.assetCode,
+      description: `استبعاد أصل ثابت (${target.name}) - ${reason === 'sold' ? `بيع بمبلغ ${saleAmount}` : 'تخريد واستبعاد'}`,
+      lines,
+      totalDebit: Number(totalD.toFixed(2)),
+      totalCredit: Number(totalC.toFixed(2)),
+      isAutomatic: true,
+      sourceModule: 'accounting',
+    });
+
+    setFixedAssets((prev) =>
+      prev.map((ast) =>
+        ast.id === id
+          ? {
+              ...ast,
+              status: reason === 'sold' ? ('sold' as const) : ('scrapped' as const),
+              notes: `${ast.notes || ''} [تم ${reason === 'sold' ? `بيعه بمبلغ ${saleAmount}` : 'تخريده'} بالقيد ${jeNumber}]`,
+            }
+          : ast
+      )
+    );
+
+    logAuditEvent(
+      'استبعاد أصل ثابت',
+      'الأصول الثابتة',
+      `تم استبعاد الأصل ${target.name} (${target.assetCode}) ${reason === 'sold' ? `بيعا بمبلغ ${saleAmount}` : 'تخريد'} بالقيد ${jeNumber}`
+    );
   };
 
   // HR & Payroll
@@ -6238,6 +7584,56 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [customers, salesInvoices]);
 
+  // Vendor Debt Aging Calculation (أعمار ديون الموردين ومستحقات الدفع)
+  const vendorAging: VendorAgingBucket[] = React.useMemo(() => {
+    const today = new Date();
+
+    return vendors.map((vendor) => {
+      const vendorBills = purchaseInvoices.filter(
+        (bill) => bill.vendorId === vendor.id && bill.remainingAmount > 0
+      );
+
+      let days0to30 = 0;
+      let days31to60 = 0;
+      let days61to90 = 0;
+      let days90Plus = 0;
+      let oldestDate = '';
+
+      vendorBills.forEach((bill) => {
+        const billDate = new Date(bill.date);
+        const diffDays = Math.max(0, Math.floor((today.getTime() - billDate.getTime()) / (1000 * 60 * 60 * 24)));
+
+        if (!oldestDate || bill.date < oldestDate) {
+          oldestDate = bill.date;
+        }
+
+        if (diffDays <= 30) {
+          days0to30 += bill.remainingAmount;
+        } else if (diffDays <= 60) {
+          days31to60 += bill.remainingAmount;
+        } else if (diffDays <= 90) {
+          days61to90 += bill.remainingAmount;
+        } else {
+          days90Plus += bill.remainingAmount;
+        }
+      });
+
+      const currentTotal = days0to30 + days31to60 + days61to90 + days90Plus;
+
+      return {
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        phone: vendor.phone,
+        currentTotal,
+        days0to30,
+        days31to60,
+        days61to90,
+        days90Plus,
+        oldestBillDate: oldestDate || '-',
+      };
+    });
+  }, [vendors, purchaseInvoices]);
+
   // Database Integrity & Diagnostics
   const verifyDatabaseIntegrity = () => {
     let totalDebit = 0;
@@ -6558,6 +7954,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       salesInvoices,
       purchaseInvoices,
       receipts,
+      cheques,
+      bankReconciliations,
+      costCenters,
+      fixedAssets,
+      assetDepreciationRuns,
       employees,
       payrollRuns,
       priceLists,
@@ -6614,6 +8015,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (parsed.salesInvoices && Array.isArray(parsed.salesInvoices)) setSalesInvoices(parsed.salesInvoices);
       if (parsed.purchaseInvoices && Array.isArray(parsed.purchaseInvoices)) setPurchaseInvoices(parsed.purchaseInvoices);
       if (parsed.receipts && Array.isArray(parsed.receipts)) setReceipts(parsed.receipts);
+      if (parsed.cheques && Array.isArray(parsed.cheques)) setCheques(parsed.cheques);
+      if (parsed.bankReconciliations && Array.isArray(parsed.bankReconciliations)) setBankReconciliations(parsed.bankReconciliations);
       if (parsed.employees && Array.isArray(parsed.employees)) setEmployees(parsed.employees);
       if (parsed.payrollRuns && Array.isArray(parsed.payrollRuns)) setPayrollRuns(parsed.payrollRuns);
       if (parsed.priceLists && Array.isArray(parsed.priceLists)) setPriceLists(parsed.priceLists);
@@ -6656,6 +8059,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         currency,
         setCurrency,
         formatMoney,
+        formatCurrency: formatMoney,
         formatDualMoney,
         currencies,
         secondaryCurrency,
@@ -6746,6 +8150,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addCrmTicket,
         updateCrmTicket,
         deleteCrmTicket,
+        collectionPlans,
+        addCollectionPlan,
+        updateCollectionPlan,
+        recordInstallmentPayment,
+        deleteCollectionPlan,
+        collectionReminders,
+        addCollectionReminder,
+        deleteCollectionReminder,
         commissionPayments,
         commissionTiers,
         addCommissionPayment,
@@ -6791,11 +8203,53 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         editPurchaseInvoice,
         deletePurchaseInvoice,
         recordVendorPayment,
+        purchaseOrders,
+        addPurchaseOrder,
+        updatePurchaseOrder,
+        deletePurchaseOrder,
+        goodsReceipts,
+        goodsReceiptNotes: goodsReceipts,
+        addGoodsReceipt,
+        updateGoodsReceipt,
+        deleteGoodsReceipt,
+        landedCosts,
+        addLandedCostAllocation,
+        deleteLandedCostAllocation,
+        purchaseReturns,
+        addPurchaseReturn,
+        deletePurchaseReturn,
+        vendorAging,
         receipts,
         addReceiptVoucher,
         addPaymentVoucher,
         editPaymentReceipt,
         deletePaymentReceipt,
+        cheques,
+        addCheque,
+        updateCheque,
+        depositCheque,
+        collectCheque,
+        bounceCheque,
+        cancelCheque,
+        deleteCheque,
+        bankReconciliations,
+        addBankReconciliation,
+        updateBankReconciliation,
+        completeBankReconciliation,
+        deleteBankReconciliation,
+        addReconciliationAdjustment,
+        toggleReconciliationItemCleared,
+        costCenters,
+        addCostCenter,
+        updateCostCenter,
+        deleteCostCenter,
+        fixedAssets,
+        assetDepreciationRuns,
+        addFixedAsset,
+        updateFixedAsset,
+        deleteFixedAsset,
+        runAssetDepreciation,
+        disposeFixedAsset,
         employees,
         payrollRuns,
         jobTitles,

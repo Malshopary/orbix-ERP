@@ -15,6 +15,10 @@ import {
 } from '../types';
 import { CustomerStatementModal } from './CustomerStatementModal';
 import { PaymentVouchersSection } from './PaymentVouchersSection';
+import { ChequesPortfolioSection } from './ChequesPortfolioSection';
+import { BankReconciliationSection } from './BankReconciliationSection';
+import { CostCentersSection } from './CostCentersSection';
+import { FixedAssetsSection } from './FixedAssetsSection';
 import { VoucherPrintModal } from './VoucherPrintModal';
 import {
   BookOpenCheck,
@@ -48,6 +52,10 @@ import {
   TrendingUp,
   ShieldCheck,
   Sliders,
+  Landmark,
+  FileCheck2,
+  Target,
+  Building,
 } from 'lucide-react';
 
 export const AccountsView: React.FC = () => {
@@ -95,13 +103,13 @@ export const AccountsView: React.FC = () => {
 
   // Primary Accounts Subtab
   const [activeTab, setActiveTabLocal] = useState<
-    'chart' | 'journal' | 'collections' | 'payments' | 'commissions' | 'loyalty' | 'pricelists'
+    'chart' | 'journal' | 'collections' | 'payments' | 'cheques' | 'reconciliation' | 'costcenters' | 'fixedassets' | 'commissions' | 'loyalty' | 'pricelists'
   >(() => {
     if (activeSubTab === 'receipts') return 'collections';
     if (activeSubTab === 'expenses') return 'payments';
     if (
       activeSubTab &&
-      ['chart', 'journal', 'collections', 'payments', 'commissions', 'loyalty', 'pricelists'].includes(activeSubTab)
+      ['chart', 'journal', 'collections', 'payments', 'cheques', 'reconciliation', 'costcenters', 'fixedassets', 'commissions', 'loyalty', 'pricelists'].includes(activeSubTab)
     ) {
       return activeSubTab as any;
     }
@@ -116,7 +124,7 @@ export const AccountsView: React.FC = () => {
       } else if (activeSubTab === 'expenses') {
         setActiveTabLocal('payments');
       } else if (
-        ['chart', 'journal', 'collections', 'payments', 'commissions', 'loyalty', 'pricelists'].includes(activeSubTab)
+        ['chart', 'journal', 'collections', 'payments', 'cheques', 'reconciliation', 'costcenters', 'fixedassets', 'commissions', 'loyalty', 'pricelists'].includes(activeSubTab)
       ) {
         setActiveTabLocal(activeSubTab as any);
       }
@@ -124,7 +132,7 @@ export const AccountsView: React.FC = () => {
   }, [activeSubTab]);
 
   const setActiveTab = (
-    tab: 'chart' | 'journal' | 'collections' | 'payments' | 'commissions' | 'loyalty' | 'pricelists'
+    tab: 'chart' | 'journal' | 'collections' | 'payments' | 'cheques' | 'reconciliation' | 'costcenters' | 'fixedassets' | 'commissions' | 'loyalty' | 'pricelists'
   ) => {
     setActiveTabLocal(tab);
     setActiveSubTab(tab);
@@ -690,119 +698,121 @@ export const AccountsView: React.FC = () => {
 
   return (
     <div className="space-y-6" dir="rtl">
-      {/* Primary Header Card */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
-              <BookOpenCheck className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-black text-slate-900">
-                  الحسابات المالية والتحصيلات والعمولات
-                </h1>
-                <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2.5 py-0.5 rounded-full border border-indigo-200">
-                  نظام مالي موحد
-                </span>
+      {/* Primary Header Card - displayed for standard accounts subviews */}
+      {['chart', 'journal', 'collections', 'commissions', 'loyalty', 'pricelists'].includes(activeTab) && (
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+                <BookOpenCheck className="w-6 h-6" />
               </div>
-              <p className="text-xs text-slate-500 mt-1">
-                شجرة الحسابات، قيود اليومية، سندات القبض والتحصيل، عمولات المناديب، نقاط الولاء، وقوائم أسعار المنتجات.
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-black text-slate-900">
+                    الحسابات المالية والتحصيلات والعمولات
+                  </h1>
+                  <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2.5 py-0.5 rounded-full border border-indigo-200">
+                    نظام مالي موحد
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  شجرة الحسابات، قيود اليومية، سندات القبض والتحصيل، عمولات المناديب، نقاط الولاء، وقوائم أسعار المنتجات.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Action Buttons Depending on Active Subtab */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {activeTab === 'chart' && (
+                <button
+                  type="button"
+                  id="btn-add-account"
+                  onClick={() => setShowAddAccountModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  إضافة حساب جديد
+                </button>
+              )}
+              {activeTab === 'journal' && (
+                <button
+                  type="button"
+                  id="btn-add-journal"
+                  onClick={() => setShowJournalModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  إنشاء قيد يومية جديد
+                </button>
+              )}
+              {activeTab === 'collections' && (
+                <button
+                  type="button"
+                  id="btn-add-receipt"
+                  onClick={() => setShowReceiptModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
+                >
+                  <Receipt className="w-4 h-4" />
+                  إصدار سند قبض وتحصيل
+                </button>
+              )}
+              {activeTab === 'commissions' && (
+                <button
+                  type="button"
+                  id="btn-payout-commission"
+                  onClick={() => setShowCommissionPayoutModal(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  سند صرف عمولة مندوب
+                </button>
+              )}
+              {activeTab === 'loyalty' && (
+                <button
+                  type="button"
+                  id="btn-adjust-loyalty"
+                  onClick={() => setShowLoyaltyAdjustModal(true)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
+                >
+                  <Award className="w-4 h-4" />
+                  تسوية / منح نقاط ولاء
+                </button>
+              )}
+              {activeTab === 'pricelists' && (
+                <button
+                  type="button"
+                  id="btn-add-pricelist"
+                  onClick={() => setShowPriceListModal(true)}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
+                >
+                  <Tag className="w-4 h-4" />
+                  إضافة قائمة أسعار جديدة
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Quick Action Buttons Depending on Active Subtab */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {activeTab === 'chart' && (
-              <button
-                type="button"
-                id="btn-add-account"
-                onClick={() => setShowAddAccountModal(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
-              >
-                <PlusCircle className="w-4 h-4" />
-                إضافة حساب جديد
-              </button>
-            )}
-            {activeTab === 'journal' && (
-              <button
-                type="button"
-                id="btn-add-journal"
-                onClick={() => setShowJournalModal(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
-              >
-                <PlusCircle className="w-4 h-4" />
-                إنشاء قيد يومية جديد
-              </button>
-            )}
-            {activeTab === 'collections' && (
-              <button
-                type="button"
-                id="btn-add-receipt"
-                onClick={() => setShowReceiptModal(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
-              >
-                <Receipt className="w-4 h-4" />
-                إصدار سند قبض وتحصيل
-              </button>
-            )}
-            {activeTab === 'commissions' && (
-              <button
-                type="button"
-                id="btn-payout-commission"
-                onClick={() => setShowCommissionPayoutModal(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
-              >
-                <CreditCard className="w-4 h-4" />
-                سند صرف عمولة مندوب
-              </button>
-            )}
-            {activeTab === 'loyalty' && (
-              <button
-                type="button"
-                id="btn-adjust-loyalty"
-                onClick={() => setShowLoyaltyAdjustModal(true)}
-                className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
-              >
-                <Award className="w-4 h-4" />
-                تسوية / منح نقاط ولاء
-              </button>
-            )}
-            {activeTab === 'pricelists' && (
-              <button
-                type="button"
-                id="btn-add-pricelist"
-                onClick={() => setShowPriceListModal(true)}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-xs transition-all"
-              >
-                <Tag className="w-4 h-4" />
-                إضافة قائمة أسعار جديدة
-              </button>
-            )}
+          {/* Global Financial Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-100">
+            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+              <span className="text-slate-400 text-xs font-semibold block mb-1">إجمالي ذمم العملاء (مدين)</span>
+              <span className="text-lg font-black text-rose-600">{formatMoney(totalReceivables)}</span>
+            </div>
+            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+              <span className="text-slate-400 text-xs font-semibold block mb-1">تحصيلات الشهر الحالية</span>
+              <span className="text-lg font-black text-emerald-600">{formatMoney(totalCollectionsMonth)}</span>
+            </div>
+            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+              <span className="text-slate-400 text-xs font-semibold block mb-1">عمولات مناديب مستحقة</span>
+              <span className="text-lg font-black text-indigo-600">{formatMoney(pendingCommissions)}</span>
+            </div>
+            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+              <span className="text-slate-400 text-xs font-semibold block mb-1">نقاط الولاء النشطة</span>
+              <span className="text-lg font-black text-purple-600">{totalCustomerPoints} نقطة</span>
+            </div>
           </div>
         </div>
-
-        {/* Global Financial Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-100">
-          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-            <span className="text-slate-400 text-xs font-semibold block mb-1">إجمالي ذمم العملاء (مدين)</span>
-            <span className="text-lg font-black text-rose-600">{formatMoney(totalReceivables)}</span>
-          </div>
-          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-            <span className="text-slate-400 text-xs font-semibold block mb-1">تحصيلات الشهر الحالية</span>
-            <span className="text-lg font-black text-emerald-600">{formatMoney(totalCollectionsMonth)}</span>
-          </div>
-          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-            <span className="text-slate-400 text-xs font-semibold block mb-1">عمولات مناديب مستحقة</span>
-            <span className="text-lg font-black text-indigo-600">{formatMoney(pendingCommissions)}</span>
-          </div>
-          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-            <span className="text-slate-400 text-xs font-semibold block mb-1">نقاط الولاء النشطة</span>
-            <span className="text-lg font-black text-purple-600">{totalCustomerPoints} نقطة</span>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* SUBTAB 1: CHART OF ACCOUNTS */}
       {activeTab === 'chart' && (
@@ -1282,6 +1292,18 @@ export const AccountsView: React.FC = () => {
 
       {/* SUBTAB: PAYMENT & EXPENSE VOUCHERS */}
       {activeTab === 'payments' && <PaymentVouchersSection />}
+
+      {/* SUBTAB: CHEQUES & COMMERCIAL PAPER PORTFOLIO */}
+      {activeTab === 'cheques' && <ChequesPortfolioSection />}
+
+      {/* SUBTAB: BANK RECONCILIATION */}
+      {activeTab === 'reconciliation' && <BankReconciliationSection />}
+
+      {/* SUBTAB: COST CENTERS & PROJECTS */}
+      {activeTab === 'costcenters' && <CostCentersSection />}
+
+      {/* SUBTAB: FIXED ASSETS & DEPRECIATION */}
+      {activeTab === 'fixedassets' && <FixedAssetsSection />}
 
       {/* SUBTAB 4: COMMISSIONS & PAYOUTS */}
       {activeTab === 'commissions' && (

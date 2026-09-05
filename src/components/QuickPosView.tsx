@@ -301,34 +301,34 @@ export const QuickPosView: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Top Banner / Cashier Bar */}
-      <div className="bg-slate-900 text-white p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-md border border-slate-800">
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center">
             <Receipt className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="font-bold text-base text-white">
+              <h2 className="font-bold text-base text-slate-900">
                 نقطة البيع والفاتورة السريعة (Quick POS)
               </h2>
-              <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full">
+              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
                 كاشير فوري
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               اختيار مباشر للأصناف والعميل، تحديث فوري للمخزون، وطباعة الفاتورة والباركود
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs text-slate-300">
-          <div className="flex items-center gap-1.5 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700">
-            <Coins className="w-3.5 h-3.5 text-amber-400" />
-            <span>العملة: <strong className="text-white font-mono">{currency} ({formatMoney(0).replace('0.00 ', '')})</strong></span>
+        <div className="flex items-center gap-3 text-xs text-slate-600">
+          <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            <Coins className="w-3.5 h-3.5 text-amber-600" />
+            <span>العملة: <strong className="text-slate-900 font-mono">{currency} ({formatMoney(0).replace('0.00 ', '')})</strong></span>
           </div>
-          <div className="flex items-center gap-1.5 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>الكاشير: <strong className="text-white">{currentUser?.name || 'كاشير الفرع'}</strong></span>
+          <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>الكاشير: <strong className="text-slate-900">{currentUser?.name || 'كاشير الفرع'}</strong></span>
           </div>
         </div>
       </div>

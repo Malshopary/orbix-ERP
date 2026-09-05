@@ -95,6 +95,8 @@ export interface JournalLine {
   debit: number;
   credit: number;
   description?: string;
+  costCenterId?: string;
+  costCenterName?: string;
 }
 
 export interface JournalEntry {
@@ -882,4 +884,428 @@ export interface SystemSequenceSettings {
   quotations?: SequenceConfig;
   salesOrders?: SequenceConfig;
 }
+
+// ----------------------------------------------------
+// حافظة الشيكات وأوراق القبض والدفع (Post-Dated Cheques)
+// ----------------------------------------------------
+export type ChequeType = 'received' | 'issued'; // شيك وارد (أوراق قبض) أو شيك صادر (أوراق دفع)
+export type ChequeStatus = 'in_portfolio' | 'under_collection' | 'collected' | 'bounced' | 'cancelled';
+
+export interface ChequeItem {
+  id: string;
+  chequeNumber: string;
+  type: ChequeType;
+  amount: number;
+  issueDate: string; // تاريخ التحرير
+  dueDate: string; // تاريخ الاستحقاق
+  partyType: 'customer' | 'vendor' | 'other';
+  partyId?: string;
+  partyName: string;
+  bankName: string; // البنك المسحوب عليه
+  branchName?: string; // الفرع
+  depositBankAccountId?: string; // البنك المودع به للتحصيل
+  depositBankAccountName?: string;
+  status: ChequeStatus;
+  statusDate?: string; // تاريخ آخر إجراء
+  bounceReason?: string;
+  journalEntryId?: string;
+  receiptId?: string;
+  invoiceId?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+// ----------------------------------------------------
+// التسوية البنكية ومطابقة كشوف الحساب (Bank Reconciliation)
+// ----------------------------------------------------
+export interface BankReconciliationItem {
+  id: string; // معرف الحركة
+  journalEntryId?: string;
+  journalLineId?: string;
+  date: string;
+  reference: string;
+  description: string;
+  debit: number; // إيداع بالبنك
+  credit: number; // سحب من البنك
+  isCleared: boolean;
+  clearedDate?: string;
+}
+
+export interface BankReconciliationAdjustment {
+  id: string;
+  type: 'bank_charge' | 'interest_income' | 'other';
+  amount: number;
+  description: string;
+  date: string;
+  journalEntryId?: string;
+}
+
+export interface BankReconciliationStatement {
+  id: string;
+  statementNumber: string;
+  bankAccountId: string;
+  bankAccountName: string;
+  bankAccountCode: string;
+  startDate: string;
+  endDate: string;
+  statementEndingBalance: number; // الرصيد حسب كشف حساب البنك الفعلي
+  bookOpeningBalance: number; // الرصيد الدفتري الافتتاحي
+  clearedDeposits: number; // إجمالي الإيداعات المطابقة
+  clearedWithdrawals: number; // إجمالي السحوبات المطابقة
+  clearedBalance: number; // الرصيد الدفتري المطابق
+  difference: number; // الفارق
+  status: 'draft' | 'completed';
+  reconciledAt?: string;
+  reconciledBy?: string;
+  notes?: string;
+  items: BankReconciliationItem[];
+  adjustments?: BankReconciliationAdjustment[];
+  createdAt: string;
+}
+
+// ----------------------------------------------------
+// مراكز التكلفة والمشاريع (Cost Centers & Cost Allocation)
+// ----------------------------------------------------
+export type CostCenterCategory = 'project' | 'branch' | 'department' | 'activity' | 'general';
+
+export interface CostCenter {
+  id: string;
+  code: string; // e.g. CC-101
+  name: string;
+  category: CostCenterCategory;
+  parentCode?: string;
+  manager?: string;
+  budget?: number; // الميزانية التقديرية المعتمدة
+  startDate?: string;
+  endDate?: string;
+  isActive: boolean;
+  notes?: string;
+  createdAt: string;
+}
+
+// ----------------------------------------------------
+// الأصول الثابتة وإهلاكها الآلي (Fixed Assets & Depreciation)
+// ----------------------------------------------------
+export type AssetCategory = 'vehicles' | 'computers' | 'machinery' | 'furniture' | 'buildings' | 'equipment' | 'other';
+export type AssetDepreciationMethod = 'straight_line' | 'declining_balance';
+export type AssetStatus = 'active' | 'fully_depreciated' | 'sold' | 'scrapped';
+
+export interface FixedAsset {
+  id: string;
+  assetCode: string; // e.g. AST-001
+  name: string;
+  category: AssetCategory;
+  purchaseDate: string;
+  purchaseCost: number;
+  salvageValue: number; // قيمة الخردة / النفاية
+  usefulLifeMonths: number; // العمر الإنتاجي بالأشهر
+  depreciationMethod: AssetDepreciationMethod;
+  assetAccountId: string; // حساب الأصل (مثلاً 1230 مركبات)
+  assetAccountCode?: string;
+  assetAccountName?: string;
+  accumulatedDepreciationAccountId: string; // حساب مجمع الإهلاك (1240)
+  accumulatedDepreciationAccountCode?: string;
+  accumulatedDepreciationAccountName?: string;
+  depreciationExpenseAccountId: string; // حساب مصروف الإهلاك (5800)
+  depreciationExpenseAccountCode?: string;
+  depreciationExpenseAccountName?: string;
+  costCenterId?: string; // ربط الأصل بمركز تكلفة / مشروع
+  costCenterName?: string;
+  currentDepreciation: number; // مجمع الإهلاك حتى الآن
+  bookValue: number; // صافي القيمة الدفترية = purchaseCost - currentDepreciation
+  monthlyDepreciation: number; // القسط الشهري
+  lastDepreciationDate?: string;
+  serialNumber?: string;
+  location?: string;
+  status: AssetStatus;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface AssetDepreciationRun {
+  id: string;
+  runDate: string;
+  periodMonth: string; // e.g. 2026-08
+  totalDepreciationAmount: number;
+  assetsCount: number;
+  journalEntryId: string;
+  journalEntryNumber: string;
+  processedBy?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+// ==========================================
+// ITEM 4: PURCHASING & AP (المشتريات والموردين)
+// ==========================================
+
+export interface PurchaseOrderItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  receivedQuantity?: number;
+  warehouseId?: string;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  poNumber: string;
+  vendorId: string;
+  vendorName: string;
+  date: string;
+  expectedDeliveryDate: string;
+  warehouseId: string;
+  warehouseName: string;
+  items: PurchaseOrderItem[];
+  subtotal: number;
+  vatTotal: number;
+  grandTotal: number;
+  status: 'draft' | 'approved' | 'partially_received' | 'received' | 'billed' | 'cancelled';
+  notes?: string;
+  terms?: string;
+  createdAt?: string;
+}
+
+export interface GoodsReceiptItem {
+  productId: string;
+  productName: string;
+  orderedQuantity: number;
+  receivedQuantity: number;
+  acceptedQuantity: number;
+  rejectedQuantity: number;
+  unitPrice: number;
+  batchNumber?: string;
+  expiryDate?: string;
+  notes?: string;
+}
+
+export interface GoodsReceiptNote {
+  id: string;
+  grnNumber: string;
+  poId?: string;
+  poNumber?: string;
+  vendorId: string;
+  vendorName: string;
+  warehouseId: string;
+  warehouseName: string;
+  date: string;
+  receivedBy: string;
+  items: GoodsReceiptItem[];
+  status: 'inspected' | 'accepted' | 'stored';
+  notes?: string;
+  createdAt?: string;
+}
+
+export interface LandedCostExpenseItem {
+  id: string;
+  type: 'freight' | 'customs' | 'clearance' | 'insurance' | 'handling' | 'other';
+  name: string;
+  amount: number;
+  paymentAccountId: string;
+  reference?: string;
+}
+
+export type LandedCostItem = LandedCostExpenseItem;
+
+export interface LandedCostAllocatedItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  baseUnitCost: number;
+  allocatedCostPerUnit: number;
+  newUnitCost: number;
+  totalAllocatedCost: number;
+}
+
+export type LandedCostAllocatedProduct = LandedCostAllocatedItem;
+
+export interface LandedCostAllocation {
+  id: string;
+  costNumber: string;
+  date: string;
+  purchaseInvoiceId: string;
+  invoiceNumber: string;
+  vendorName: string;
+  costs: LandedCostExpenseItem[];
+  totalLandedCost: number;
+  allocationMethod: 'value' | 'quantity';
+  allocatedItems: LandedCostAllocatedItem[];
+  journalEntryId?: string;
+  notes?: string;
+  createdAt?: string;
+}
+
+export interface PurchaseReturnItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  batchNumber?: string;
+  reason?: string;
+}
+
+export interface PurchaseReturn {
+  id: string;
+  returnNumber: string;
+  purchaseInvoiceId?: string;
+  invoiceNumber?: string;
+  vendorId: string;
+  vendorName: string;
+  warehouseId: string;
+  warehouseName: string;
+  date: string;
+  items: PurchaseReturnItem[];
+  subtotal: number;
+  vatTotal: number;
+  grandTotal: number;
+  refundMethod: 'vendor_credit' | 'cash' | 'bank';
+  accountId?: string;
+  journalEntryId?: string;
+  notes?: string;
+  status: 'completed';
+  createdAt?: string;
+}
+
+export interface VendorAgingBucket {
+  vendorId: string;
+  vendorName: string;
+  phone: string;
+  currentTotal: number;
+  days0to30: number;
+  days31to60: number;
+  days61to90: number;
+  days90Plus: number;
+  oldestBillDate: string;
+}
+
+// ==========================================
+// ITEM 5: CRM & DEBT COLLECTIONS (العملاء والتحصيل)
+// ==========================================
+
+export interface CollectionInstallment {
+  id?: string;
+  installmentNumber: number;
+  dueDate: string;
+  amount: number;
+  paidAmount: number;
+  status: 'pending' | 'partially_paid' | 'partial' | 'paid' | 'overdue';
+  receiptId?: string;
+  paymentDate?: string;
+  notes?: string;
+}
+
+export interface CollectionPlan {
+  id: string;
+  planNumber: string;
+  customerId: string;
+  customerName: string;
+  totalDebt: number;
+  totalAmount?: number;
+  collectedAmount?: number;
+  agreementDate?: string;
+  startDate?: string;
+  salesInvoiceId?: string;
+  invoiceNumber?: string;
+  installments: CollectionInstallment[];
+  status: 'active' | 'completed' | 'defaulted' | 'overdue';
+  notes?: string;
+  createdAt?: string;
+}
+
+export interface CollectionReminder {
+  id: string;
+  customerId: string;
+  customerName: string;
+  phone?: string;
+  planId?: string;
+  channel: 'whatsapp' | 'phone' | 'email' | 'visit' | 'legal_notice' | 'sms' | 'phone_call';
+  scheduledDate?: string;
+  date?: string;
+  dueAmount?: number;
+  amountDue?: number;
+  status: 'scheduled' | 'sent' | 'acknowledged' | 'ignored' | 'promised_payment' | 'disputed' | 'unreachable';
+  promisedDate?: string;
+  collectorName?: string;
+  agentName?: string;
+  notes?: string;
+  messageText?: string;
+  createdAt?: string;
+}
+
+export type CollectionReminderLog = CollectionReminder;
+
+// ==========================================
+// 6. إقفال الفترات والسنوات المالية (Fiscal Year Closing)
+// ==========================================
+export interface FiscalPeriod {
+  id: string; // e.g. 'p-2025-01'
+  fiscalYearId: string; // e.g. 'fy-2025'
+  periodNumber: number; // 1 to 12
+  name: string; // e.g. 'يناير 2025'
+  startDate: string; // '2025-01-01'
+  endDate: string; // '2025-01-31'
+  isLocked: boolean;
+  lockedAt?: string;
+  lockedBy?: string;
+  notes?: string;
+}
+
+export interface FiscalYear {
+  id: string; // e.g. 'fy-2024', 'fy-2025', 'fy-2026'
+  year: number; // 2025
+  name: string; // 'السنة المالية 2025'
+  startDate: string; // '2025-01-01'
+  endDate: string; // '2025-12-31'
+  status: 'open' | 'closed';
+  closedAt?: string;
+  closedBy?: string;
+  retainedEarningsAccountId: string; // e.g. '3200'
+  closingJournalEntryId?: string; // قيد الإقفال السنوي
+  closingJournalEntryNumber?: string;
+  openingJournalEntryId?: string; // القيد الافتتاحي للعام الجديد
+  openingJournalEntryNumber?: string;
+  netIncomeBeforeClosing?: number; // صافي الأرباح/الخسائر المحولة
+  totalRevenueClosed?: number; // إجمالي الإيرادات المقفلة
+  totalExpenseClosed?: number; // إجمالي المصروفات المقفلة
+  periods: FiscalPeriod[];
+  notes?: string;
+}
+
+// ==========================================
+// 7. الموازنات التقديرية (Budgets vs. Actual)
+// ==========================================
+export interface BudgetItem {
+  id: string;
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  annualAmount: number;
+  monthlyAmounts: number[]; // 12 numbers for months 1-12
+  alertThresholdPercent?: number; // e.g. 90 or 100
+  notes?: string;
+}
+
+export interface BudgetPlan {
+  id: string; // e.g. 'bdg-2026'
+  name: string; // e.g. 'الموازنة التقديرية المعتمدة لعام 2026'
+  fiscalYear: number; // 2026
+  startDate: string;
+  endDate: string;
+  costCenterId?: string; // optional link to specific cost center or 'all'
+  costCenterName?: string;
+  status: 'draft' | 'approved' | 'active';
+  totalBudget: number;
+  items: BudgetItem[];
+  createdBy?: string;
+  createdAt: string;
+  updatedAt?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  notes?: string;
+}
+
+
 

@@ -187,30 +187,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-l from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 text-white shadow-md border border-slate-700/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-500/30">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               لوحة قيادة المدير المالي والتنفيذي
             </div>
             {lowStockProducts.length > 0 && (
               <button
                 type="button"
                 onClick={() => setActiveTab('inventory')}
-                className="inline-flex items-center gap-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold px-3 py-1 rounded-full transition-all cursor-pointer animate-pulse"
+                className="inline-flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold px-3 py-1 rounded-full transition-all cursor-pointer animate-pulse"
                 title="انقر للانتقال الفوري لإدارة المخازن"
               >
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
                 <span>تنبيه: {lowStockProducts.length} أصناف وصلت لحد الطلب الأدنى!</span>
               </button>
             )}
           </div>
 
-          <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
             مؤشرات الأداء المالي والمبيعات اللحظية
           </h2>
-          <p className="text-xs sm:text-sm text-slate-300 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             متابعة حركة المبيعات والمشتريات الأسبوعية، السيولة النقدية، تقييم المخزون، ونواقص المستودعات
           </p>
         </div>
@@ -220,7 +220,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
           <button
             id="dash-quick-pos-btn"
             onClick={() => setActiveTab('quick_pos')}
-            className="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold px-3.5 py-2.5 rounded-xl transition-all shadow-sm cursor-pointer"
+            className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer"
           >
             <Sparkles className="w-4 h-4" />
             كاشير وفاتورة سريعة POS
@@ -228,17 +228,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
           <button
             id="dash-quick-invoice-btn"
             onClick={() => setActiveTab('sales')}
-            className="inline-flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all border border-slate-700 cursor-pointer"
+            className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all border border-slate-200 shadow-xs cursor-pointer"
           >
-            <PlusCircle className="w-4 h-4 text-emerald-400" />
+            <PlusCircle className="w-4 h-4 text-emerald-600" />
             فاتورة ضريبية
           </button>
           <button
             id="dash-quick-collection-btn"
             onClick={() => setActiveTab('crm_collections')}
-            className="inline-flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all border border-slate-700 cursor-pointer"
+            className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all border border-slate-200 shadow-xs cursor-pointer"
           >
-            <CreditCard className="w-4 h-4 text-amber-400" />
+            <CreditCard className="w-4 h-4 text-amber-600" />
             تحصيل وسند قبض
           </button>
         </div>
