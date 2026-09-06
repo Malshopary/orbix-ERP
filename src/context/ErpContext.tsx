@@ -540,6 +540,16 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
     if (subTab === 'quotes') return { id: 'sales_quotes', tab: 'sales', subTab: 'quotes', title: 'عروض الأسعار', iconName: 'FileBadge' };
     if (subTab === 'orders') return { id: 'sales_orders', tab: 'sales', subTab: 'orders', title: 'أوامر البيع والتوريد', iconName: 'ClipboardList' };
     if (subTab === 'returns') return { id: 'sales_returns', tab: 'sales', subTab: 'returns', title: 'مردودات المبيعات', iconName: 'RotateCcw' };
+    if (subTab === 'sales_summary') return { id: 'sales_summary', tab: 'sales', subTab: 'sales_summary', title: 'ملخص المبيعات الدوري', iconName: 'TrendingUp' };
+    if (subTab === 'sales_by_payment') return { id: 'sales_by_payment', tab: 'sales', subTab: 'sales_by_payment', title: 'المبيعات حسب طرق الدفع', iconName: 'CreditCard' };
+    if (subTab === 'sales_top_products') return { id: 'sales_top_products', tab: 'sales', subTab: 'sales_top_products', title: 'الأصناف الأكثر مبيعاً وربحية', iconName: 'Package' };
+    if (subTab === 'sales_profit_margin') return { id: 'sales_profit_margin', tab: 'sales', subTab: 'sales_profit_margin', title: 'هوامش ومجمل ربح المبيعات', iconName: 'PieChart' };
+    if (subTab === 'sales_by_customer') return { id: 'sales_by_customer', tab: 'sales', subTab: 'sales_by_customer', title: 'تحليل مبيعات كبار العملاء', iconName: 'Users2' };
+    if (subTab === 'sales_inactive_customers') return { id: 'sales_inactive_customers', tab: 'sales', subTab: 'sales_inactive_customers', title: 'العملاء الراكدون وغير النشطين', iconName: 'Clock' };
+    if (subTab === 'sales_rep_performance') return { id: 'sales_rep_performance', tab: 'sales', subTab: 'sales_rep_performance', title: 'أداء المناديب والمستهدف', iconName: 'Target' };
+    if (subTab === 'sales_quotes_conversion') return { id: 'sales_quotes_conversion', tab: 'sales', subTab: 'sales_quotes_conversion', title: 'تحويل عروض الأسعار والطلبيات', iconName: 'FileBadge' };
+    if (subTab === 'sales_returns_analysis') return { id: 'sales_returns_analysis', tab: 'sales', subTab: 'sales_returns_analysis', title: 'تحليل المرتجعات ونسبة الهدر', iconName: 'RotateCcw' };
+    if (subTab === 'sales_reports') return { id: 'sales_reports', tab: 'sales', subTab: 'sales_summary', title: 'تقارير المبيعات', iconName: 'BarChart3' };
     return { id: 'sales_invoices', tab: 'sales', subTab: 'invoices', title: 'فواتير المبيعات الضريبية', iconName: 'FileSpreadsheet' };
   }
   if (tab === 'purchases') {

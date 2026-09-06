@@ -4,6 +4,7 @@ import { InvoiceItem, PaymentReceipt, SalesInvoice, Quotation, SalesOrder } from
 import { SalesReturnsView } from './SalesReturnsView';
 import { QuotationsView } from './QuotationsView';
 import { SalesOrdersView } from './SalesOrdersView';
+import { SalesReportsView } from './SalesReportsView';
 import { CustomerStatementModal } from './CustomerStatementModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
 import { PrintHeader } from './PrintHeader';
@@ -68,17 +69,34 @@ export const SalesView: React.FC = () => {
 
   const companyVat = companyProfile?.defaultVatRate ?? 15;
 
-  const [activeSubTab, setActiveSubTabLocal] = useState<'quotes' | 'orders' | 'invoices' | 'returns'>('invoices');
+  const [activeSubTab, setActiveSubTabLocal] = useState<'quotes' | 'orders' | 'invoices' | 'returns' | 'reports'>('invoices');
+
+  const salesReportSubTabs = [
+    'sales_reports',
+    'sales_summary',
+    'sales_by_payment',
+    'sales_top_products',
+    'sales_profit_margin',
+    'sales_by_customer',
+    'sales_inactive_customers',
+    'sales_rep_performance',
+    'sales_quotes_conversion',
+    'sales_returns_analysis',
+  ];
 
   React.useEffect(() => {
-    if (globalSubTab && ['quotes', 'orders', 'invoices', 'returns'].includes(globalSubTab)) {
-      setActiveSubTabLocal(globalSubTab as any);
+    if (globalSubTab) {
+      if (['quotes', 'orders', 'invoices', 'returns'].includes(globalSubTab)) {
+        setActiveSubTabLocal(globalSubTab as any);
+      } else if (salesReportSubTabs.includes(globalSubTab)) {
+        setActiveSubTabLocal('reports');
+      }
     }
   }, [globalSubTab]);
 
-  const setActiveSubTab = (tab: 'quotes' | 'orders' | 'invoices' | 'returns') => {
+  const setActiveSubTab = (tab: 'quotes' | 'orders' | 'invoices' | 'returns' | 'reports') => {
     setActiveSubTabLocal(tab);
-    setGlobalSubTab(tab);
+    setGlobalSubTab(tab === 'reports' ? 'sales_summary' : tab);
   };
 
   // Filters & Sorting State
@@ -711,6 +729,8 @@ export const SalesView: React.FC = () => {
         />
       ) : activeSubTab === 'returns' ? (
         <SalesReturnsView />
+      ) : activeSubTab === 'reports' ? (
+        <SalesReportsView />
       ) : (
         <>
           {/* Header & Quick Action Buttons */}

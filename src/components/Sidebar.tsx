@@ -175,6 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
 
   const [expandedSubMenus, setExpandedSubMenus] = useState<Record<string, boolean>>({
     reports: true,
+    sales_reports: true,
   });
 
   const toggleSubMenu = (subId: string, e?: React.MouseEvent) => {
@@ -203,6 +204,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       ].includes(activeSubTab)
     ) {
       setExpandedSubMenus((prev) => ({ ...prev, reports: true }));
+    }
+
+    if (
+      activeTab === 'sales' &&
+      [
+        'sales_reports',
+        'sales_summary',
+        'sales_by_payment',
+        'sales_top_products',
+        'sales_profit_margin',
+        'sales_by_customer',
+        'sales_inactive_customers',
+        'sales_rep_performance',
+        'sales_quotes_conversion',
+        'sales_returns_analysis',
+      ].includes(activeSubTab)
+    ) {
+      setExpandedSubMenus((prev) => ({ ...prev, sales_reports: true }));
     }
   }, [activeTab, activeSubTab]);
 
@@ -372,6 +391,60 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           label: 'المردودات',
           icon: RotateCcw,
           badge: salesReturns.length > 0 ? salesReturns.length : undefined,
+        },
+        {
+          id: 'sales_reports',
+          label: 'تقارير المبيعات',
+          icon: BarChart3,
+          badge: '9',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+          children: [
+            {
+              id: 'sales_summary',
+              label: 'ملخص المبيعات الدوري',
+              icon: TrendingUp,
+            },
+            {
+              id: 'sales_by_payment',
+              label: 'المبيعات حسب طرق الدفع',
+              icon: CreditCard,
+            },
+            {
+              id: 'sales_top_products',
+              label: 'الأصناف الأكثر مبيعاً وربحية',
+              icon: Package,
+            },
+            {
+              id: 'sales_profit_margin',
+              label: 'هوامش ومجمل ربح المبيعات',
+              icon: PieChart,
+            },
+            {
+              id: 'sales_by_customer',
+              label: 'تحليل مبيعات كبار العملاء',
+              icon: Users2,
+            },
+            {
+              id: 'sales_inactive_customers',
+              label: 'العملاء الراكدون وغير النشطين',
+              icon: Clock,
+            },
+            {
+              id: 'sales_rep_performance',
+              label: 'أداء المناديب وتحقيق المستهدف',
+              icon: Target,
+            },
+            {
+              id: 'sales_quotes_conversion',
+              label: 'كفاءة وتحويل عروض الأسعار',
+              icon: FileBadge,
+            },
+            {
+              id: 'sales_returns_analysis',
+              label: 'تحليل المرتجعات ونسبة الهدر',
+              icon: RotateCcw,
+            },
+          ],
         },
       ],
     },
