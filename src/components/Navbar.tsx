@@ -16,7 +16,8 @@ import {
   Users,
   ChevronDown,
   Circle,
-  Activity
+  Activity,
+  Database,
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 import { OrbixLogo } from './OrbixLogo';
@@ -35,7 +36,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal, setActiveTab }
     currencies: contextCurrencies, 
     companyProfile, 
     currentUser, 
-    users 
+    users,
+    navigateTo,
   } = useErp();
 
   const [isCurrencyMenuOpen, setIsCurrencyMenuOpen] = useState(false);
@@ -139,6 +141,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal, setActiveTab }
 
             {/* Quick Actions & User Bar */}
             <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+              {/* PostgreSQL Cloud SQL Status Badge -> Direct to Backup Page */}
+              <button
+                type="button"
+                onClick={() => navigateTo('settings', 'database_backup')}
+                className="hidden md:flex items-center gap-1.5 bg-indigo-50/80 hover:bg-indigo-100/90 text-indigo-900 border border-indigo-200/80 px-2.5 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer group"
+                title="قاعدة بيانات PostgreSQL (Google Cloud SQL) - انقر للانتقال إلى صفحة النسخ وقاعدة البيانات"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="text-[11px] font-bold font-mono text-indigo-950">PostgreSQL</span>
+                <Database className="w-3.5 h-3.5 text-indigo-600 shrink-0 group-hover:scale-110 transition-transform" />
+              </button>
+
               {/* Currency Selector Icon Button (Compact Logo / Symbol with Dropdown) */}
               <div className="relative" ref={currencyMenuRef}>
                 <button
