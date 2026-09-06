@@ -54,6 +54,7 @@ import {
   Ship,
   Clock,
   CalendarDays,
+  CalendarCheck,
   Bell,
 } from 'lucide-react';
 import { useErp } from '../context/ErpContext';
@@ -243,20 +244,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           badge: fixedAssets.length || undefined,
         },
         {
-          id: 'commissions',
-          label: 'عمولات المناديب',
-          icon: CreditCard,
+          id: 'fiscal_closing',
+          label: 'إقفال الفترات والسنوات المالية',
+          icon: CalendarCheck,
+          badge: 'إقفال',
         },
         {
-          id: 'loyalty',
-          label: 'نقاط الولاء',
-          icon: Award,
-        },
-        {
-          id: 'pricelists',
-          label: 'قوائم الأسعار',
-          icon: Tag,
-          badge: priceLists.length,
+          id: 'budgets',
+          label: 'الموازنات التقديرية',
+          icon: PieChart,
+          badge: 'موازنة',
         },
       ],
     },

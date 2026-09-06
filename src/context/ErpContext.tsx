@@ -56,6 +56,10 @@ import {
   VendorAgingBucket,
   CollectionPlan,
   CollectionReminderLog,
+  FiscalYear,
+  FiscalPeriod,
+  BudgetPlan,
+  BudgetItem,
 } from '../types';
 import {
   INITIAL_ACCOUNTS,
@@ -101,6 +105,8 @@ import {
   INITIAL_PURCHASE_RETURNS,
   INITIAL_COLLECTION_PLANS,
   INITIAL_COLLECTION_REMINDER_LOGS,
+  INITIAL_FISCAL_YEARS,
+  INITIAL_BUDGET_PLANS,
 } from '../data/initialData';
 import {
   DEFAULT_SEQUENCE_CONFIG,
@@ -479,6 +485,37 @@ interface ErpContextType {
     negativeAccounts: Account[];
     issues: string[];
   };
+
+  // 6. Fiscal Years & Period Closing (إقفال الفترات والسنوات المالية)
+  fiscalYears: FiscalYear[];
+  closeFiscalYear: (fiscalYearId: string, retainedEarningsAccountId?: string, notes?: string) => { success: boolean; message: string; closingEntryNumber?: string; openingEntryNumber?: string };
+  reopenFiscalYear: (fiscalYearId: string) => { success: boolean; message: string };
+  toggleLockFiscalPeriod: (fiscalYearId: string, periodId: string, notes?: string) => void;
+  isDateInLockedPeriod: (dateStr: string) => { isLocked: boolean; periodName?: string; fiscalYearName?: string };
+
+  // 7. Budgets vs. Actual (الموازنات التقديرية)
+  budgetPlans: BudgetPlan[];
+  addBudgetPlan: (plan: Omit<BudgetPlan, 'id' | 'createdAt'>) => BudgetPlan;
+  updateBudgetPlan: (id: string, data: Partial<BudgetPlan>) => void;
+  deleteBudgetPlan: (id: string) => void;
+  getBudgetVsActual: (fiscalYear: number, month?: number, costCenterId?: string) => {
+    items: Array<{
+      id: string;
+      accountId: string;
+      accountCode: string;
+      accountName: string;
+      budgetAmount: number;
+      actualAmount: number;
+      variance: number;
+      variancePercent: number;
+      isOverBudget: boolean;
+      alertThresholdPercent: number;
+    }>;
+    totalBudget: number;
+    totalActual: number;
+    totalVariance: number;
+    overBudgetCount: number;
+  };
 }
 
 const ErpContext = createContext<ErpContextType | undefined>(undefined);
@@ -522,6 +559,8 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
     if (subTab === 'reconciliation') return { id: 'accounts_reconciliation', tab: 'accounts', subTab: 'reconciliation', title: 'التسوية ومطابقة كشف حساب البنك', iconName: 'FileCheck2' };
     if (subTab === 'costcenters') return { id: 'accounts_costcenters', tab: 'accounts', subTab: 'costcenters', title: 'مراكز التكلفة والمشاريع', iconName: 'Target' };
     if (subTab === 'fixedassets') return { id: 'accounts_fixedassets', tab: 'accounts', subTab: 'fixedassets', title: 'الأصول الثابتة والإهلاك الآلي', iconName: 'Building' };
+    if (subTab === 'fiscal_closing' || subTab === 'closing') return { id: 'accounts_fiscal_closing', tab: 'accounts', subTab: 'fiscal_closing', title: 'إقفال الفترات والسنوات المالية', iconName: 'CalendarClock' };
+    if (subTab === 'budgets') return { id: 'accounts_budgets', tab: 'accounts', subTab: 'budgets', title: 'الموازنات التقديرية (Budget vs Actual)', iconName: 'TrendingUp' };
     if (subTab === 'commissions') return { id: 'accounts_commissions', tab: 'accounts', subTab: 'commissions', title: 'عمولات المناديب', iconName: 'CreditCard' };
     if (subTab === 'loyalty') return { id: 'accounts_loyalty', tab: 'accounts', subTab: 'loyalty', title: 'نقاط الولاء والمكافآت', iconName: 'Award' };
     if (subTab === 'pricelists') return { id: 'accounts_pricelists', tab: 'accounts', subTab: 'pricelists', title: 'قوائم الأسعار وتسعير العملاء', iconName: 'Tag' };
@@ -1155,6 +1194,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : DEFAULT_SEQUENCE_CONFIG;
   });
 
+  const [fiscalYears, setFiscalYears] = useState<FiscalYear[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}fiscal_years`);
+    return saved ? JSON.parse(saved) : INITIAL_FISCAL_YEARS;
+  });
+
+  const [budgetPlans, setBudgetPlans] = useState<BudgetPlan[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}budget_plans`);
+    return saved ? JSON.parse(saved) : INITIAL_BUDGET_PLANS;
+  });
+
   // Save to LocalStorage with encryption-ready persistence
   useEffect(() => {
     localStorage.setItem(`${STORAGE_PREFIX}company_profile`, JSON.stringify(companyProfile));
@@ -1205,6 +1254,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_PREFIX}job_titles`, JSON.stringify(jobTitles));
     localStorage.setItem(`${STORAGE_PREFIX}departments`, JSON.stringify(departments));
     localStorage.setItem(`${STORAGE_PREFIX}sequence_config`, JSON.stringify(sequenceConfig));
+    localStorage.setItem(`${STORAGE_PREFIX}fiscal_years`, JSON.stringify(fiscalYears));
+    localStorage.setItem(`${STORAGE_PREFIX}budget_plans`, JSON.stringify(budgetPlans));
   }, [
     companyProfile,
     currencies,
@@ -1253,6 +1304,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     jobTitles,
     departments,
     sequenceConfig,
+    fiscalYears,
+    budgetPlans,
   ]);
 
   // Helper to detect if an employee or job title belongs to sales / CRM
@@ -2073,7 +2126,411 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAuditEvent('حذف حساب من دليل الحسابات', 'الحسابات العامة', `تم حذف الحساب ${target?.name || id}`);
   };
 
+  // ----------------------------------------------------
+  // Fiscal Periods & Years Locking & Closing Logic
+  // ----------------------------------------------------
+  const isDateInLockedPeriod = (dateStr: string): { isLocked: boolean; periodName?: string; fiscalYearName?: string } => {
+    if (!dateStr) return { isLocked: false };
+    const dateObj = new Date(dateStr);
+    if (isNaN(dateObj.getTime())) return { isLocked: false };
+    const year = dateObj.getFullYear();
+    const month = dateObj.getMonth() + 1;
+
+    // Check if the fiscal year is closed
+    const fy = fiscalYears.find((f) => f.year === year || (f.startDate <= dateStr && f.endDate >= dateStr));
+    if (fy) {
+      if (fy.status === 'closed') {
+        return { isLocked: true, periodName: `كامل السنة المالية ${fy.year}`, fiscalYearName: fy.name };
+      }
+      const period = fy.periods.find((p) => p.periodNumber === month || (p.startDate <= dateStr && p.endDate >= dateStr));
+      if (period && period.isLocked) {
+        return { isLocked: true, periodName: period.name, fiscalYearName: fy.name };
+      }
+    }
+    return { isLocked: false };
+  };
+
+  const toggleLockFiscalPeriod = (fiscalYearId: string, periodId: string, notes?: string) => {
+    setFiscalYears((prev) =>
+      prev.map((fy) => {
+        if (fy.id !== fiscalYearId) return fy;
+        return {
+          ...fy,
+          periods: fy.periods.map((p) => {
+            if (p.id !== periodId) return p;
+            const newLocked = !p.isLocked;
+            return {
+              ...p,
+              isLocked: newLocked,
+              lockedAt: newLocked ? new Date().toISOString() : undefined,
+              lockedBy: newLocked ? (currentUser?.name || 'المدير المالي') : undefined,
+              notes: notes || p.notes,
+            };
+          }),
+        };
+      })
+    );
+    logAuditEvent('تغيير قفل فترة مالية', 'الحسابات العامة', `تغيير حالة قفل الفترة ${periodId} في ${fiscalYearId}`);
+  };
+
+  const closeFiscalYear = (
+    fiscalYearId: string,
+    retainedEarningsAccountId: string = '3200',
+    notes?: string
+  ): { success: boolean; message: string; closingEntryNumber?: string; openingEntryNumber?: string } => {
+    const fy = fiscalYears.find((f) => f.id === fiscalYearId);
+    if (!fy) return { success: false, message: 'السنة المالية غير موجودة' };
+    if (fy.status === 'closed') return { success: false, message: 'السنة المالية مقفلة بالفعل' };
+
+    const retainedAcc = accounts.find((a) => a.id === retainedEarningsAccountId || a.code === retainedEarningsAccountId || a.code === '3200');
+    if (!retainedAcc) {
+      return { success: false, message: 'حساب الأرباح المحتجزة / أرباح وخسائر المرحلة غير موجود بدليل الحسابات (كود 3200)' };
+    }
+
+    // 1. Calculate revenue and expense movements in that fiscal year
+    const yearEntries = journalEntries.filter((je) => je.date >= fy.startDate && je.date <= fy.endDate);
+
+    const revenueAccMap = new Map<string, { account: Account; balance: number }>();
+    const expenseAccMap = new Map<string, { account: Account; balance: number }>();
+
+    accounts.forEach((acc) => {
+      if (acc.type === 'revenue' && !acc.isHeader) {
+        revenueAccMap.set(acc.id, { account: acc, balance: 0 });
+      } else if (acc.type === 'expense' && !acc.isHeader) {
+        expenseAccMap.set(acc.id, { account: acc, balance: 0 });
+      }
+    });
+
+    yearEntries.forEach((je) => {
+      je.lines.forEach((l) => {
+        const accId = l.accountId;
+        if (revenueAccMap.has(accId)) {
+          const item = revenueAccMap.get(accId)!;
+          item.balance += (Number(l.credit) || 0) - (Number(l.debit) || 0);
+        } else if (expenseAccMap.has(accId)) {
+          const item = expenseAccMap.get(accId)!;
+          item.balance += (Number(l.debit) || 0) - (Number(l.credit) || 0);
+        }
+      });
+    });
+
+    let totalRevenueClosed = 0;
+    let totalExpenseClosed = 0;
+    const closingLines: JournalEntry['lines'] = [];
+
+    // Close Revenues: To zero credit balance, Debit the revenue account
+    revenueAccMap.forEach(({ account, balance }) => {
+      if (Math.abs(balance) > 0.001) {
+        totalRevenueClosed += balance;
+        closingLines.push({
+          accountId: account.id,
+          accountCode: account.code,
+          accountName: account.name,
+          debit: balance > 0 ? Number(balance.toFixed(2)) : 0,
+          credit: balance < 0 ? Number(Math.abs(balance).toFixed(2)) : 0,
+          description: `إقفال حساب ${account.name} للسنة المالية ${fy.year}`,
+        });
+      }
+    });
+
+    // Close Expenses: To zero debit balance, Credit the expense account
+    expenseAccMap.forEach(({ account, balance }) => {
+      if (Math.abs(balance) > 0.001) {
+        totalExpenseClosed += balance;
+        closingLines.push({
+          accountId: account.id,
+          accountCode: account.code,
+          accountName: account.name,
+          debit: balance < 0 ? Number(Math.abs(balance).toFixed(2)) : 0,
+          credit: balance > 0 ? Number(balance.toFixed(2)) : 0,
+          description: `إقفال حساب ${account.name} للسنة المالية ${fy.year}`,
+        });
+      }
+    });
+
+    const netIncome = totalRevenueClosed - totalExpenseClosed;
+
+    // Retained earnings line
+    if (Math.abs(netIncome) > 0.001) {
+      closingLines.push({
+        accountId: retainedAcc.id,
+        accountCode: retainedAcc.code,
+        accountName: retainedAcc.name,
+        debit: netIncome < 0 ? Number(Math.abs(netIncome).toFixed(2)) : 0,
+        credit: netIncome > 0 ? Number(netIncome.toFixed(2)) : 0,
+        description: `ترحيل صافي ${netIncome >= 0 ? 'أرباح' : 'خسائر'} السنة المالية ${fy.year} لحساب الأرباح المحتجزة`,
+      });
+    }
+
+    const closingTotalDebit = closingLines.reduce((s, l) => s + l.debit, 0);
+    const closingTotalCredit = closingLines.reduce((s, l) => s + l.credit, 0);
+    const closingEntryNumber = `JE-CLOSE-${fy.year}`;
+    const closingEntryId = `je-close-${fy.year}-${Date.now()}`;
+
+    const closingJournalEntry: JournalEntry = {
+      id: closingEntryId,
+      entryNumber: closingEntryNumber,
+      date: fy.endDate,
+      reference: `CLOSE-${fy.year}`,
+      description: `قيد إقفال الحسابات الاسمية وترحيل الأرباح للسنة المالية ${fy.year}`,
+      totalDebit: Number(closingTotalDebit.toFixed(2)),
+      totalCredit: Number(closingTotalCredit.toFixed(2)),
+      lines: closingLines,
+      createdAt: new Date().toISOString(),
+    };
+
+    // 2. Generate Opening Journal Entry for Next Fiscal Year
+    const nextYear = fy.year + 1;
+    const nextYearStartDate = `${nextYear}-01-01`;
+    const openingLines: JournalEntry['lines'] = [];
+
+    accounts.forEach((acc) => {
+      if (acc.isHeader) return;
+      if (acc.type === 'asset') {
+        const bal = acc.balance;
+        if (Math.abs(bal) > 0.001) {
+          openingLines.push({
+            accountId: acc.id,
+            accountCode: acc.code,
+            accountName: acc.name,
+            debit: bal > 0 ? Number(bal.toFixed(2)) : 0,
+            credit: bal < 0 ? Number(Math.abs(bal).toFixed(2)) : 0,
+            description: `رصيد افتتاحي - ${acc.name}`,
+          });
+        }
+      } else if (acc.type === 'liability' || acc.type === 'equity') {
+        let bal = acc.balance;
+        if (acc.id === retainedAcc.id || acc.code === retainedAcc.code) {
+          bal += netIncome;
+        }
+        if (Math.abs(bal) > 0.001) {
+          openingLines.push({
+            accountId: acc.id,
+            accountCode: acc.code,
+            accountName: acc.name,
+            debit: bal < 0 ? Number(Math.abs(bal).toFixed(2)) : 0,
+            credit: bal > 0 ? Number(bal.toFixed(2)) : 0,
+            description: `رصيد افتتاحي - ${acc.name}`,
+          });
+        }
+      }
+    });
+
+    const openingTotalDebit = openingLines.reduce((s, l) => s + l.debit, 0);
+    const openingTotalCredit = openingLines.reduce((s, l) => s + l.credit, 0);
+    const openingEntryNumber = `JE-OPEN-${nextYear}`;
+    const openingEntryId = `je-open-${nextYear}-${Date.now()}`;
+
+    const openingJournalEntry: JournalEntry = {
+      id: openingEntryId,
+      entryNumber: openingEntryNumber,
+      date: nextYearStartDate,
+      reference: `OPEN-${nextYear}`,
+      description: `القيد الافتتاحي لأرصدة الميزانية العمومية للعام المالي الجديد ${nextYear}`,
+      totalDebit: Number(openingTotalDebit.toFixed(2)),
+      totalCredit: Number(openingTotalCredit.toFixed(2)),
+      lines: openingLines,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Update entries and account balances
+    setJournalEntries((prev) => [closingJournalEntry, openingJournalEntry, ...prev]);
+
+    setAccounts((prev) =>
+      prev.map((a) => {
+        if (a.type === 'revenue' || a.type === 'expense') {
+          return { ...a, balance: 0 };
+        }
+        if (a.id === retainedAcc.id || a.code === retainedAcc.code) {
+          return { ...a, balance: a.balance + netIncome };
+        }
+        return a;
+      })
+    );
+
+    // Update Fiscal Year status and lock all periods
+    setFiscalYears((prev) =>
+      prev.map((item) => {
+        if (item.id === fiscalYearId) {
+          return {
+            ...item,
+            status: 'closed' as const,
+            closedAt: new Date().toISOString(),
+            closedBy: currentUser?.name || 'المدير المالي والمحاسب القانوني',
+            retainedEarningsAccountId: retainedAcc.id,
+            closingJournalEntryId: closingEntryId,
+            closingJournalEntryNumber: closingEntryNumber,
+            openingJournalEntryId: openingEntryId,
+            openingJournalEntryNumber: openingEntryNumber,
+            netIncomeBeforeClosing: netIncome,
+            totalRevenueClosed,
+            totalExpenseClosed,
+            notes: notes || item.notes,
+            periods: item.periods.map((p) => ({
+              ...p,
+              isLocked: true,
+              lockedAt: new Date().toISOString(),
+              lockedBy: currentUser?.name || 'المدير المالي',
+            })),
+          };
+        }
+        return item;
+      })
+    );
+
+    logAuditEvent(
+      'إقفال السنة المالية',
+      'الحسابات العامة',
+      `تم إقفال السنة المالية ${fy.year} وتوليد قيد الإقفال ${closingEntryNumber} والقيد الافتتاحي ${openingEntryNumber}. صافي الدخل: ${netIncome} ${currency}`
+    );
+
+    return {
+      success: true,
+      message: `تم إقفال السنة المالية ${fy.year} بنجاح وترحيل ${netIncome >= 0 ? 'أرباح' : 'خسائر'} قدرها ${netIncome.toLocaleString()} ${currency} لحساب الأرباح المحتجزة.`,
+      closingEntryNumber,
+      openingEntryNumber,
+    };
+  };
+
+  const reopenFiscalYear = (fiscalYearId: string): { success: boolean; message: string } => {
+    const fy = fiscalYears.find((f) => f.id === fiscalYearId);
+    if (!fy) return { success: false, message: 'السنة المالية غير موجودة' };
+    if (fy.status !== 'closed') return { success: false, message: 'السنة المالية مفتوحة بالفعل' };
+
+    if (fy.closingJournalEntryId || fy.openingJournalEntryId) {
+      setJournalEntries((prev) =>
+        prev.filter((je) => je.id !== fy.closingJournalEntryId && je.id !== fy.openingJournalEntryId)
+      );
+    }
+
+    setFiscalYears((prev) =>
+      prev.map((item) => {
+        if (item.id === fiscalYearId) {
+          return {
+            ...item,
+            status: 'open' as const,
+            closedAt: undefined,
+            closedBy: undefined,
+            closingJournalEntryId: undefined,
+            closingJournalEntryNumber: undefined,
+            openingJournalEntryId: undefined,
+            openingJournalEntryNumber: undefined,
+          };
+        }
+        return item;
+      })
+    );
+
+    logAuditEvent('إعادة فتح سنة مالية', 'الحسابات العامة', `تمت إعادة فتح السنة المالية ${fy.year}`);
+    return { success: true, message: `تمت إعادة فتح السنة المالية ${fy.year} وإلغاء قيود الإقفال بنجاح.` };
+  };
+
+  // ----------------------------------------------------
+  // Budgets vs Actual Management Logic
+  // ----------------------------------------------------
+  const addBudgetPlan = (planData: Omit<BudgetPlan, 'id' | 'createdAt'>): BudgetPlan => {
+    const newPlan: BudgetPlan = {
+      ...planData,
+      id: `bdg-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setBudgetPlans((prev) => [newPlan, ...prev]);
+    logAuditEvent('إضافة موازنة تقديرية', 'التخطيط المالي والموازنات', `موازنة ${newPlan.name} لعام ${newPlan.fiscalYear}`);
+    return newPlan;
+  };
+
+  const updateBudgetPlan = (id: string, data: Partial<BudgetPlan>) => {
+    setBudgetPlans((prev) => prev.map((p) => (p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p)));
+    logAuditEvent('تعديل موازنة تقديرية', 'التخطيط المالي والموازنات', `تعديل موازنة ${id}`);
+  };
+
+  const deleteBudgetPlan = (id: string) => {
+    setBudgetPlans((prev) => prev.filter((p) => p.id !== id));
+    logAuditEvent('حذف موازنة تقديرية', 'التخطيط المالي والموازنات', `حذف موازنة ${id}`);
+  };
+
+  const getBudgetVsActual = (fiscalYear: number, month?: number, costCenterId?: string) => {
+    const plan = budgetPlans.find(
+      (b) => b.fiscalYear === fiscalYear && (costCenterId && costCenterId !== 'all' ? b.costCenterId === costCenterId : true)
+    ) || budgetPlans.find((b) => b.fiscalYear === fiscalYear);
+
+    const yearStart = `${fiscalYear}-01-01`;
+    const yearEnd = `${fiscalYear}-12-31`;
+
+    const relevantEntries = journalEntries.filter((je) => {
+      if (je.date < yearStart || je.date > yearEnd) return false;
+      if (month && month >= 1 && month <= 12) {
+        const entryMonth = new Date(je.date).getMonth() + 1;
+        if (entryMonth !== month) return false;
+      }
+      return true;
+    });
+
+    const items = (plan?.items || []).map((bi) => {
+      let budgetAmount = bi.annualAmount;
+      if (month && month >= 1 && month <= 12) {
+        budgetAmount = bi.monthlyAmounts[month - 1] || (bi.annualAmount / 12);
+      }
+
+      let actualAmount = 0;
+      relevantEntries.forEach((je) => {
+        je.lines.forEach((l) => {
+          if (l.accountId === bi.accountId || l.accountCode === bi.accountCode) {
+            if (costCenterId && costCenterId !== 'all' && l.costCenterId && l.costCenterId !== costCenterId) {
+              return;
+            }
+            actualAmount += (Number(l.debit) || 0) - (Number(l.credit) || 0);
+          }
+        });
+      });
+
+      const variance = actualAmount - budgetAmount;
+      const variancePercent = budgetAmount > 0 ? (actualAmount / budgetAmount) * 100 : 0;
+      const threshold = bi.alertThresholdPercent || 100;
+      const isOverBudget = variancePercent >= threshold;
+
+      return {
+        id: bi.id,
+        accountId: bi.accountId,
+        accountCode: bi.accountCode,
+        accountName: bi.accountName,
+        budgetAmount: Number(budgetAmount.toFixed(2)),
+        actualAmount: Number(actualAmount.toFixed(2)),
+        variance: Number(variance.toFixed(2)),
+        variancePercent: Number(variancePercent.toFixed(1)),
+        isOverBudget,
+        alertThresholdPercent: threshold,
+      };
+    });
+
+    const totalBudget = items.reduce((s, i) => s + i.budgetAmount, 0);
+    const totalActual = items.reduce((s, i) => s + i.actualAmount, 0);
+    const totalVariance = totalActual - totalBudget;
+    const overBudgetCount = items.filter((i) => i.isOverBudget).length;
+
+    return {
+      items,
+      totalBudget: Number(totalBudget.toFixed(2)),
+      totalActual: Number(totalActual.toFixed(2)),
+      totalVariance: Number(totalVariance.toFixed(2)),
+      overBudgetCount,
+    };
+  };
+
   const addJournalEntry = (entryData: Omit<JournalEntry, 'id' | 'createdAt'>): boolean => {
+    // Check if entry date is in a locked period
+    const lockedCheck = isDateInLockedPeriod(entryData.date);
+    if (lockedCheck.isLocked) {
+      showAlert({
+        title: 'فترة مالية مقفلة',
+        message: `لا يمكن تسجيل أو ترحيل قيود يومية في فترة مقفلة (${lockedCheck.periodName || ''} - ${lockedCheck.fiscalYearName || ''}).`,
+        details: 'لحماية سلامة وموثوقية الحسابات الختامية المعتمدة، تم إقفال هذه الفترة لمنع أي حركات محاسبية جديدة.',
+        type: 'error',
+        confirmText: 'حسناً',
+      });
+      return false;
+    }
+
     if (Math.abs(entryData.totalDebit - entryData.totalCredit) > 0.01) {
       showAlert({
         title: 'خطأ محاسبي: القيد غير متوازن',
@@ -2118,6 +2575,30 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const editJournalEntry = (id: string, data: Partial<JournalEntry>): boolean => {
+    const existing = journalEntries.find((je) => je.id === id);
+    if (existing) {
+      const lockCheckOld = isDateInLockedPeriod(existing.date);
+      if (lockCheckOld.isLocked) {
+        showAlert({
+          title: 'فترة مالية مقفلة',
+          message: `لا يمكن تعديل قيد يقع في فترة مقفلة (${lockCheckOld.periodName || ''}).`,
+          type: 'error',
+        });
+        return false;
+      }
+    }
+    if (data.date) {
+      const lockCheckNew = isDateInLockedPeriod(data.date);
+      if (lockCheckNew.isLocked) {
+        showAlert({
+          title: 'فترة مالية مقفلة',
+          message: `لا يمكن تغيير تاريخ القيد إلى فترة مالية مقفلة (${lockCheckNew.periodName || ''}).`,
+          type: 'error',
+        });
+        return false;
+      }
+    }
+
     if (data.lines) {
       const totalDebit = data.lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
       const totalCredit = data.lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
@@ -2137,9 +2618,20 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteJournalEntry = (id: string) => {
-    const check = canDeleteJournalEntry(id);
     const target = journalEntries.find((je) => je.id === id);
     if (!target) return;
+
+    const lockCheck = isDateInLockedPeriod(target.date);
+    if (lockCheck.isLocked) {
+      showAlert({
+        title: 'فترة مالية مقفلة',
+        message: `لا يمكن حذف قيد يقع في فترة مالية مقفلة (${lockCheck.periodName || ''}).`,
+        type: 'error',
+      });
+      return;
+    }
+
+    const check = canDeleteJournalEntry(id);
     if (!check.canDelete) {
       showAlert({
         title: `تعذر حذف قيد اليومية (${target.entryNumber})`,
@@ -8280,6 +8772,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         exportDataJSON,
         restoreBackupJSON,
         verifyDatabaseIntegrity,
+        fiscalYears,
+        closeFiscalYear,
+        reopenFiscalYear,
+        toggleLockFiscalPeriod,
+        isDateInLockedPeriod,
+        budgetPlans,
+        addBudgetPlan,
+        updateBudgetPlan,
+        deleteBudgetPlan,
+        getBudgetVsActual,
       }}
     >
       {children}
