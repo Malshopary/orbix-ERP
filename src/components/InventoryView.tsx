@@ -42,6 +42,7 @@ import { ScrapVouchersTab } from './inventory/ScrapVouchersTab';
 import { BatchesExpiryTab } from './inventory/BatchesExpiryTab';
 import { BarcodePrintTab } from './inventory/BarcodePrintTab';
 import { WarehousesManagementTab } from './inventory/WarehousesManagementTab';
+import { InventoryReportsView } from './InventoryReportsView';
 import { QuickAddModal } from './QuickAddModal';
 import { SearchableSelect } from './SearchableSelect';
 import {
@@ -510,6 +511,18 @@ export const InventoryView: React.FC = () => {
       {currentTab === 'batches' && <BatchesExpiryTab />}
       {currentTab === 'barcodes' && <BarcodePrintTab />}
       {currentTab === 'warehouses' && <WarehousesManagementTab />}
+      {[
+        'inventory_reports',
+        'inventory_valuation',
+        'inventory_movement',
+        'inventory_reorder',
+        'inventory_aging',
+        'inventory_warehouses_balance',
+        'inventory_warehouses_report',
+        'inventory_variance',
+        'inventory_expiry',
+        'inventory_profitability',
+      ].includes(currentTab) && <InventoryReportsView />}
 
       {/* Primary Products View (All / Low Stock) */}
       {(currentTab === 'all' || currentTab === 'low_stock') && (

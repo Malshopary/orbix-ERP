@@ -13,6 +13,7 @@ import { GoodsReceiptsSection } from './purchases/GoodsReceiptsSection';
 import { LandedCostSection } from './purchases/LandedCostSection';
 import { PurchaseReturnsSection } from './purchases/PurchaseReturnsSection';
 import { VendorAgingSection } from './purchases/VendorAgingSection';
+import { PurchasesReportsView } from './PurchasesReportsView';
 import { PurchaseOrder } from '../types';
 import {
   ShoppingCart,
@@ -39,6 +40,7 @@ import {
   Ship,
   RotateCcw,
   Clock,
+  BarChart3,
 } from 'lucide-react';
 
 export const PurchasesView: React.FC = () => {
@@ -62,6 +64,7 @@ export const PurchasesView: React.FC = () => {
     hasPermission,
     activeSubTab: globalSubTab,
     setActiveSubTab: setGlobalSubTab,
+    navigateTo,
     showAlert,
     showConfirm,
   } = useErp();
@@ -73,25 +76,51 @@ export const PurchasesView: React.FC = () => {
     | 'landed_costs'
     | 'returns'
     | 'vendor_aging'
-    | 'vendors';
+    | 'vendors'
+    | 'reports'
+    | 'purchases_reports'
+    | 'purchases_summary'
+    | 'purchases_by_payment'
+    | 'purchases_vat_report'
+    | 'purchases_top_vendors'
+    | 'purchases_ap_aging'
+    | 'purchases_top_items'
+    | 'purchases_price_variance'
+    | 'purchases_returns_analysis';
 
   const [activeSubTab, setActiveSubTabLocal] = useState<PurchasesSubTab>('bills');
   const [selectedPoForGrn, setSelectedPoForGrn] = useState<PurchaseOrder | null>(null);
 
   React.useEffect(() => {
-    if (
-      globalSubTab &&
-      [
-        'bills',
-        'purchase_orders',
-        'goods_receipts',
-        'landed_costs',
-        'returns',
-        'vendor_aging',
-        'vendors',
-      ].includes(globalSubTab)
-    ) {
-      setActiveSubTabLocal(globalSubTab as PurchasesSubTab);
+    if (globalSubTab) {
+      if (
+        [
+          'bills',
+          'purchase_orders',
+          'goods_receipts',
+          'landed_costs',
+          'returns',
+          'vendor_aging',
+          'vendors',
+        ].includes(globalSubTab)
+      ) {
+        setActiveSubTabLocal(globalSubTab as PurchasesSubTab);
+      } else if (
+        [
+          'reports',
+          'purchases_reports',
+          'purchases_summary',
+          'purchases_by_payment',
+          'purchases_vat_report',
+          'purchases_top_vendors',
+          'purchases_ap_aging',
+          'purchases_top_items',
+          'purchases_price_variance',
+          'purchases_returns_analysis',
+        ].includes(globalSubTab)
+      ) {
+        setActiveSubTabLocal('reports');
+      }
     }
   }, [globalSubTab]);
 
@@ -567,6 +596,22 @@ export const PurchasesView: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => {
+                if (navigateTo) {
+                  navigateTo('purchases', 'purchases_summary');
+                } else {
+                  setActiveSubTab('purchases_summary');
+                }
+              }}
+              className="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-2 rounded-xl transition-all border border-emerald-200 cursor-pointer"
+              title="تقارير وتحليلات المشتريات والموردين"
+            >
+              <BarChart3 className="w-4 h-4 text-emerald-600" />
+              تقارير المشتريات
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowQuickAddVendor(true)}
               className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-2 rounded-xl transition-all border border-slate-300 cursor-pointer"
               title="إضافة مورد جديد للنظام والمشتريات"
@@ -621,6 +666,20 @@ export const PurchasesView: React.FC = () => {
             setActiveSubTab('bills');
           }}
         />
+      )}
+
+      {/* Subtab: Purchases Reports */}
+      {(activeSubTab === 'reports' ||
+        activeSubTab === 'purchases_reports' ||
+        activeSubTab === 'purchases_summary' ||
+        activeSubTab === 'purchases_by_payment' ||
+        activeSubTab === 'purchases_vat_report' ||
+        activeSubTab === 'purchases_top_vendors' ||
+        activeSubTab === 'purchases_ap_aging' ||
+        activeSubTab === 'purchases_top_items' ||
+        activeSubTab === 'purchases_price_variance' ||
+        activeSubTab === 'purchases_returns_analysis') && (
+        <PurchasesReportsView />
       )}
 
       {/* Subtab 1: Bills */}

@@ -17,10 +17,12 @@ export interface PrintPreviewModalProps {
   badgeColor?: string;
   elementId?: string;
   defaultOrientation?: 'portrait' | 'landscape';
-  children: (props: {
-    orientation: 'portrait' | 'landscape';
-    zoom: number;
-  }) => React.ReactNode;
+  children:
+    | ((props: {
+        orientation: 'portrait' | 'landscape';
+        zoom: number;
+      }) => React.ReactNode)
+    | React.ReactNode;
 }
 
 export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
@@ -178,7 +180,9 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 : 'print-portrait max-w-[210mm] min-h-[297mm]'
             }`}
           >
-            {children({ orientation, zoom })}
+            {typeof children === 'function'
+              ? children({ orientation, zoom })
+              : children}
           </div>
         </div>
       </div>

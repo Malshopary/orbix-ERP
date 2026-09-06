@@ -559,6 +559,15 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
     if (subTab === 'returns') return { id: 'purchases_returns', tab: 'purchases', subTab: 'returns', title: 'مردودات المشتريات', iconName: 'RotateCcw' };
     if (subTab === 'vendor_aging') return { id: 'purchases_vendor_aging', tab: 'purchases', subTab: 'vendor_aging', title: 'أعمار ديون الموردين', iconName: 'Scale' };
     if (subTab === 'vendors') return { id: 'purchases_vendors', tab: 'purchases', subTab: 'vendors', title: 'سجل الموردين', iconName: 'Building' };
+    if (subTab === 'purchases_summary') return { id: 'purchases_summary', tab: 'purchases', subTab: 'purchases_summary', title: 'ملخص المشتريات الدوري', iconName: 'TrendingUp' };
+    if (subTab === 'purchases_by_payment') return { id: 'purchases_by_payment', tab: 'purchases', subTab: 'purchases_by_payment', title: 'المشتريات حسب طرق السداد', iconName: 'CreditCard' };
+    if (subTab === 'purchases_vat_report') return { id: 'purchases_vat_report', tab: 'purchases', subTab: 'purchases_vat_report', title: 'ضريبة المدخلات (VAT)', iconName: 'Receipt' };
+    if (subTab === 'purchases_top_vendors') return { id: 'purchases_top_vendors', tab: 'purchases', subTab: 'purchases_top_vendors', title: 'تحليل كبار الموردين', iconName: 'Users2' };
+    if (subTab === 'purchases_ap_aging') return { id: 'purchases_ap_aging', tab: 'purchases', subTab: 'purchases_ap_aging', title: 'أعمار ديون الموردين والمدفوعات', iconName: 'Clock' };
+    if (subTab === 'purchases_top_items') return { id: 'purchases_top_items', tab: 'purchases', subTab: 'purchases_top_items', title: 'الأصناف الأكثر شراءً وإنفاقاً', iconName: 'Package' };
+    if (subTab === 'purchases_price_variance') return { id: 'purchases_price_variance', tab: 'purchases', subTab: 'purchases_price_variance', title: 'تذبذب وتغير أسعار الشراء', iconName: 'ArrowUpDown' };
+    if (subTab === 'purchases_returns_analysis') return { id: 'purchases_returns_analysis', tab: 'purchases', subTab: 'purchases_returns_analysis', title: 'تحليل مردودات المشتريات', iconName: 'RotateCcw' };
+    if (subTab === 'purchases_reports' || subTab === 'reports') return { id: 'purchases_reports', tab: 'purchases', subTab: 'purchases_summary', title: 'تقارير المشتريات', iconName: 'BarChart3' };
     return { id: 'purchases_bills', tab: 'purchases', subTab: 'bills', title: 'فواتير المشتريات', iconName: 'ShoppingCart' };
   }
   if (tab === 'accounts') {
@@ -597,6 +606,15 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
     if (subTab === 'warehouses') return { id: 'inventory_warehouses', tab: 'inventory', subTab: 'warehouses', title: 'المستودعات والفروع', iconName: 'Warehouse' };
     if (subTab === 'low_stock') return { id: 'inventory_low_stock', tab: 'inventory', subTab: 'low_stock', title: 'نواقص وتنبيهات المخزون', iconName: 'AlertTriangle' };
     if (subTab === 'adjust' || subTab === 'adjustments') return { id: 'inventory_adjustments', tab: 'inventory', subTab: 'adjustments', title: 'التسوية المخزنية', iconName: 'ArrowUpDown' };
+    if (subTab === 'inventory_valuation') return { id: 'inventory_valuation', tab: 'inventory', subTab: 'inventory_valuation', title: 'تقييم المخزون المالي', iconName: 'DollarSign' };
+    if (subTab === 'inventory_movement') return { id: 'inventory_movement', tab: 'inventory', subTab: 'inventory_movement', title: 'كشف وحركة الصنف', iconName: 'ArrowRightLeft' };
+    if (subTab === 'inventory_reorder') return { id: 'inventory_reorder', tab: 'inventory', subTab: 'inventory_reorder', title: 'مراقبة النواقص وحد الطلب', iconName: 'AlertTriangle' };
+    if (subTab === 'inventory_aging') return { id: 'inventory_aging', tab: 'inventory', subTab: 'inventory_aging', title: 'دوران وركود المخزون', iconName: 'Clock' };
+    if (subTab === 'inventory_warehouses_balance' || subTab === 'inventory_warehouses_report') return { id: 'inventory_warehouses_balance', tab: 'inventory', subTab: 'inventory_warehouses_balance', title: 'أرصدة المستودعات والمقارنة', iconName: 'Building2' };
+    if (subTab === 'inventory_variance') return { id: 'inventory_variance', tab: 'inventory', subTab: 'inventory_variance', title: 'عجز وفروقات الجرد', iconName: 'Scale' };
+    if (subTab === 'inventory_expiry') return { id: 'inventory_expiry', tab: 'inventory', subTab: 'inventory_expiry', title: 'الصلاحيات والتشغيلات والتوالف', iconName: 'Calendar' };
+    if (subTab === 'inventory_profitability') return { id: 'inventory_profitability', tab: 'inventory', subTab: 'inventory_profitability', title: 'ربحية وهامش الأصناف', iconName: 'TrendingUp' };
+    if (subTab === 'inventory_reports' || subTab === 'reports') return { id: 'inventory_reports', tab: 'inventory', subTab: 'inventory_valuation', title: 'تقارير المخزون', iconName: 'BarChart3' };
     return { id: 'inventory_all', tab: 'inventory', subTab: 'all', title: 'الأصناف والمخزون', iconName: 'Layers' };
   }
   if (tab === 'crm_collections') {
@@ -608,6 +626,15 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
     if (subTab === 'interactions') return { id: 'crm_interactions', tab: 'crm_collections', subTab: 'interactions', title: 'سجل المتابعات والاتصالات', iconName: 'PhoneCall' };
     if (subTab === 'tickets') return { id: 'crm_tickets', tab: 'crm_collections', subTab: 'tickets', title: 'تذاكر الدعم والشكاوى', iconName: 'LifeBuoy' };
     if (subTab === 'sales_reps') return { id: 'crm_sales_reps', tab: 'crm_collections', subTab: 'sales_reps', title: 'مناديب المبيعات والأهداف', iconName: 'Target' };
+    if (subTab === 'crm_customer_statement') return { id: 'crm_customer_statement', tab: 'crm_collections', subTab: 'crm_customer_statement', title: 'كشف حساب العميل التحليلي', iconName: 'FileText' };
+    if (subTab === 'crm_collection_efficiency') return { id: 'crm_collection_efficiency', tab: 'crm_collections', subTab: 'crm_collection_efficiency', title: 'كفاءة ونسب التحصيل الشهري', iconName: 'CheckCircle2' };
+    if (subTab === 'crm_rfm_segmentation') return { id: 'crm_rfm_segmentation', tab: 'crm_collections', subTab: 'crm_rfm_segmentation', title: 'تصنيف العملاء (RFM)', iconName: 'Award' };
+    if (subTab === 'crm_credit_risk') return { id: 'crm_credit_risk', tab: 'crm_collections', subTab: 'crm_credit_risk', title: 'أعمار الديون والمخاطر الائتمانية', iconName: 'AlertTriangle' };
+    if (subTab === 'crm_rep_productivity') return { id: 'crm_rep_productivity', tab: 'crm_collections', subTab: 'crm_rep_productivity', title: 'أداء وإنتاجية المناديب', iconName: 'TrendingUp' };
+    if (subTab === 'crm_pipeline_funnel') return { id: 'crm_pipeline_funnel', tab: 'crm_collections', subTab: 'crm_pipeline_funnel', title: 'مسار الفرص ونسب التحويل', iconName: 'Target' };
+    if (subTab === 'crm_touchpoints_activity') return { id: 'crm_touchpoints_activity', tab: 'crm_collections', subTab: 'crm_touchpoints_activity', title: 'سجل الاتصالات والمتابعات', iconName: 'PhoneCall' };
+    if (subTab === 'crm_support_sla') return { id: 'crm_support_sla', tab: 'crm_collections', subTab: 'crm_support_sla', title: 'تذاكر الدعم وسرعة الاستجابة', iconName: 'LifeBuoy' };
+    if (subTab === 'crm_reports' || subTab === 'reports') return { id: 'crm_reports', tab: 'crm_collections', subTab: 'crm_customer_statement', title: 'تقارير العملاء والتحصيل', iconName: 'BarChart3' };
     return { id: 'crm_customers', tab: 'crm_collections', subTab: 'customers', title: 'دليل وسجل العملاء', iconName: 'Users2' };
   }
   if (tab === 'hr_payroll') {

@@ -57,6 +57,8 @@ import {
   CalendarDays,
   CalendarCheck,
   Bell,
+  DollarSign,
+  CheckCircle2,
 } from 'lucide-react';
 import { useErp } from '../context/ErpContext';
 import { OrbixLogo } from './OrbixLogo';
@@ -176,6 +178,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   const [expandedSubMenus, setExpandedSubMenus] = useState<Record<string, boolean>>({
     reports: true,
     sales_reports: true,
+    purchases_reports: true,
+    inventory_reports: true,
+    crm_reports: true,
   });
 
   const toggleSubMenu = (subId: string, e?: React.MouseEvent) => {
@@ -222,6 +227,41 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       ].includes(activeSubTab)
     ) {
       setExpandedSubMenus((prev) => ({ ...prev, sales_reports: true }));
+    }
+
+    if (
+      activeTab === 'purchases' &&
+      [
+        'purchases_reports',
+        'purchases_summary',
+        'purchases_by_payment',
+        'purchases_vat_report',
+        'purchases_top_vendors',
+        'purchases_ap_aging',
+        'purchases_top_items',
+        'purchases_price_variance',
+        'purchases_returns_analysis',
+      ].includes(activeSubTab)
+    ) {
+      setExpandedSubMenus((prev) => ({ ...prev, purchases_reports: true }));
+    }
+
+    if (
+      activeTab === 'inventory' &&
+      [
+        'inventory_reports',
+        'inventory_valuation',
+        'inventory_movement',
+        'inventory_reorder',
+        'inventory_aging',
+        'inventory_warehouses_balance',
+        'inventory_warehouses_report',
+        'inventory_variance',
+        'inventory_expiry',
+        'inventory_profitability',
+      ].includes(activeSubTab)
+    ) {
+      setExpandedSubMenus((prev) => ({ ...prev, inventory_reports: true }));
     }
   }, [activeTab, activeSubTab]);
 
@@ -497,6 +537,55 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           icon: Building,
           badge: vendors.length,
         },
+        {
+          id: 'purchases_reports',
+          label: 'تقارير المشتريات',
+          icon: BarChart3,
+          badge: '8',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+          children: [
+            {
+              id: 'purchases_summary',
+              label: 'ملخص المشتريات الدوري',
+              icon: TrendingUp,
+            },
+            {
+              id: 'purchases_by_payment',
+              label: 'المشتريات حسب طرق السداد',
+              icon: CreditCard,
+            },
+            {
+              id: 'purchases_vat_report',
+              label: 'ضريبة المدخلات (VAT)',
+              icon: Receipt,
+            },
+            {
+              id: 'purchases_top_vendors',
+              label: 'تحليل كبار الموردين',
+              icon: Users2,
+            },
+            {
+              id: 'purchases_ap_aging',
+              label: 'أعمار ديون الموردين والمدفوعات',
+              icon: Clock,
+            },
+            {
+              id: 'purchases_top_items',
+              label: 'الأصناف الأكثر شراءً وإنفاقاً',
+              icon: Package,
+            },
+            {
+              id: 'purchases_price_variance',
+              label: 'تذبذب وتغير أسعار الشراء',
+              icon: ArrowUpDown,
+            },
+            {
+              id: 'purchases_returns_analysis',
+              label: 'تحليل مردودات المشتريات',
+              icon: RotateCcw,
+            },
+          ],
+        },
       ],
     },
     {
@@ -567,6 +656,55 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           icon: Warehouse,
           badge: warehouses.length,
         },
+        {
+          id: 'inventory_reports',
+          label: 'تقارير المخزون',
+          icon: BarChart3,
+          badge: '8',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+          children: [
+            {
+              id: 'inventory_valuation',
+              label: 'تقييم المخزون المالي',
+              icon: DollarSign,
+            },
+            {
+              id: 'inventory_movement',
+              label: 'كشف وحركة الصنف',
+              icon: ArrowRightLeft,
+            },
+            {
+              id: 'inventory_reorder',
+              label: 'مراقبة النواقص وحد الطلب',
+              icon: AlertTriangle,
+            },
+            {
+              id: 'inventory_aging',
+              label: 'دوران وركود المخزون',
+              icon: Clock,
+            },
+            {
+              id: 'inventory_warehouses_balance',
+              label: 'أرصدة المستودعات والمقارنة',
+              icon: Building2,
+            },
+            {
+              id: 'inventory_variance',
+              label: 'عجز وفروقات الجرد',
+              icon: Scale,
+            },
+            {
+              id: 'inventory_expiry',
+              label: 'الصلاحيات والتشغيلات والتوالف',
+              icon: Calendar,
+            },
+            {
+              id: 'inventory_profitability',
+              label: 'ربحية وهامش الأصناف',
+              icon: TrendingUp,
+            },
+          ],
+        },
       ],
     },
     {
@@ -626,6 +764,55 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           label: 'المناديب',
           icon: TrendingUp,
           badge: salesReps.length,
+        },
+        {
+          id: 'crm_reports',
+          label: 'تقارير العملاء والتحصيل',
+          icon: BarChart3,
+          badge: '8',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+          children: [
+            {
+              id: 'crm_customer_statement',
+              label: 'كشف حساب العميل التحليلي',
+              icon: FileText,
+            },
+            {
+              id: 'crm_collection_efficiency',
+              label: 'كفاءة ونسب التحصيل الشهري',
+              icon: CheckCircle2,
+            },
+            {
+              id: 'crm_rfm_segmentation',
+              label: 'تصنيف العملاء (RFM)',
+              icon: Award,
+            },
+            {
+              id: 'crm_credit_risk',
+              label: 'أعمار الديون والمخاطر الائتمانية',
+              icon: AlertTriangle,
+            },
+            {
+              id: 'crm_rep_productivity',
+              label: 'أداء وإنتاجية المناديب',
+              icon: TrendingUp,
+            },
+            {
+              id: 'crm_pipeline_funnel',
+              label: 'مسار الفرص ونسب التحويل',
+              icon: Target,
+            },
+            {
+              id: 'crm_touchpoints_activity',
+              label: 'سجل الاتصالات والمتابعات',
+              icon: PhoneCall,
+            },
+            {
+              id: 'crm_support_sla',
+              label: 'تذاكر الدعم وسرعة الاستجابة',
+              icon: LifeBuoy,
+            },
+          ],
         },
       ],
     },

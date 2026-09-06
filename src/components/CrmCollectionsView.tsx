@@ -4,6 +4,7 @@ import { Customer, CRMLead, CRMInteraction, CRMTicket, SalesRep } from '../types
 import { CustomerStatementModal } from './CustomerStatementModal';
 import { CrmSalesRepDashboard } from './CrmSalesRepDashboard';
 import { CrmAnalyticsDashboard } from './CrmAnalyticsDashboard';
+import { CrmReportsView } from './CrmReportsView';
 import { CollectionPlansSection } from './crm/CollectionPlansSection';
 import { CollectionRemindersSection } from './crm/CollectionRemindersSection';
 import { CustomerAgingSection } from './crm/CustomerAgingSection';
@@ -92,7 +93,16 @@ export const CrmCollectionsView: React.FC = () => {
     | 'pipeline'
     | 'interactions'
     | 'tickets'
-    | 'sales_reps';
+    | 'sales_reps'
+    | 'crm_reports'
+    | 'crm_customer_statement'
+    | 'crm_collection_efficiency'
+    | 'crm_rfm_segmentation'
+    | 'crm_credit_risk'
+    | 'crm_rep_productivity'
+    | 'crm_pipeline_funnel'
+    | 'crm_touchpoints_activity'
+    | 'crm_support_sla';
 
   const activeTab = useMemo<CrmSubTab>(() => {
     if (
@@ -107,6 +117,15 @@ export const CrmCollectionsView: React.FC = () => {
         'interactions',
         'tickets',
         'sales_reps',
+        'crm_reports',
+        'crm_customer_statement',
+        'crm_collection_efficiency',
+        'crm_rfm_segmentation',
+        'crm_credit_risk',
+        'crm_rep_productivity',
+        'crm_pipeline_funnel',
+        'crm_touchpoints_activity',
+        'crm_support_sla',
       ].includes(activeSubTab)
     ) {
       return activeSubTab as CrmSubTab;
@@ -627,6 +646,19 @@ export const CrmCollectionsView: React.FC = () => {
 
       {/* TAB 0: ADVANCED CRM & PERFORMANCE ANALYTICS */}
       {activeTab === 'crm_analytics' && <CrmAnalyticsDashboard />}
+
+      {/* TAB: CRM & CUSTOMER REPORTS (8 REPORTS) */}
+      {[
+        'crm_reports',
+        'crm_customer_statement',
+        'crm_collection_efficiency',
+        'crm_rfm_segmentation',
+        'crm_credit_risk',
+        'crm_rep_productivity',
+        'crm_pipeline_funnel',
+        'crm_touchpoints_activity',
+        'crm_support_sla',
+      ].includes(activeTab) && <CrmReportsView />}
 
       {/* TAB: COLLECTION PLANS */}
       {activeTab === 'collection_plans' && <CollectionPlansSection />}
