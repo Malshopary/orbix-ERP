@@ -41,6 +41,8 @@ import {
   UserCheck,
   ArrowUpRight,
   ArrowDownLeft,
+  Banknote,
+  Clock,
   X,
   Plus,
   MoreHorizontal,
@@ -90,6 +92,8 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   UserCheck,
   ArrowUpRight,
   ArrowDownLeft,
+  Banknote,
+  Clock,
 };
 
 export const BrowserTabBar: React.FC = () => {

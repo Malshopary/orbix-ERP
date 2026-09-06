@@ -552,6 +552,18 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
     return { id: 'purchases_bills', tab: 'purchases', subTab: 'bills', title: 'فواتير المشتريات', iconName: 'ShoppingCart' };
   }
   if (tab === 'accounts') {
+    if (subTab === 'income') return { id: 'accounts_income', tab: 'accounts', subTab: 'income', title: 'قائمة الدخل والأرباح (P&L)', iconName: 'TrendingUp' };
+    if (subTab === 'balance_sheet') return { id: 'accounts_balance_sheet', tab: 'accounts', subTab: 'balance_sheet', title: 'الميزانية والمركز المالي', iconName: 'Building2' };
+    if (subTab === 'trial_balance') return { id: 'accounts_trial_balance', tab: 'accounts', subTab: 'trial_balance', title: 'ميزان المراجعة بالمجاميع', iconName: 'Scale' };
+    if (subTab === 'statement') return { id: 'accounts_statement', tab: 'accounts', subTab: 'statement', title: 'دفتر الأستاذ وكشف الحساب', iconName: 'BookOpenCheck' };
+    if (subTab === 'journal_book') return { id: 'accounts_journal_book', tab: 'accounts', subTab: 'journal_book', title: 'دفتر اليومية العامة', iconName: 'FileText' };
+    if (subTab === 'cash_flow') return { id: 'accounts_cash_flow', tab: 'accounts', subTab: 'cash_flow', title: 'قائمة التدفقات النقدية', iconName: 'Banknote' };
+    if (subTab === 'cost_centers') return { id: 'accounts_cost_centers', tab: 'accounts', subTab: 'cost_centers', title: 'أرباح مراكز التكلفة', iconName: 'Target' };
+    if (subTab === 'aging') return { id: 'accounts_aging', tab: 'accounts', subTab: 'aging', title: 'أعمار الديون والذمم', iconName: 'Clock' };
+    if (subTab === 'tax') return { id: 'accounts_tax', tab: 'accounts', subTab: 'tax', title: 'ملخص الضريبة المضافة (VAT)', iconName: 'Receipt' };
+    if (subTab === 'reports' || subTab === 'financial_reports') {
+      return { id: 'accounts_reports', tab: 'accounts', subTab: 'income', title: 'التقارير المالية', iconName: 'Scale' };
+    }
     if (subTab === 'journal') return { id: 'accounts_journal', tab: 'accounts', subTab: 'journal', title: 'سجل قيود اليومية', iconName: 'FileText' };
     if (subTab === 'collections' || subTab === 'receipts') return { id: 'accounts_collections', tab: 'accounts', subTab: 'collections', title: 'سندات القبض والتحصيل', iconName: 'ArrowDownLeft' };
     if (subTab === 'payments' || subTab === 'expenses') return { id: 'accounts_payments', tab: 'accounts', subTab: 'payments', title: 'سندات الصرف والمصروفات', iconName: 'ArrowUpRight' };

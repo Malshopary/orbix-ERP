@@ -21,6 +21,7 @@ import { CostCentersSection } from './CostCentersSection';
 import { FixedAssetsSection } from './FixedAssetsSection';
 import { FiscalClosingSection } from './FiscalClosingSection';
 import { BudgetsSection } from './BudgetsSection';
+import { FinancialReportsView } from './FinancialReportsView';
 import { VoucherPrintModal } from './VoucherPrintModal';
 import {
   BookOpenCheck,
@@ -58,6 +59,8 @@ import {
   FileCheck2,
   Target,
   Building,
+  PieChart,
+  Scale,
 } from 'lucide-react';
 
 export const AccountsView: React.FC = () => {
@@ -105,13 +108,58 @@ export const AccountsView: React.FC = () => {
 
   // Primary Accounts Subtab
   const [activeTab, setActiveTabLocal] = useState<
-    'chart' | 'journal' | 'collections' | 'payments' | 'cheques' | 'reconciliation' | 'costcenters' | 'fixedassets' | 'fiscal_closing' | 'budgets' | 'commissions' | 'loyalty' | 'pricelists'
+    | 'chart'
+    | 'journal'
+    | 'reports'
+    | 'collections'
+    | 'payments'
+    | 'cheques'
+    | 'reconciliation'
+    | 'costcenters'
+    | 'fixedassets'
+    | 'fiscal_closing'
+    | 'budgets'
+    | 'commissions'
+    | 'loyalty'
+    | 'pricelists'
   >(() => {
     if (activeSubTab === 'receipts') return 'collections';
     if (activeSubTab === 'expenses') return 'payments';
     if (
+      activeSubTab === 'reports' ||
+      activeSubTab === 'financial_reports' ||
+      [
+        'income',
+        'balance_sheet',
+        'trial_balance',
+        'statement',
+        'journal_book',
+        'cash_flow',
+        'cost_centers',
+        'aging',
+        'tax',
+      ].includes(activeSubTab || '')
+    ) {
+      return 'reports';
+    }
+    if (
       activeSubTab &&
-      ['chart', 'journal', 'collections', 'payments', 'cheques', 'reconciliation', 'costcenters', 'fixedassets', 'fiscal_closing', 'budgets', 'commissions', 'loyalty', 'pricelists'].includes(activeSubTab)
+      [
+        'chart',
+        'journal',
+        'reports',
+        'collections',
+        'payments',
+        'cheques',
+        'reconciliation',
+        'costcenters',
+        'fixedassets',
+        'fiscal_closing',
+        'budgets',
+        'commissions',
+        'loyalty',
+        'pricelists',
+      ].includes(activeSubTab)
     ) {
       return activeSubTab as any;
     }
@@ -126,7 +174,38 @@ export const AccountsView: React.FC = () => {
       } else if (activeSubTab === 'expenses') {
         setActiveTabLocal('payments');
       } else if (
-        ['chart', 'journal', 'collections', 'payments', 'cheques', 'reconciliation', 'costcenters', 'fixedassets', 'fiscal_closing', 'budgets', 'commissions', 'loyalty', 'pricelists'].includes(activeSubTab)
+        activeSubTab === 'reports' ||
+        activeSubTab === 'financial_reports' ||
+        [
+          'income',
+          'balance_sheet',
+          'trial_balance',
+          'statement',
+          'journal_book',
+          'cash_flow',
+          'cost_centers',
+          'aging',
+          'tax',
+        ].includes(activeSubTab)
+      ) {
+        setActiveTabLocal('reports');
+      } else if (
+        [
+          'chart',
+          'journal',
+          'reports',
+          'collections',
+          'payments',
+          'cheques',
+          'reconciliation',
+          'costcenters',
+          'fixedassets',
+          'fiscal_closing',
+          'budgets',
+          'commissions',
+          'loyalty',
+          'pricelists',
+        ].includes(activeSubTab)
       ) {
         setActiveTabLocal(activeSubTab as any);
       }
@@ -134,7 +213,21 @@ export const AccountsView: React.FC = () => {
   }, [activeSubTab]);
 
   const setActiveTab = (
-    tab: 'chart' | 'journal' | 'collections' | 'payments' | 'cheques' | 'reconciliation' | 'costcenters' | 'fixedassets' | 'fiscal_closing' | 'budgets' | 'commissions' | 'loyalty' | 'pricelists'
+    tab:
+      | 'chart'
+      | 'journal'
+      | 'reports'
+      | 'collections'
+      | 'payments'
+      | 'cheques'
+      | 'reconciliation'
+      | 'costcenters'
+      | 'fixedassets'
+      | 'fiscal_closing'
+      | 'budgets'
+      | 'commissions'
+      | 'loyalty'
+      | 'pricelists'
   ) => {
     setActiveTabLocal(tab);
     setActiveSubTab(tab);
@@ -1312,6 +1405,9 @@ export const AccountsView: React.FC = () => {
 
       {/* SUBTAB: BUDGETS VS ACTUAL */}
       {activeTab === 'budgets' && <BudgetsSection />}
+
+      {/* SUBTAB: FINANCIAL & ACCOUNTING REPORTS */}
+      {activeTab === 'reports' && <FinancialReportsView />}
 
       {/* SUBTAB 4: COMMISSIONS & PAYOUTS */}
       {activeTab === 'commissions' && (

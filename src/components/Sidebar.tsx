@@ -48,6 +48,7 @@ import {
   ArrowRightLeft,
   ArrowUpRight,
   ArrowDownLeft,
+  Banknote,
   Landmark,
   FileCheck2,
   PackageCheck,
@@ -79,6 +80,7 @@ export interface SubMenuItem {
   icon: React.ComponentType<{ className?: string }>;
   badge?: string | number;
   badgeColor?: string;
+  children?: SubMenuItem[];
 }
 
 export interface MenuItem {
@@ -152,7 +154,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     inventory: false,
     crm_collections: false,
     hr_payroll: false,
-    financial_reports: false,
     settings: false,
   });
 
@@ -171,6 +172,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       [menuId]: !prev[menuId],
     }));
   };
+
+  const [expandedSubMenus, setExpandedSubMenus] = useState<Record<string, boolean>>({
+    reports: true,
+  });
+
+  const toggleSubMenu = (subId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedSubMenus((prev) => ({
+      ...prev,
+      [subId]: !prev[subId],
+    }));
+  };
+
+  useEffect(() => {
+    if (
+      activeTab === 'accounts' &&
+      [
+        'reports',
+        'financial_reports',
+        'income',
+        'balance_sheet',
+        'trial_balance',
+        'statement',
+        'journal_book',
+        'cash_flow',
+        'cost_centers',
+        'aging',
+        'tax',
+      ].includes(activeSubTab)
+    ) {
+      setExpandedSubMenus((prev) => ({ ...prev, reports: true }));
+    }
+  }, [activeTab, activeSubTab]);
 
   const pinnedItems: MenuItem[] = [
     {
@@ -254,6 +288,59 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           label: 'الموازنات التقديرية',
           icon: PieChart,
           badge: 'موازنة',
+        },
+        {
+          id: 'reports',
+          label: 'التقارير المالية',
+          icon: Scale,
+          badge: '9 تقارير',
+          children: [
+            {
+              id: 'income',
+              label: 'قائمة الدخل والأرباح (P&L)',
+              icon: TrendingUp,
+            },
+            {
+              id: 'balance_sheet',
+              label: 'الميزانية والمركز المالي',
+              icon: Building2,
+            },
+            {
+              id: 'trial_balance',
+              label: 'ميزان المراجعة بالمجاميع',
+              icon: Scale,
+            },
+            {
+              id: 'statement',
+              label: 'دفتر الأستاذ وكشف الحساب',
+              icon: BookOpenCheck,
+            },
+            {
+              id: 'journal_book',
+              label: 'دفتر اليومية العامة',
+              icon: FileText,
+            },
+            {
+              id: 'cash_flow',
+              label: 'قائمة التدفقات النقدية',
+              icon: Banknote,
+            },
+            {
+              id: 'cost_centers',
+              label: 'أرباح مراكز التكلفة',
+              icon: Target,
+            },
+            {
+              id: 'aging',
+              label: 'أعمار الديون والذمم',
+              icon: Clock,
+            },
+            {
+              id: 'tax',
+              label: 'ملخص الضريبة المضافة (VAT)',
+              icon: Receipt,
+            },
+          ],
         },
       ],
     },
@@ -488,33 +575,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       ],
     },
     {
-      id: 'financial_reports',
-      label: 'التقارير',
-      icon: PieChart,
-      subItems: [
-        {
-          id: 'income',
-          label: 'الأرباح',
-          icon: TrendingUp,
-        },
-        {
-          id: 'balance_sheet',
-          label: 'الميزانية',
-          icon: Building2,
-        },
-        {
-          id: 'trial_balance',
-          label: 'المراجعة',
-          icon: Scale,
-        },
-        {
-          id: 'statement',
-          label: 'الأستاذ',
-          icon: FileText,
-        },
-      ],
-    },
-    {
       id: 'settings',
       label: 'الإعدادات',
       icon: Sliders,
@@ -714,46 +774,134 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                   <div className="mt-1 mr-3 pr-2.5 border-r border-slate-700/70 space-y-0.5 py-1">
                     {item.subItems!.map((sub) => {
                       const SubIcon = sub.icon;
-                      const isSubActive = isMainActive && activeSubTab === sub.id;
+                      const hasChildren = sub.children && sub.children.length > 0;
+                      const isSubExpanded = !!expandedSubMenus[sub.id];
+
+                      const isChildActive =
+                        hasChildren &&
+                        isMainActive &&
+                        sub.children!.some((c) => c.id === activeSubTab);
+
+                      const isSubActive =
+                        isMainActive &&
+                        (activeSubTab === sub.id ||
+                          isChildActive ||
+                          (sub.id === 'reports' &&
+                            [
+                              'reports',
+                              'financial_reports',
+                              'income',
+                              'balance_sheet',
+                              'trial_balance',
+                              'statement',
+                              'journal_book',
+                              'cash_flow',
+                              'cost_centers',
+                              'aging',
+                              'tax',
+                            ].includes(activeSubTab)) ||
+                          (sub.id === 'collections' && activeSubTab === 'receipts') ||
+                          (sub.id === 'payments' && activeSubTab === 'expenses'));
 
                       return (
-                        <button
-                          key={sub.id}
-                          id={`subnav-${item.id}-${sub.id}`}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigateTo(item.id, sub.id);
-                          }}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-all text-right cursor-pointer ${
-                            isSubActive
-                              ? 'bg-emerald-500/20 text-emerald-300 font-semibold border-r-2 border-emerald-400'
-                              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <SubIcon
-                              className={`w-3.5 h-3.5 shrink-0 ${
-                                isSubActive ? 'text-emerald-400' : 'text-slate-500'
-                              }`}
-                            />
-                            <span className="truncate">{sub.label}</span>
-                          </div>
+                        <div key={sub.id} className="space-y-0.5">
+                          <button
+                            id={`subnav-${item.id}-${sub.id}`}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (hasChildren) {
+                                toggleSubMenu(sub.id);
+                                if (!isChildActive) {
+                                  navigateTo(item.id, sub.children![0].id);
+                                }
+                              } else {
+                                navigateTo(item.id, sub.id);
+                              }
+                            }}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-all text-right cursor-pointer ${
+                              isSubActive
+                                ? 'bg-emerald-500/20 text-emerald-300 font-semibold border-r-2 border-emerald-400'
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <SubIcon
+                                className={`w-3.5 h-3.5 shrink-0 ${
+                                  isSubActive ? 'text-emerald-400' : 'text-slate-500'
+                                }`}
+                              />
+                              <span className="truncate">{sub.label}</span>
+                            </div>
 
-                          {sub.badge !== undefined && (
-                            <span
-                              className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono tabular-nums ${
-                                sub.badgeColor
-                                  ? sub.badgeColor
-                                  : isSubActive
-                                  ? 'bg-emerald-400/20 text-emerald-300'
-                                  : 'bg-slate-800 text-slate-400 border border-slate-700/60'
-                              }`}
-                            >
-                              {sub.badge}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {sub.badge !== undefined && (
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono tabular-nums ${
+                                    sub.badgeColor
+                                      ? sub.badgeColor
+                                      : isSubActive
+                                      ? 'bg-emerald-400/20 text-emerald-300'
+                                      : 'bg-slate-800 text-slate-400 border border-slate-700/60'
+                                  }`}
+                                >
+                                  {sub.badge}
+                                </span>
+                              )}
+                              {hasChildren && (
+                                <span
+                                  onClick={(e) => toggleSubMenu(sub.id, e)}
+                                  className="p-0.5 rounded hover:bg-slate-700/60 text-slate-400"
+                                >
+                                  {isSubExpanded ? (
+                                    <ChevronDown className="w-3 h-3 text-emerald-400" />
+                                  ) : (
+                                    <ChevronLeft className="w-3 h-3 text-slate-400" />
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          </button>
+
+                          {/* Nested Dropdown for sub.children (e.g. the 9 Financial Reports) */}
+                          {hasChildren && isSubExpanded && (
+                            <div className="mr-3 pr-2 border-r border-emerald-500/30 space-y-0.5 py-1 my-0.5">
+                              {sub.children!.map((child) => {
+                                const ChildIcon = child.icon;
+                                const isChildBtnActive = isMainActive && activeSubTab === child.id;
+
+                                return (
+                                  <button
+                                    key={child.id}
+                                    id={`subnav-child-${item.id}-${child.id}`}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigateTo(item.id, child.id);
+                                    }}
+                                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[11px] transition-all text-right cursor-pointer ${
+                                      isChildBtnActive
+                                        ? 'bg-emerald-500 text-slate-950 font-black shadow-xs'
+                                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 font-medium'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <ChildIcon
+                                        className={`w-3.5 h-3.5 shrink-0 ${
+                                          isChildBtnActive ? 'text-slate-950' : 'text-slate-500'
+                                        }`}
+                                      />
+                                      <span className="truncate">{child.label}</span>
+                                    </div>
+                                    {isChildBtnActive && (
+                                      <span className="w-1.5 h-1.5 rounded-full bg-slate-950 shrink-0"></span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           )}
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
