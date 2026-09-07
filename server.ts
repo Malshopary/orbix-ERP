@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { testDbConnection, getSyncPayload, setSyncPayload, getDbCustomers, upsertDbCustomer } from './src/db/erp.ts';
 import { getOrCreateUser } from './src/db/users.ts';
@@ -15,13 +16,20 @@ import {
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
 
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
-// Health check endpoint
-app.get('/api/health', async (_req, res) => {
+// Immediate health check endpoint for Cloud Run and container probes
+app.get('/api/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Deep database health check endpoint
+app.get('/api/health/db', async (_req, res) => {
   const dbHealth = await testDbConnection();
   res.json({
     status: 'ok',
@@ -152,25 +160,81 @@ app.post('/api/tenant/load-state', async (req, res) => {
   }
 });
 
+// Safe filename and directory resolution for both ESM (tsx) and CJS (dist/server.cjs)
+const getModulePath = () => {
+  try {
+    return fileURLToPath(import.meta.url);
+  } catch {
+    return typeof __filename !== 'undefined' ? __filename : '';
+  }
+};
+
+const currentFilePath = getModulePath();
+const currentDirPath = currentFilePath ? path.dirname(currentFilePath) : process.cwd();
+
+// Detect if running bundled production or development
+const isBundled = currentFilePath.endsWith('.cjs') || currentFilePath.includes('dist') || typeof require !== 'undefined';
+const isProduction = process.env.NODE_ENV === 'production' || isBundled;
+
 // Start server with Vite middleware in dev or static files in production
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  if (!isProduction) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const candidatePaths = [
+      path.join(process.cwd(), 'dist'),
+      currentDirPath,
+      path.join(currentDirPath, 'dist'),
+      path.join(currentDirPath, '..', 'dist'),
+    ];
+    const distPath = candidatePaths.find((p) => fs.existsSync(path.join(p, 'index.html'))) || candidatePaths[0];
+
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const indexHtml = path.join(distPath, 'index.html');
+      if (fs.existsSync(indexHtml)) {
+        res.sendFile(indexHtml);
+      } else {
+        res.status(404).send('Orbix ERP: Frontend build not found.');
+      }
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Orbix ERP Full-Stack Server running on http://0.0.0.0:${PORT}`);
+  // Determine port: in dev workspace always 3000; in deployed Cloud Run use process.env.PORT (defaults to 8080 or 3000)
+  const primaryPort = isProduction && process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+  const server = app.listen(primaryPort, '0.0.0.0', () => {
+    console.log(`Orbix ERP Full-Stack Server running on http://0.0.0.0:${primaryPort} (mode: ${isProduction ? 'production' : 'development'})`);
   });
+
+  server.on('error', (err: any) => {
+    console.error(`Server error on primary port ${primaryPort}:`, err.message);
+    if (err.code === 'EADDRINUSE' && primaryPort !== 3000) {
+      console.log('Falling back to listen on port 3000...');
+      app.listen(3000, '0.0.0.0', () => {
+        console.log('Orbix ERP Full-Stack Server running on fallback port 3000');
+      });
+    }
+  });
+
+  // In production, if primaryPort is not 3000, also listen on port 3000 as secondary listener
+  if (isProduction && primaryPort !== 3000) {
+    try {
+      const secondary = app.listen(3000, '0.0.0.0', () => {
+        console.log('Orbix ERP secondary listener active on http://0.0.0.0:3000');
+      });
+      secondary.on('error', (_err: any) => {
+        // Silently ignore if port 3000 is unavailable
+      });
+    } catch {
+      // Ignore
+    }
+  }
 }
 
 startServer().catch((err) => {

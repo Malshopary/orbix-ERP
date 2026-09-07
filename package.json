@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "main": "electron/main.cjs",
+  "main": "dist/server.cjs",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
@@ -17,6 +17,9 @@
   "build": {
     "appId": "com.orbix.erp",
     "productName": "Orbix ERP Enterprise",
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
     "directories": {
       "output": "dist-electron"
     },
