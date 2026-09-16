@@ -3060,7 +3060,7 @@ pause
                   </div>
                   <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
                     <span className="text-[11px] text-indigo-200/70 block">الجداول المجهزة (Schema)</span>
-                    <span className="text-xs font-bold text-emerald-400 mt-1 block">10 جداول رسمية مفهرسة</span>
+                    <span className="text-xs font-bold text-emerald-400 mt-1 block">12 جدولاً رسمياً مفهرساً</span>
                   </div>
                   <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
                     <span className="text-[11px] text-indigo-200/70 block">آخر فحص للاتصال</span>
@@ -3235,7 +3235,7 @@ pause
                       onClick={handleInitTenantSchema}
                       disabled={isProvisioningSchema}
                       className="bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all border border-amber-400/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                      title="إنشاء وتهيئة الجداول العشرة الرسمية في قاعدة بيانات العميل إذا كانت فارغة"
+                      title="إنشاء وتهيئة الجداول الـ 12 الرسمية في قاعدة بيانات العميل إذا كانت فارغة"
                     >
                       <Sparkles className={`w-3.5 h-3.5 ${isProvisioningSchema ? 'animate-spin' : ''}`} />
                       {isProvisioningSchema ? 'جاري التهيئة...' : 'إنشاء الجداول في السيرفر'}

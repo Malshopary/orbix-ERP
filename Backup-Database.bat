@@ -14,3 +14,4 @@ echo Backing up database to backups\orbix_backup_%timestamp%.sql...
 "%PG_BIN%\pg_dump.exe" -U postgres -h 127.0.0.1 -p 5432 -d orbix_erp -F p -f "%~dp0backups\orbix_backup_%timestamp%.sql"
 echo Done!
 pause
+

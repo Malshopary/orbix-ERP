@@ -96,8 +96,8 @@ export async function initCustomTenantDatabase(config: TenantConnectionConfig): 
   if (config.mode === 'default_cloud') {
     return {
       ok: true,
-      message: 'الجداول العشرة الرسمية مهيأة ونشطة بالفعل على السحابة المركزية.',
-      createdTables: 10,
+      message: 'الجداول الـ 12 الرسمية مهيأة ونشطة بالفعل على السحابة المركزية.',
+      createdTables: 12,
     };
   }
 

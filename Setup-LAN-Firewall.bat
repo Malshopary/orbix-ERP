@@ -18,3 +18,4 @@ netsh advfirewall firewall add rule name="Orbix ERP Database (Port 5432)" dir=in
 echo.
 echo [SUCCESS] Firewall rules configured successfully for LAN access.
 pause
+

@@ -52,3 +52,4 @@ if errorlevel 1 (
 )
 echo [OK] PostgreSQL database is ready!
 pause
+
