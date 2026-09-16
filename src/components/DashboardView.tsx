@@ -295,17 +295,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-xl font-extrabold text-slate-900">
+            <div className="text-xl font-extrabold text-slate-900 privacy-blur">
               {formatMoney(totalSalesRevenue)}
             </div>
             {secondaryCurrency !== currency && (
-              <div className="text-xs font-bold text-emerald-700 mt-0.5">
+              <div className="text-xs font-bold text-emerald-700 mt-0.5 privacy-blur">
                 ≈ {formatDualMoney(totalSalesRevenue).split('(')[1]?.replace(')', '')}
               </div>
             )}
             <div className="flex items-center gap-1 mt-1.5 text-[11px] text-slate-500">
               <span>ضريبة مخرجات (VAT):</span>
-              <span className="font-semibold text-slate-700">{formatMoney(totalVATCollected)}</span>
+              <span className="font-semibold text-slate-700 privacy-blur">{formatMoney(totalVATCollected)}</span>
             </div>
           </div>
         </div>
@@ -319,18 +319,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-xl font-extrabold text-blue-950">
+            <div className="text-xl font-extrabold text-blue-950 privacy-blur">
               {formatMoney(totalLiquidity)}
             </div>
             {secondaryCurrency !== currency && (
-              <div className="text-xs font-bold text-blue-700 mt-0.5">
+              <div className="text-xs font-bold text-blue-700 mt-0.5 privacy-blur">
                 ≈ {formatDualMoney(totalLiquidity).split('(')[1]?.replace(')', '')}
               </div>
             )}
             <div className="flex items-center gap-2 mt-1.5 text-[11px] text-slate-500">
-              <span>الصندوق: {formatMoney(cashAccount?.balance || 0)}</span>
+              <span className="privacy-blur">الصندوق: {formatMoney(cashAccount?.balance || 0)}</span>
               <span>•</span>
-              <span>البنك: {formatMoney(bankAccount?.balance || 0)}</span>
+              <span className="privacy-blur">البنك: {formatMoney(bankAccount?.balance || 0)}</span>
             </div>
           </div>
         </div>
@@ -344,11 +344,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-xl font-extrabold text-amber-950">
+            <div className="text-xl font-extrabold text-amber-950 privacy-blur">
               {formatMoney(totalReceivables)}
             </div>
             {secondaryCurrency !== currency && (
-              <div className="text-xs font-bold text-amber-700 mt-0.5">
+              <div className="text-xs font-bold text-amber-700 mt-0.5 privacy-blur">
                 ≈ {formatDualMoney(totalReceivables).split('(')[1]?.replace(')', '')}
               </div>
             )}
@@ -367,14 +367,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-xl font-extrabold text-purple-950">
+            <div className="text-xl font-extrabold text-purple-950 privacy-blur">
               {formatMoney(totalInventoryValue)}
             </div>
             {secondaryCurrency !== currency && (
-              <div className="text-xs font-bold text-purple-700 mt-0.5">
+              <div className="text-xs font-bold text-purple-700 mt-0.5 privacy-blur">
                 ≈ {formatDualMoney(totalInventoryValue).split('(')[1]?.replace(')', '')}
               </div>
             )}
+            <div className="flex items-center gap-2 mt-1.5 text-[11px] text-slate-500">
+              <span className="privacy-blur">التزامات الموردين: {formatMoney(totalPayables)}</span>
+            </div>
             <div className="flex items-center gap-1 mt-1.5 text-[11px] text-slate-500">
               <span>إجمالي الأصناف: {products.length}</span>
               {lowStockProducts.length > 0 && (
@@ -457,7 +460,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
           <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 flex items-center justify-between">
             <div>
               <span className="text-xs text-emerald-800 font-medium">مبيعات الـ 7 أيام الأخيرة:</span>
-              <div className="text-base font-extrabold text-emerald-950 mt-0.5">
+              <div className="text-base font-extrabold text-emerald-950 mt-0.5 privacy-blur">
                 {formatMoney(last7DaysTotalSales)}
               </div>
             </div>
@@ -469,7 +472,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
           <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 flex items-center justify-between">
             <div>
               <span className="text-xs text-amber-800 font-medium">مشتريات وتوريدات الـ 7 أيام:</span>
-              <div className="text-base font-extrabold text-amber-950 mt-0.5">
+              <div className="text-base font-extrabold text-amber-950 mt-0.5 privacy-blur">
                 {formatMoney(last7DaysTotalPurchases)}
               </div>
             </div>
@@ -482,7 +485,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             <div>
               <span className="text-xs text-slate-600 font-medium">صافي الفارق التجاري الأسبوعي:</span>
               <div
-                className={`text-base font-extrabold mt-0.5 ${
+                className={`text-base font-extrabold mt-0.5 privacy-blur ${
                   last7DaysNetProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'
                 }`}
               >
@@ -496,7 +499,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
         </div>
 
         {/* Recharts Canvas */}
-        <div className="w-full h-80 pt-2">
+        <div className="w-full h-80 pt-2 privacy-blur">
           <ResponsiveContainer width="100%" height="100%">
             {chartType === 'area' ? (
               <AreaChart data={last7DaysData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
@@ -626,16 +629,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
                         <div className="font-bold text-slate-800">{cust.customerName}</div>
                         <div className="text-[11px] text-slate-400">{cust.phone}</div>
                       </td>
-                      <td className="py-3 px-3 font-extrabold text-slate-900">
+                      <td className="py-3 px-3 font-extrabold text-slate-900 privacy-blur">
                         {formatMoney(cust.currentTotal)}
                       </td>
-                      <td className="py-3 px-3 text-slate-600">
+                      <td className="py-3 px-3 text-slate-600 privacy-blur">
                         {cust.days0to30 > 0 ? formatMoney(cust.days0to30) : '-'}
                       </td>
-                      <td className="py-3 px-3 text-amber-700 font-medium">
+                      <td className="py-3 px-3 text-amber-700 font-medium privacy-blur">
                         {cust.days31to60 > 0 ? formatMoney(cust.days31to60) : '-'}
                       </td>
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3 privacy-blur">
                         {cust.days61to90 + cust.days90Plus > 0 ? (
                           <span className="inline-flex items-center gap-1 text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
                             {formatMoney(cust.days61to90 + cust.days90Plus)}
@@ -721,13 +724,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
               </div>
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
                 <span className="text-xs text-slate-600">كتلة الرواتب الأساسية الشهرية</span>
-                <span className="font-bold text-slate-900 text-sm">
+                <span className="font-bold text-slate-900 text-sm privacy-blur">
                   {formatMoney(employees.reduce((s, e) => s + e.basicSalary, 0))}
                 </span>
               </div>
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
                 <span className="text-xs text-slate-600">إجمالي البدلات الشهرية</span>
-                <span className="font-bold text-slate-900 text-sm">
+                <span className="font-bold text-slate-900 text-sm privacy-blur">
                   {formatMoney(
                     employees.reduce(
                       (s, e) => s + e.housingAllowance + e.transportAllowance + e.otherAllowances,
@@ -756,7 +759,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
             <div className="space-y-2 text-xs">
               <div className="flex justify-between py-1.5 border-b border-slate-100">
                 <span className="text-slate-600">إجمالي الأصول الحالية:</span>
-                <span className="font-bold text-slate-900">
+                <span className="font-bold text-slate-900 privacy-blur">
                   {formatMoney(
                     accounts
                       .filter((a) => a.type === 'asset' && !a.isHeader)
@@ -766,7 +769,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100">
                 <span className="text-slate-600">إجمالي الالتزامات والدائنين:</span>
-                <span className="font-bold text-slate-900">
+                <span className="font-bold text-slate-900 privacy-blur">
                   {formatMoney(
                     accounts
                       .filter((a) => a.type === 'liability' && !a.isHeader)
@@ -776,7 +779,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setActiveTab }) =>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100">
                 <span className="text-slate-600">رأس المال وحقوق الملكية:</span>
-                <span className="font-bold text-slate-900">
+                <span className="font-bold text-slate-900 privacy-blur">
                   {formatMoney(
                     accounts
                       .filter((a) => a.type === 'equity' && !a.isHeader)

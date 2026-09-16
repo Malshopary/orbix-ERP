@@ -143,3 +143,43 @@ export const appSyncStore = pgTable('app_sync_store', {
   version: doublePrecision('version').default(1),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
+
+// Employee Tasks & Requests table
+export const employeeTasks = pgTable('employee_tasks', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  description: text('description'),
+  priority: text('priority').default('medium').notNull(),
+  status: text('status').default('pending').notNull(),
+  createdByUserId: text('created_by_user_id').notNull(),
+  createdByUserName: text('created_by_user_name').notNull(),
+  createdByUserAvatar: text('created_by_user_avatar'),
+  assignedToUserIds: jsonb('assigned_to_user_ids').notNull(),
+  assignedToUserNames: jsonb('assigned_to_user_names').notNull(),
+  createdAt: text('created_at').notNull(),
+  dueDate: text('due_date'),
+  completedAt: text('completed_at'),
+  approvedAt: text('approved_at'),
+  completionNote: text('completion_note'),
+  rejectionReason: text('rejection_reason'),
+  historyJson: jsonb('history_json').notNull(),
+  relatedEntityType: text('related_entity_type'),
+  relatedEntityId: text('related_entity_id'),
+  relatedEntityName: text('related_entity_name'),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Chat Messages table
+export const chatMessages = pgTable('chat_messages', {
+  id: text('id').primaryKey(),
+  channelId: text('channel_id').notNull(),
+  senderId: text('sender_id').notNull(),
+  senderName: text('sender_name').notNull(),
+  senderAvatar: text('sender_avatar'),
+  senderRole: text('sender_role'),
+  text: text('text').notNull(),
+  timestamp: text('timestamp').notNull(),
+  isSystemNotification: boolean('is_system_notification').default(false),
+  taskId: text('task_id'),
+  createdAt: timestamp('created_at').defaultNow(),
+});

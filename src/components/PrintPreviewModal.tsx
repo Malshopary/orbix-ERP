@@ -17,6 +17,7 @@ export interface PrintPreviewModalProps {
   badgeColor?: string;
   elementId?: string;
   defaultOrientation?: 'portrait' | 'landscape';
+  extraActions?: React.ReactNode;
   children:
     | ((props: {
         orientation: 'portrait' | 'landscape';
@@ -34,6 +35,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
   badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200',
   elementId = 'printable-canvas-sheet',
   defaultOrientation = 'portrait',
+  extraActions,
   children,
 }) => {
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>(
@@ -141,6 +143,8 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 <ZoomIn className="w-3.5 h-3.5" />
               </button>
             </div>
+
+            {extraActions}
 
             {/* Print Document Button */}
             <button

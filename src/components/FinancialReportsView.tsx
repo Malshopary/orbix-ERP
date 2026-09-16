@@ -688,10 +688,14 @@ export const FinancialReportsView: React.FC = () => {
       </div>
 
       {/* =========================================================================
-          REPORT 1: INCOME STATEMENT (قائمة الدخل والأرباح والخسائر)
+          FINANCIAL REPORTS VIEWPORT (BLURRED IN PRIVACY MODE)
          ========================================================================= */}
-      {reportType === 'income' && (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 max-w-4xl mx-auto space-y-6">
+      <div className="report-sheet privacy-blur space-y-6">
+        {/* =========================================================================
+            REPORT 1: INCOME STATEMENT (قائمة الدخل والأرباح والخسائر)
+           ========================================================================= */}
+        {reportType === 'income' && (
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 max-w-4xl mx-auto space-y-6">
           <div className="text-center border-b border-slate-100 pb-4">
             <h3 className="text-lg font-black text-slate-900">{companyProfile.nameAr}</h3>
             <p className="text-sm font-bold text-slate-700 mt-0.5">قائمة الدخل والأرباح والخسائر (Income Statement)</p>
@@ -1613,6 +1617,7 @@ export const FinancialReportsView: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
 
       {/* Document Viewer Modal */}
       {activeDocViewer && (
@@ -1634,7 +1639,7 @@ export const FinancialReportsView: React.FC = () => {
           elementId="financial-report-print-sheet"
         >
           {({ orientation }) => (
-            <div className="space-y-6 text-xs text-slate-800">
+            <div className="space-y-6 text-xs text-slate-800 report-sheet privacy-blur">
               <PrintHeader
                 docTitle={
                   reportType === 'income'

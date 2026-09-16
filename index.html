@@ -2,20 +2,56 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>نظام المحاسبة وإدارة المؤسسات المتكامل (Orbix ERP)</title>
     <meta name="description" content="منظومة محاسبية وإدارية متكاملة تشمل المالية ودليل الحسابات، المخازن، المبيعات، المشتريات، CRM، متابعة التحصيل وأعمار الديون، الموارد البشرية والرواتب، والتقارير المالية المتقدمة مع دليل المتطلبات الفنية والمعمارية." />
     <meta property="og:title" content="نظام المحاسبة وإدارة المؤسسات المتكامل (Orbix ERP)" />
     <meta property="og:description" content="منظومة محاسبية وإدارية متكاملة تشمل المالية ودليل الحسابات، المخازن، المبيعات، المشتريات، CRM، متابعة التحصيل وأعمار الديون، الموارد البشرية والرواتب، والتقارير المالية المتقدمة مع دليل المتطلبات الفنية والمعمارية." />
     <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Orbix ERP" />
+    <link rel="apple-touch-icon" href="/icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700;800&family=Readex+Pro:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   </head>
-  <body class="bg-slate-50 text-slate-900 antialiased font-sans">
-    <div id="root"></div>
+  <body class="bg-slate-950 text-slate-900 antialiased font-sans">
+    <div id="root">
+      <!-- High-Performance Instant Initial Splash (Auto-replaced by React on mount) -->
+      <div id="orbix-splash" style="position:fixed;inset:0;background:#020617;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999999;color:#fff;font-family:'Readex Pro',system-ui,-apple-system,sans-serif;user-select:none;text-align:center;padding:16px;" dir="rtl">
+        <style>
+          @keyframes orbix-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          @keyframes orbix-pulse { 0%, 100% { opacity: 0.3; transform: scale(0.95); } 50% { opacity: 0.7; transform: scale(1.05); } }
+          @keyframes orbix-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+        </style>
+        <div style="position:relative;width:90px;height:90px;display:flex;align-items:center;justify-content:center;margin-bottom:24px;">
+          <div style="position:absolute;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle, rgba(16,185,129,0.25) 0%, transparent 70%);animation:orbix-pulse 3s ease-in-out infinite;"></div>
+          <div style="position:absolute;inset:-6px;border-radius:50%;border:1.5px dashed rgba(16,185,129,0.35);animation:orbix-spin 16s linear infinite;"></div>
+          <div style="width:72px;height:72px;border-radius:22px;background:linear-gradient(135deg,rgba(15,23,42,0.95),rgba(2,6,23,0.98));border:1.5px solid rgba(16,185,129,0.45);display:flex;align-items:center;justify-content:center;box-shadow:0 0 35px rgba(16,185,129,0.25);position:relative;z-index:2;">
+            <svg viewBox="144 523 304 304" fill="none" style="width:44px;height:44px;">
+              <path fill="#38bdf8" d="M424.576,668.578l-26.788-0.137c-5.023-0.026-8.993-2.627-12.819-5.766l-75.204-61.682 c-3.137-2.573-4.87-7.315-4.877-11.323l-0.093-50.885c-0.011-5.89,4.327-10.711,9.781-12.352 c6.134-1.847,12.63-0.356,17.877,3.745l93.203,72.861c7.18,5.613,12.335,13.063,12.348,22.483l0.041,30.214 C438.053,663.265,431.998,668.616,424.576,668.578z"/>
+              <path fill="#38bdf8" d="M319.615,824.292c-7.902,0.317-14.748-5.214-14.76-13.092l-0.076-49.738 c-0.008-5.161,2.461-9.982,6.312-13.171l28.755-23.816l47.942-39.159c3.351-2.737,7.488-4.022,11.719-4.024l24.955-0.015 c7.659-0.005,13.682,5.828,13.694,13.542l0.044,27.118c0.015,9.206-3.954,18.268-11.376,24.095l-93.64,73.505 C329.307,822.58,324.68,824.089,319.615,824.292z"/>
+              <path fill="#38bdf8" d="M193.762,668.515l-25.46,0.078c-7.199,0.022-13.81-5.007-13.818-12.662l-0.03-29.727 c-0.01-9.566,5.192-17.45,12.496-23.159l50.447-39.433l43.197-33.625c4.611-3.589,10.219-4.98,15.83-4.042 c6.354,1.062,11.471,6.2,11.467,12.852l-0.035,50.292c-0.004,6.294-3.237,10.733-7.834,14.481l-73.89,60.255 C202.539,666.756,198.553,668.501,193.762,668.515z"/>
+              <path fill="#38bdf8" d="M287.858,810.471c0,8.588-7.076,14.187-15.14,13.865c-5.393-0.215-10.248-2.182-14.583-5.591 l-90.864-71.447c-7.468-5.872-12.78-13.838-12.802-23.521l-0.068-29.345c-0.018-7.566,6.411-13.175,13.754-13.173l24.406,0.006 c5.853,0.002,10.316,2.358,14.726,5.988l72.096,59.364c5.213,3.586,8.478,8.904,8.478,15.402L287.858,810.471z"/>
+              <circle cx="296.288" cy="675.003" r="45.399" fill="#0FBE7B"/>
+            </svg>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:6px;direction:ltr;">
+          <span style="font-size:26px;font-weight:900;letter-spacing:0.2em;color:#f8fafc;">ORBIX</span>
+          <span style="font-size:11px;font-weight:800;background:rgba(16,185,129,0.15);color:#34d399;padding:2px 8px;border-radius:6px;border:1px solid rgba(16,185,129,0.3);letter-spacing:0.1em;">ERP</span>
+        </div>
+        <p style="font-size:12px;font-weight:600;color:#94a3b8;margin:0 0 24px 0;letter-spacing:0.02em;">النظام السحابي المتكامل لإدارة الموارد</p>
+        <div style="width:200px;height:3px;background:rgba(15,23,42,0.9);border-radius:999px;overflow:hidden;position:relative;border:1px solid rgba(30,41,59,0.8);">
+          <div style="width:50%;height:100%;background:linear-gradient(90deg,transparent,#10b981,#38bdf8,transparent);animation:orbix-shimmer 1.4s ease-in-out infinite;position:absolute;inset:0;"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useErp } from '../context/ErpContext';
 import { ReturnItem, SalesInvoice, SalesReturn } from '../types';
-import { evaluateMathExpression, sanitizeMathInput } from '../utils/mathEvaluator';
+import { evaluateMathExpression } from '../utils/mathHelper';
 import { CustomerStatementModal } from './CustomerStatementModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
 import { PrintHeader } from './PrintHeader';

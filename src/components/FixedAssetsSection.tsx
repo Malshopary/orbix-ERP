@@ -137,7 +137,7 @@ export const FixedAssetsSection: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingAsset(null);
-    const assetAcc = accounts.find((a) => a.code.startsWith('12')) || accounts[0];
+    const assetAcc = accounts.find((a) => (a.code || '').startsWith('12')) || accounts[0];
     const accumAcc = accounts.find((a) => a.code === '1240') || accounts[0];
     const expAcc = accounts.find((a) => a.code === '5800') || accounts[0];
 
@@ -413,7 +413,7 @@ export const FixedAssetsSection: React.FC = () => {
               <span className="text-[11px] font-medium text-slate-500">التكلفة التاريخية للأصول</span>
               <Building className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-lg font-black text-slate-900">
+            <div className="text-lg font-black text-slate-900 privacy-blur">
               {formatCurrency(totalHistoricalCost)}
             </div>
             <div className="text-[10px] text-slate-500 mt-1 font-medium">
@@ -426,7 +426,7 @@ export const FixedAssetsSection: React.FC = () => {
               <span className="text-[11px] font-medium text-slate-500">مجمع الإهلاك التراكمي</span>
               <TrendingDown className="w-4 h-4 text-amber-500" />
             </div>
-            <div className="text-lg font-black text-amber-700">
+            <div className="text-lg font-black text-amber-700 privacy-blur">
               {formatCurrency(totalAccumulatedDepreciation)}
             </div>
             <div className="text-[10px] text-amber-600 mt-1 font-medium">
@@ -439,7 +439,7 @@ export const FixedAssetsSection: React.FC = () => {
               <span className="text-[11px] font-medium text-slate-500">صافي القيمة الدفترية</span>
               <ShieldCheck className="w-4 h-4 text-emerald-500" />
             </div>
-            <div className="text-lg font-black text-emerald-700">
+            <div className="text-lg font-black text-emerald-700 privacy-blur">
               {formatCurrency(totalBookValue)}
             </div>
             <div className="text-[10px] text-emerald-600 mt-1 font-medium">
@@ -452,7 +452,7 @@ export const FixedAssetsSection: React.FC = () => {
               <span className="text-[11px] font-medium text-slate-500">قسط الإهلاك الشهري التقديري</span>
               <Clock className="w-4 h-4 text-purple-500" />
             </div>
-            <div className="text-lg font-black text-purple-700">
+            <div className="text-lg font-black text-purple-700 privacy-blur">
               {formatCurrency(totalMonthlyDepreciation)}
             </div>
             <div className="text-[10px] text-purple-600 mt-1 font-medium">
@@ -604,18 +604,18 @@ export const FixedAssetsSection: React.FC = () => {
                             )}
                           </td>
 
-                          <td className="py-3 px-4 text-center font-bold text-slate-900 font-mono">
+                          <td className="py-3 px-4 text-center font-bold text-slate-900 font-mono privacy-blur">
                             {formatCurrency(ast.purchaseCost)}
                           </td>
 
-                          <td className="py-3 px-4 text-center font-mono">
+                          <td className="py-3 px-4 text-center font-mono privacy-blur">
                             <div className="font-bold text-amber-700">
                               {formatCurrency(ast.currentDepreciation)}
                             </div>
                             <div className="text-[10px] text-slate-400">{percentDep.toFixed(0)}% مهلك</div>
                           </td>
 
-                          <td className="py-3 px-4 text-center font-bold text-emerald-700 font-mono">
+                          <td className="py-3 px-4 text-center font-bold text-emerald-700 font-mono privacy-blur">
                             {formatCurrency(ast.bookValue)}
                           </td>
 
@@ -950,7 +950,7 @@ export const FixedAssetsSection: React.FC = () => {
                       className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[11px] text-slate-800 focus:outline-hidden"
                     >
                       {accounts
-                        .filter((a) => a.type === 'asset' || a.code.startsWith('12'))
+                        .filter((a) => a.type === 'asset' || (a.code || '').startsWith('12'))
                         .map((a) => (
                           <option key={a.id} value={a.id}>
                             {a.code} - {a.name}
@@ -1198,7 +1198,7 @@ export const FixedAssetsSection: React.FC = () => {
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-hidden focus:border-indigo-500"
                     >
                       {accounts
-                        .filter((a) => a.code.startsWith('111') || a.code.startsWith('112') || a.type === 'asset')
+                        .filter((a) => (a.code || '').startsWith('111') || (a.code || '').startsWith('112') || a.type === 'asset')
                         .map((a) => (
                           <option key={a.id} value={a.id}>
                             {a.code} - {a.name}

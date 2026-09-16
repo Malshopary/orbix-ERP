@@ -885,13 +885,13 @@ export const PurchasesView: React.FC = () => {
                         <td className="py-3 px-4 font-bold text-slate-900">{bill.vendorName}</td>
                         <td className="py-3 px-4 text-slate-600">{bill.date}</td>
                         <td className="py-3 px-4 text-slate-600">{bill.dueDate}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-800">{formatMoney(bill.subtotal)}</td>
-                        <td className="py-3 px-4 text-slate-600">{formatMoney(bill.vatTotal)}</td>
-                        <td className="py-3 px-4 font-extrabold text-slate-900 text-sm">
+                        <td className="py-3 px-4 font-semibold text-slate-800 privacy-blur">{formatMoney(bill.subtotal)}</td>
+                        <td className="py-3 px-4 text-slate-600 privacy-blur">{formatMoney(bill.vatTotal)}</td>
+                        <td className="py-3 px-4 font-extrabold text-slate-900 text-sm privacy-blur">
                           {formatMoney(bill.grandTotal)}
                         </td>
-                        <td className="py-3 px-4 text-emerald-700 font-bold">{formatMoney(bill.paidAmount)}</td>
-                        <td className="py-3 px-4 text-rose-700 font-extrabold">{formatMoney(bill.remainingAmount)}</td>
+                        <td className="py-3 px-4 text-emerald-700 font-bold privacy-blur">{formatMoney(bill.paidAmount)}</td>
+                        <td className="py-3 px-4 text-rose-700 font-extrabold privacy-blur">{formatMoney(bill.remainingAmount)}</td>
                         <td className="py-3 px-4">
                           <div className="flex items-center justify-center gap-1.5">
                             {/* Print / Preview */}
@@ -985,7 +985,7 @@ export const PurchasesView: React.FC = () => {
                 </div>
                 <div className="text-left">
                   <span className="text-[11px] text-slate-400 block">رصيد المورد المستحق:</span>
-                  <span className="font-extrabold text-rose-700 text-base">{formatMoney(v.currentBalance)}</span>
+                  <span className="font-extrabold text-rose-700 text-base privacy-blur">{formatMoney(v.currentBalance)}</span>
                 </div>
               </div>
 

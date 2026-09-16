@@ -746,9 +746,13 @@ export const InventoryReportsView: React.FC = () => {
       </div>
 
       {/* =========================================================================
-          REPORT 1: INVENTORY VALUATION
+          REPORT CONTENT VIEW (BLURRED IN PRIVACY MODE)
       ========================================================================= */}
-      {selectedReport === 'inventory_valuation' && (
+      <div className="report-sheet privacy-blur space-y-6">
+        {/* =========================================================================
+            REPORT 1: INVENTORY VALUATION
+        ========================================================================= */}
+        {selectedReport === 'inventory_valuation' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
@@ -1410,6 +1414,7 @@ export const InventoryReportsView: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
 
       {/* Print Preview Modal */}
       {showPrintModal && (
@@ -1418,7 +1423,7 @@ export const InventoryReportsView: React.FC = () => {
           onClose={() => setShowPrintModal(false)}
           title={currentMeta.title}
         >
-          <div className="p-6 space-y-6 text-right">
+          <div className="p-6 space-y-6 text-right report-sheet privacy-blur">
             <PrintHeader title={currentMeta.title} subtitle={currentMeta.subtitle} />
 
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs flex justify-between">

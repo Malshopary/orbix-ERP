@@ -21,6 +21,7 @@ import {
   Award,
   CreditCard,
   Building,
+  Banknote,
   UserCheck,
   Tag,
   Hash,
@@ -70,6 +71,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
     priceLists,
     warehouses,
     vendors,
+    accounts,
     showAlert,
     formatMoney,
   } = useErp();
@@ -151,6 +153,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [empOtherAllowances, setEmpOtherAllowances] = useState(0);
   const [empBankName, setEmpBankName] = useState('البنك التجاري الدولي (CIB)');
   const [empBankIban, setEmpBankIban] = useState('');
+  const [empSalaryPaymentMethod, setEmpSalaryPaymentMethod] = useState<'bank_transfer' | 'cash'>('bank_transfer');
+  const [empDisbursementAccountId, setEmpDisbursementAccountId] = useState<string>('1120');
   const [empIsSalesRep, setEmpIsSalesRep] = useState(true);
   const [empCommissionRate, setEmpCommissionRate] = useState(3);
   const [empSalesTarget, setEmpSalesTarget] = useState(80000);
@@ -246,202 +250,240 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   // Submit Handlers
   const handleSaveCustomer = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!custName.trim()) {
-      showAlert({ title: 'تنبيه', message: 'يرجى إدخال اسم العميل بشكل صحيح', type: 'warning' });
-      return;
+    try {
+      if (!custName.trim()) {
+        showAlert({ title: 'تنبيه', message: 'يرجى إدخال اسم العميل بشكل صحيح', type: 'warning' });
+        return;
+      }
+
+      const assignedRep = salesReps.find((r) => r.id === custSalesRepId);
+
+      const newCust: Omit<Customer, 'id' | 'code' | 'currentBalance'> = {
+        name: custName.trim(),
+        companyName: custCompany.trim() || custName.trim(),
+        phone: custPhone.trim(),
+        email: custEmail.trim(),
+        taxNumber: custTax.trim() || undefined,
+        commercialRegister: custCommercialReg.trim() || undefined,
+        governorate: custGov,
+        region: custRegion.trim() || undefined,
+        address: custAddress.trim() || `${custGov} - ${custRegion}`,
+        contactPerson: custContactPerson.trim() || undefined,
+        contactPersonPhone: custContactPhone.trim() || undefined,
+        customerCategory: custCategory,
+        acquisitionChannel: custChannel,
+        salesRepId: custSalesRepId || undefined,
+        salesRepName: assignedRep?.name,
+        priceListId: custPriceListId || undefined,
+        creditLimit: Number(custCreditLimit) || 0,
+        paymentTermsDays: Number(custTerms) || 0,
+        status: 'active',
+        loyaltyPoints: 0,
+        notes: custNotes.trim() || undefined,
+      };
+
+      addCustomer(newCust);
+      showAlert({
+        title: 'تمت الإضافة بنجاح',
+        message: `تم إضافة العميل "${custName}" وتخصيص المحافظة (${custGov}) والتصنيف بنجاح.`,
+        type: 'success',
+      });
+      if (onSuccess) onSuccess('customer', newCust);
+      onClose();
+    } catch (err: any) {
+      console.error(err);
+      showAlert({
+        title: 'خطأ أثناء إضافة العميل',
+        message: err.message || 'حدث خطأ غير متوقع أثناء حفظ بيانات العميل',
+        type: 'error',
+      });
     }
-
-    const assignedRep = salesReps.find((r) => r.id === custSalesRepId);
-
-    const newCust: Omit<Customer, 'id' | 'code' | 'currentBalance'> = {
-      name: custName.trim(),
-      companyName: custCompany.trim() || custName.trim(),
-      phone: custPhone.trim(),
-      email: custEmail.trim(),
-      taxNumber: custTax.trim() || undefined,
-      commercialRegister: custCommercialReg.trim() || undefined,
-      governorate: custGov,
-      region: custRegion.trim() || undefined,
-      address: custAddress.trim() || `${custGov} - ${custRegion}`,
-      contactPerson: custContactPerson.trim() || undefined,
-      contactPersonPhone: custContactPhone.trim() || undefined,
-      customerCategory: custCategory,
-      acquisitionChannel: custChannel,
-      salesRepId: custSalesRepId || undefined,
-      salesRepName: assignedRep?.name,
-      priceListId: custPriceListId || undefined,
-      creditLimit: Number(custCreditLimit) || 0,
-      paymentTermsDays: Number(custTerms) || 0,
-      status: 'active',
-      loyaltyPoints: 0,
-      notes: custNotes.trim() || undefined,
-    };
-
-    addCustomer(newCust);
-    showAlert({
-      title: 'تمت الإضافة بنجاح',
-      message: `تم إضافة العميل "${custName}" وتخصيص المحافظة (${custGov}) والتصنيف بنجاح.`,
-      type: 'success',
-    });
-    if (onSuccess) onSuccess('customer', newCust);
-    onClose();
   };
 
   const handleSaveVendor = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!vndName.trim()) {
-      showAlert({ title: 'تنبيه', message: 'يرجى إدخال اسم المورد أو الشركة', type: 'warning' });
-      return;
+    try {
+      if (!vndName.trim()) {
+        showAlert({ title: 'تنبيه', message: 'يرجى إدخال اسم المورد أو الشركة', type: 'warning' });
+        return;
+      }
+
+      const newVnd: Omit<Vendor, 'id' | 'code' | 'currentBalance'> = {
+        name: vndName.trim(),
+        companyName: vndCompany.trim() || vndName.trim(),
+        category: vndCategory,
+        phone: vndPhone.trim(),
+        email: vndEmail.trim(),
+        taxNumber: vndTax.trim() || undefined,
+        commercialRegister: vndCommercialReg.trim() || undefined,
+        governorate: vndGov,
+        region: vndRegion.trim() || undefined,
+        address: vndAddress.trim() || `${vndGov} - ${vndRegion}`,
+        contactPerson: vndContactPerson.trim() || undefined,
+        contactPersonPhone: vndContactPhone.trim() || undefined,
+        bankName: vndBankName.trim() || undefined,
+        bankIban: vndBankIban.trim() || undefined,
+        creditLimit: Number(vndCreditLimit) || 0,
+        paymentTermsDays: Number(vndTerms) || 0,
+        rating: Number(vndRating) || 5,
+        notes: vndNotes.trim() || undefined,
+      };
+
+      addVendor(newVnd);
+      showAlert({
+        title: 'تمت الإضافة بنجاح',
+        message: `تم إضافة المورد "${vndName}" وربطه بالبيانات الجغرافية والضريبية بنجاح.`,
+        type: 'success',
+      });
+      if (onSuccess) onSuccess('vendor', newVnd);
+      onClose();
+    } catch (err: any) {
+      console.error(err);
+      showAlert({
+        title: 'خطأ أثناء إضافة المورد',
+        message: err.message || 'حدث خطأ غير متوقع أثناء حفظ بيانات المورد',
+        type: 'error',
+      });
     }
-
-    const newVnd: Omit<Vendor, 'id' | 'code' | 'currentBalance'> = {
-      name: vndName.trim(),
-      companyName: vndCompany.trim() || vndName.trim(),
-      category: vndCategory,
-      phone: vndPhone.trim(),
-      email: vndEmail.trim(),
-      taxNumber: vndTax.trim() || undefined,
-      commercialRegister: vndCommercialReg.trim() || undefined,
-      governorate: vndGov,
-      region: vndRegion.trim() || undefined,
-      address: vndAddress.trim() || `${vndGov} - ${vndRegion}`,
-      contactPerson: vndContactPerson.trim() || undefined,
-      contactPersonPhone: vndContactPhone.trim() || undefined,
-      bankName: vndBankName.trim() || undefined,
-      bankIban: vndBankIban.trim() || undefined,
-      creditLimit: Number(vndCreditLimit) || 0,
-      paymentTermsDays: Number(vndTerms) || 0,
-      rating: Number(vndRating) || 5,
-      notes: vndNotes.trim() || undefined,
-    };
-
-    addVendor(newVnd);
-    showAlert({
-      title: 'تمت الإضافة بنجاح',
-      message: `تم إضافة المورد "${vndName}" وربطه بالبيانات الجغرافية والضريبية بنجاح.`,
-      type: 'success',
-    });
-    if (onSuccess) onSuccess('vendor', newVnd);
-    onClose();
   };
 
   const handleSaveEmployee = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!empName.trim()) {
-      showAlert({ title: 'تنبيه', message: 'يرجى إدخال اسم الموظف بالكامل', type: 'warning' });
-      return;
+    try {
+      if (!empName.trim()) {
+        showAlert({ title: 'تنبيه', message: 'يرجى إدخال اسم الموظف بالكامل', type: 'warning' });
+        return;
+      }
+
+      const newEmp: Omit<Employee, 'id' | 'employeeCode'> = {
+        name: empName.trim(),
+        jobTitle: empJobTitle.trim() || 'موظف',
+        department: empDepartment.trim() || 'الإدارة العامة',
+        branch: empBranch.trim() || 'الفرع الرئيسي',
+        contractType: empContractType,
+        governorate: empGov,
+        region: empRegion.trim() || undefined,
+        address: empAddress.trim() || `${empGov} - ${empRegion}`,
+        gender: empGender,
+        birthDate: empBirthDate,
+        hireDate: empHireDate || new Date().toISOString().split('T')[0],
+        phone: empPhone.trim(),
+        email: empEmail.trim(),
+        nationalId: empNationalId.trim(),
+        emergencyContactName: empEmergencyName.trim() || undefined,
+        emergencyContactPhone: empEmergencyPhone.trim() || undefined,
+        basicSalary: Number(empBasicSalary) || 0,
+        housingAllowance: Number(empHousing) || 0,
+        transportAllowance: Number(empTransport) || 0,
+        otherAllowances: Number(empOtherAllowances) || 0,
+        socialInsuranceEmployeeRate: 11,
+        socialInsuranceCompanyRate: 18.75,
+        taxDeductionRate: 5,
+        status: 'active',
+        bankName: empBankName.trim(),
+        bankIban: empBankIban.trim(),
+        salaryPaymentMethod: empSalaryPaymentMethod,
+        salaryDisbursementAccountId: empDisbursementAccountId || (empSalaryPaymentMethod === 'cash' ? '1110' : '1120'),
+        photoBase64: empPhotoBase64 || undefined,
+        isSalesRep: empIsSalesRep,
+        commissionRate: empIsSalesRep ? Number(empCommissionRate) || 0 : undefined,
+        monthlySalesTarget: empIsSalesRep ? Number(empSalesTarget) || 0 : undefined,
+        salesTarget: empIsSalesRep ? Number(empSalesTarget) || 0 : undefined,
+        notes: empNotes.trim() || undefined,
+      };
+
+      addEmployee(newEmp);
+      showAlert({
+        title: 'تمت إضافة الموظف',
+        message: `تم تسجيل الموظف "${empName}" (${empJobTitle || 'موظف'}) في المنظومة بنجاح.`,
+        type: 'success',
+      });
+      if (onSuccess) onSuccess('employee', newEmp);
+      onClose();
+    } catch (err: any) {
+      console.error(err);
+      showAlert({
+        title: 'خطأ أثناء إضافة الموظف',
+        message: err.message || 'حدث خطأ غير متوقع أثناء حفظ ملف الموظف',
+        type: 'error',
+      });
     }
-
-    const newEmp: Omit<Employee, 'id' | 'employeeCode'> = {
-      name: empName.trim(),
-      jobTitle: empJobTitle.trim(),
-      department: empDepartment.trim(),
-      branch: empBranch.trim(),
-      contractType: empContractType,
-      governorate: empGov,
-      region: empRegion.trim() || undefined,
-      address: empAddress.trim() || `${empGov} - ${empRegion}`,
-      gender: empGender,
-      birthDate: empBirthDate,
-      hireDate: empHireDate,
-      phone: empPhone.trim(),
-      email: empEmail.trim(),
-      nationalId: empNationalId.trim(),
-      emergencyContactName: empEmergencyName.trim() || undefined,
-      emergencyContactPhone: empEmergencyPhone.trim() || undefined,
-      basicSalary: Number(empBasicSalary) || 0,
-      housingAllowance: Number(empHousing) || 0,
-      transportAllowance: Number(empTransport) || 0,
-      otherAllowances: Number(empOtherAllowances) || 0,
-      socialInsuranceEmployeeRate: 11,
-      socialInsuranceCompanyRate: 18.75,
-      taxDeductionRate: 5,
-      status: 'active',
-      bankName: empBankName.trim(),
-      bankIban: empBankIban.trim(),
-      photoBase64: empPhotoBase64 || undefined,
-      isSalesRep: empIsSalesRep,
-      commissionRate: empIsSalesRep ? Number(empCommissionRate) || 0 : undefined,
-      monthlySalesTarget: empIsSalesRep ? Number(empSalesTarget) || 0 : undefined,
-      salesTarget: empIsSalesRep ? Number(empSalesTarget) || 0 : undefined,
-      notes: empNotes.trim() || undefined,
-    };
-
-    addEmployee(newEmp);
-    showAlert({
-      title: 'تمت إضافة الموظف',
-      message: `تم تسجيل الموظف "${empName}" (${empJobTitle}) في المنظومة بنجاح.`,
-      type: 'success',
-    });
-    if (onSuccess) onSuccess('employee', newEmp);
-    onClose();
   };
 
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prodName.trim()) {
-      showAlert({ title: 'تنبيه', message: 'يرجى إدخال اسم الصنف / المنتج', type: 'warning' });
-      return;
+    try {
+      if (!prodName.trim()) {
+        showAlert({ title: 'تنبيه', message: 'يرجى إدخال اسم الصنف / المنتج', type: 'warning' });
+        return;
+      }
+
+      const preferredSupplier = vendors.find((v) => v.id === prodSupplierId);
+      const primaryBatch = prodHasExpiry && prodBatches.length > 0 ? (prodBatches.find((b) => b.expiryDate) || prodBatches[0]) : null;
+
+      const totalCalculatedStock = prodHasExpiry && prodBatches.length > 0
+        ? prodBatches.reduce((acc, b) => acc + (Number(b.quantity) || 0), 0)
+        : (Number(prodStock) || 0);
+
+      const newProd: Omit<Product, 'id'> = {
+        sku: '',
+        name: prodName.trim(),
+        category: prodCategory.trim(),
+        brand: prodBrand.trim() || undefined,
+        originCountry: prodOrigin.trim() || undefined,
+        unit: prodUnit,
+        costPrice: Number(prodCostPrice) || 0,
+        sellingPrice: Number(prodSellingPrice) || 0,
+        wholesalePrice: Number(prodWholesalePrice) || undefined,
+        minSellingPrice: Number(prodMinPrice) || undefined,
+        stockQuantity: totalCalculatedStock,
+        minStockAlert: Number(prodMinAlert) || 5,
+        warehouseId: prodWarehouseId || 'wh-1',
+        shelfLocation: prodShelf.trim() || undefined,
+        governorate: prodGov,
+        supplierId: prodSupplierId || undefined,
+        supplierName: preferredSupplier?.name,
+        barcode: prodBarcode.trim() || undefined,
+        weight: prodWeight.trim() || undefined,
+        description: prodDescription.trim() || undefined,
+        hasExpiry: prodHasExpiry,
+        productionDate: prodHasExpiry ? (primaryBatch?.productionDate || prodProductionDate || undefined) : undefined,
+        expiryDate: prodHasExpiry ? (primaryBatch?.expiryDate || prodExpiryDate || undefined) : undefined,
+        batchNumber: prodHasExpiry ? (primaryBatch?.batchNumber?.trim() || prodBatchNumber.trim() || undefined) : undefined,
+        imageBase64: prodImageBase64 || undefined,
+      };
+
+      const createdProduct = addProduct(newProd);
+
+      if (prodHasExpiry && prodBatches.length > 0 && createdProduct?.id) {
+        syncProductBatches(
+          createdProduct.id,
+          prodBatches.map((b) => ({
+            ...b,
+            productId: createdProduct.id,
+            productName: prodName.trim(),
+            sku: createdProduct.sku || '',
+            costPrice: Number(prodCostPrice) || 0,
+            sellingPrice: Number(prodSellingPrice) || 0,
+          }))
+        );
+      }
+
+      showAlert({
+        title: 'تمت إضافة المنتج',
+        message: `تم إضافة المنتج "${prodName}" بسعر بيع ${formatMoney(prodSellingPrice)} وتكلفة ${formatMoney(prodCostPrice)}${prodHasExpiry ? ` مع تسجيل ${prodBatches.length} تشغيلة/باتش.` : '.'}`,
+        type: 'success',
+      });
+      if (onSuccess) onSuccess('product', createdProduct || newProd);
+      onClose();
+    } catch (err: any) {
+      console.error(err);
+      showAlert({
+        title: 'خطأ أثناء إضافة المنتج',
+        message: err.message || 'حدث خطأ غير متوقع أثناء حفظ المنتج',
+        type: 'error',
+      });
     }
-
-    const preferredSupplier = vendors.find((v) => v.id === prodSupplierId);
-    const primaryBatch = prodHasExpiry && prodBatches.length > 0 ? (prodBatches.find((b) => b.expiryDate) || prodBatches[0]) : null;
-
-    const totalCalculatedStock = prodHasExpiry && prodBatches.length > 0
-      ? prodBatches.reduce((acc, b) => acc + (Number(b.quantity) || 0), 0)
-      : (Number(prodStock) || 0);
-
-    const newProd: Omit<Product, 'id'> = {
-      sku: '',
-      name: prodName.trim(),
-      category: prodCategory.trim(),
-      brand: prodBrand.trim() || undefined,
-      originCountry: prodOrigin.trim() || undefined,
-      unit: prodUnit,
-      costPrice: Number(prodCostPrice) || 0,
-      sellingPrice: Number(prodSellingPrice) || 0,
-      wholesalePrice: Number(prodWholesalePrice) || undefined,
-      minSellingPrice: Number(prodMinPrice) || undefined,
-      stockQuantity: totalCalculatedStock,
-      minStockAlert: Number(prodMinAlert) || 5,
-      warehouseId: prodWarehouseId || 'wh-1',
-      shelfLocation: prodShelf.trim() || undefined,
-      governorate: prodGov,
-      supplierId: prodSupplierId || undefined,
-      supplierName: preferredSupplier?.name,
-      barcode: prodBarcode.trim() || undefined,
-      weight: prodWeight.trim() || undefined,
-      description: prodDescription.trim() || undefined,
-      hasExpiry: prodHasExpiry,
-      productionDate: prodHasExpiry ? (primaryBatch?.productionDate || prodProductionDate || undefined) : undefined,
-      expiryDate: prodHasExpiry ? (primaryBatch?.expiryDate || prodExpiryDate || undefined) : undefined,
-      batchNumber: prodHasExpiry ? (primaryBatch?.batchNumber?.trim() || prodBatchNumber.trim() || undefined) : undefined,
-      imageBase64: prodImageBase64 || undefined,
-    };
-
-    const createdProduct = addProduct(newProd);
-
-    if (prodHasExpiry && prodBatches.length > 0 && createdProduct?.id) {
-      syncProductBatches(
-        createdProduct.id,
-        prodBatches.map((b) => ({
-          ...b,
-          productId: createdProduct.id,
-          productName: prodName.trim(),
-          sku: createdProduct.sku || '',
-          costPrice: Number(prodCostPrice) || 0,
-          sellingPrice: Number(prodSellingPrice) || 0,
-        }))
-      );
-    }
-
-    showAlert({
-      title: 'تمت إضافة المنتج',
-      message: `تم إضافة المنتج "${prodName}" بسعر بيع ${formatMoney(prodSellingPrice)} وتكلفة ${formatMoney(prodCostPrice)}${prodHasExpiry ? ` مع تسجيل ${prodBatches.length} تشغيلة/باتش.` : '.'}`,
-      type: 'success',
-    });
-    if (onSuccess) onSuccess('product', createdProduct || newProd);
-    onClose();
   };
 
   return (
@@ -1236,16 +1278,94 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">البنك المحول إليه</label>
-                    <input
-                      type="text"
-                      value={empBankName}
-                      onChange={(e) => setEmpBankName(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
-                    />
                   </div>
-                </div>
+
+                  {/* Salary Payment Method & Disbursement Account */}
+                  <div className="sm:col-span-2 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                    <label className="text-xs font-bold text-slate-800 block">طريقة وحساب صرف الراتب الشهري</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmpSalaryPaymentMethod('bank_transfer');
+                          setEmpDisbursementAccountId('1120');
+                        }}
+                        className={`p-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                          empSalaryPaymentMethod === 'bank_transfer'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <Building className="w-4 h-4" />
+                        <span>تحويل بنكي</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmpSalaryPaymentMethod('cash');
+                          setEmpDisbursementAccountId('1110');
+                        }}
+                        className={`p-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                          empSalaryPaymentMethod === 'cash'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <Banknote className="w-4 h-4" />
+                        <span>نقداً من الخزينة</span>
+                      </button>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700">
+                        {empSalaryPaymentMethod === 'cash' ? 'حساب الخزينة المنصرف منها الراتب' : 'الحساب البنكي المنصرف منه الراتب'}
+                      </label>
+                      <select
+                        value={empDisbursementAccountId}
+                        onChange={(e) => setEmpDisbursementAccountId(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
+                      >
+                        {(accounts || [])
+                          .filter((a) => a.type === 'asset' && (a.code.startsWith('111') || a.code.startsWith('112')))
+                          .map((acc) => (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.code} - {acc.name}
+                            </option>
+                          ))}
+                        {!accounts?.some((a) => a.code === '1120') && (
+                          <option value="1120">1120 - الحساب البنكي الجاري الرئيسي (Commercial Bank)</option>
+                        )}
+                        {!accounts?.some((a) => a.code === '1110') && (
+                          <option value="1110">1110 - الخزينة النقدية الرئيسية (Cash in Hand)</option>
+                        )}
+                      </select>
+                    </div>
+
+                    {empSalaryPaymentMethod === 'bank_transfer' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-slate-600">اسم بنك الموظف</label>
+                          <input
+                            type="text"
+                            placeholder="مثال: البنك التجاري الدولي (CIB)"
+                            value={empBankName}
+                            onChange={(e) => setEmpBankName(e.target.value)}
+                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-slate-600">رقم الآيبان / الحساب (IBAN)</label>
+                          <input
+                            type="text"
+                            placeholder="EGxxxxxxxxxxxxxx"
+                            value={empBankIban}
+                            onChange={(e) => setEmpBankIban(e.target.value)}
+                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-900"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                 {/* Photo & Notes */}
                 <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center gap-4">

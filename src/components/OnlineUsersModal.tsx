@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useErp } from '../context/ErpContext';
 import { AppUser } from '../types';
 import { 
@@ -12,7 +12,8 @@ import {
   KeyRound,
   CheckCircle2,
   Lock,
-  Activity
+  Activity,
+  AlertCircle
 } from 'lucide-react';
 
 interface OnlineUsersModalProps {
@@ -27,6 +28,58 @@ export const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({
   onOpenLoginModal,
 }) => {
   const { users, currentUser, switchUser } = useErp();
+
+  const [verifyingUserId, setVerifyingUserId] = useState<string | null>(null);
+  const [verifyPinOrPassword, setVerifyPinOrPassword] = useState('');
+  const [verifyMode, setVerifyMode] = useState<'pin' | 'password'>('pin');
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifySuccess, setVerifySuccess] = useState<string | null>(null);
+
+  const handleStartSwitch = (userId: string) => {
+    setVerifyingUserId(userId);
+    setVerifyPinOrPassword('');
+    setVerifyError(null);
+    setVerifySuccess(null);
+    setVerifyMode('pin');
+  };
+
+  const handleConfirmSwitch = (e: React.FormEvent, targetUser: AppUser) => {
+    e.preventDefault();
+    setVerifyError(null);
+    const trimmed = verifyPinOrPassword.trim();
+    if (!trimmed) {
+      setVerifyError(verifyMode === 'pin' ? 'يرجى إدخال رمز الـ PIN' : 'يرجى إدخال كلمة المرور');
+      return;
+    }
+
+    if (verifyMode === 'pin') {
+      const expectedPin = targetUser.pin || '1234';
+      if (trimmed !== expectedPin) {
+        setVerifyError(`رمز الـ PIN غير صحيح لحساب: ${targetUser.name}`);
+        return;
+      }
+    } else {
+      const expectedPassword = targetUser.password || '123456';
+      if (trimmed !== expectedPassword) {
+        setVerifyError(`كلمة المرور غير صحيحة لحساب: ${targetUser.name}`);
+        return;
+      }
+    }
+
+    setVerifySuccess('تم التحقق بنجاح! جاري التبديل...');
+    setTimeout(() => {
+      switchUser(targetUser.id);
+      handleCloseModal();
+    }, 400);
+  };
+
+  const handleCloseModal = () => {
+    setVerifyingUserId(null);
+    setVerifyPinOrPassword('');
+    setVerifyError(null);
+    setVerifySuccess(null);
+    onClose();
+  };
 
   if (!isOpen) return null;
 
@@ -92,70 +145,158 @@ export const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({
               return (
                 <div
                   key={user.id}
-                  className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all ${
+                  className={`flex flex-col p-3.5 rounded-2xl border transition-all ${
                     isMe
                       ? 'bg-emerald-50/60 border-emerald-200 shadow-xs'
+                      : verifyingUserId === user.id
+                      ? 'bg-white border-indigo-300 ring-2 ring-indigo-200 shadow-md'
                       : 'bg-slate-50 hover:bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    {/* User Avatar with Green Pulse Badge */}
-                    <div className="relative">
-                      <div className="w-11 h-11 rounded-2xl overflow-hidden bg-slate-200 border-2 border-white shadow-xs shrink-0 flex items-center justify-center">
-                        {user.avatarUrl ? (
-                          <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="font-bold text-sm text-slate-700">{user.name.charAt(0)}</span>
-                        )}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {/* User Avatar with Green Pulse Badge */}
+                      <div className="relative">
+                        <div className="w-11 h-11 rounded-2xl overflow-hidden bg-slate-200 border-2 border-white shadow-xs shrink-0 flex items-center justify-center">
+                          {user.avatarUrl ? (
+                            <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="font-bold text-sm text-slate-700">{user.name.charAt(0)}</span>
+                          )}
+                        </div>
+                        <span
+                          className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${
+                            isMe ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500'
+                          }`}
+                          title="متصل الآن (Online)"
+                        />
                       </div>
-                      <span
-                        className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${
-                          isMe ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500'
-                        }`}
-                        title="متصل الآن (Online)"
-                      />
-                    </div>
 
-                    {/* Name & Role */}
-                    <div className="text-right">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-900">{user.name}</span>
-                        {isMe && (
-                          <span className="bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                            أنت (الجلسة الحالية)
+                      {/* Name & Role */}
+                      <div className="text-right">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-slate-900">{user.name}</span>
+                          {isMe && (
+                            <span className="bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                              أنت (الجلسة الحالية)
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${roleInfo.badge}`}>
+                            {roleInfo.label}
                           </span>
-                        )}
+                          <span className="text-[11px] text-slate-400 font-mono">@{user.username}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${roleInfo.badge}`}>
-                          {roleInfo.label}
+                    </div>
+
+                    {/* Actions / Status */}
+                    <div className="flex items-center gap-2">
+                      {isMe ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-xl">
+                          <Activity className="w-3.5 h-3.5 text-emerald-600" />
+                          نشط الآن
                         </span>
-                        <span className="text-[11px] text-slate-400 font-mono">@{user.username}</span>
-                      </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (verifyingUserId === user.id) {
+                              setVerifyingUserId(null);
+                            } else {
+                              handleStartSwitch(user.id);
+                            }
+                          }}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer flex items-center gap-1.5 ${
+                            verifyingUserId === user.id
+                              ? 'bg-slate-200 text-slate-700'
+                              : 'text-slate-700 hover:text-emerald-700 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200'
+                          }`}
+                          title="التبديل إلى هذا الحساب بعد إدخال الرمز السري"
+                        >
+                          <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                          <span>تبديل للحساب</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Actions / Status */}
-                  <div className="flex items-center gap-2">
-                    {isMe ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-xl">
-                        <Activity className="w-3.5 h-3.5 text-emerald-600" />
-                        نشط الآن
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          switchUser(user.id);
-                          onClose();
-                        }}
-                        className="text-xs font-bold text-slate-700 hover:text-emerald-700 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 px-3 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer"
-                        title="التبديل إلى هذا الحساب"
-                      >
-                        تبديل للحساب
-                      </button>
-                    )}
-                  </div>
+                  {/* Inline Authentication Prompt if this user is selected for switching */}
+                  {verifyingUserId === user.id && (
+                    <div className="mt-3 pt-3 border-t border-indigo-100 w-full space-y-2.5 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-800 flex items-center gap-1">
+                          <Lock className="w-3.5 h-3.5 text-indigo-600" />
+                          {verifyMode === 'pin' 
+                            ? `أدخل رمز PIN للمستخدم (${user.name}):` 
+                            : `أدخل كلمة المرور للمستخدم (${user.name}):`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVerifyMode((prev) => (prev === 'pin' ? 'password' : 'pin'));
+                            setVerifyPinOrPassword('');
+                            setVerifyError(null);
+                          }}
+                          className="text-[11px] text-indigo-600 hover:text-indigo-800 hover:underline font-bold cursor-pointer"
+                        >
+                          {verifyMode === 'pin' ? 'الدخول بكلمة المرور' : 'الدخول بالـ PIN'}
+                        </button>
+                      </div>
+
+                      <form onSubmit={(e) => handleConfirmSwitch(e, user)} className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="password"
+                            autoFocus
+                            maxLength={verifyMode === 'pin' ? 6 : undefined}
+                            value={verifyPinOrPassword}
+                            onChange={(e) => {
+                              setVerifyPinOrPassword(e.target.value);
+                              setVerifyError(null);
+                            }}
+                            placeholder={verifyMode === 'pin' ? 'رمز الـ PIN المكون من 4 أرقام' : 'كلمة المرور'}
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono tracking-widest focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500 text-center font-bold"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1 shadow-xs transition-all cursor-pointer shrink-0"
+                        >
+                          <ShieldCheck className="w-4 h-4" />
+                          <span>تأكيد التبديل</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVerifyingUserId(null);
+                            setVerifyPinOrPassword('');
+                            setVerifyError(null);
+                          }}
+                          className="text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 text-xs font-bold px-3 py-2 rounded-xl transition-colors cursor-pointer shrink-0"
+                        >
+                          إلغاء
+                        </button>
+                      </form>
+
+                      {verifyError && (
+                        <div className="text-[11px] font-bold text-rose-600 flex items-center gap-1.5 bg-rose-50 p-2 rounded-xl border border-rose-200">
+                          <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                          <span>{verifyError}</span>
+                        </div>
+                      )}
+
+                      {verifySuccess && (
+                        <div className="text-[11px] font-bold text-emerald-700 flex items-center gap-1.5 bg-emerald-50 p-2 rounded-xl border border-emerald-200">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>{verifySuccess}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -167,7 +308,7 @@ export const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({
           <button
             type="button"
             onClick={() => {
-              onClose();
+              handleCloseModal();
               onOpenLoginModal();
             }}
             className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer"
@@ -178,7 +319,7 @@ export const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 px-4 py-2 rounded-xl transition-colors cursor-pointer"
           >
             إغلاق

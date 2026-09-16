@@ -35,6 +35,77 @@
     -ms-overflow-style: none !important;
     scrollbar-width: none !important;
   }
+
+  /* Custom Modern Sleek Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.45);
+    border-radius: 9999px;
+    transition: background 0.2s ease;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 102, 241, 0.8);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(241, 245, 249, 0.7);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #6366f1;
+  }
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 rgba(241, 245, 249, 0.7);
+  }
+
+  /* Safe Area Inset Utility for Mobile (iPhone & modern Androids) */
+  .pb-safe {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0.5rem));
+  }
+
+  /* =========================================================
+     PRIVACY / BOSS MODE: Blurs sensitive financial figures
+     ========================================================= */
+  .privacy-blur {
+    transition: filter 0.25s ease, opacity 0.25s ease;
+  }
+
+  html.privacy-mode-active .privacy-blur,
+  body.privacy-mode-active .privacy-blur,
+  html.privacy-mode-active [data-privacy-blur="true"],
+  body.privacy-mode-active [data-privacy-blur="true"],
+  html.privacy-mode-active .report-sheet,
+  body.privacy-mode-active .report-sheet {
+    filter: blur(8px) !important;
+    user-select: none !important;
+    opacity: 0.85;
+  }
+
+  /* Bell ringing animation for notifications */
+  @keyframes bell-ring {
+    0%, 100% { transform: rotate(0deg); }
+    20%, 60% { transform: rotate(14deg); }
+    40%, 80% { transform: rotate(-14deg); }
+  }
+  .animate-bell {
+    animation: bell-ring 1.8s ease-in-out infinite;
+    transform-origin: top center;
+  }
 }
 
 /* =========================================================

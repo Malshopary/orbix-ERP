@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useErp } from '../context/ErpContext';
-import { Product, StockAdjustment } from '../types';
+import { Product, StockAdjustment, ProductUnit } from '../types';
 import {
   Package,
   PlusCircle,
@@ -34,6 +34,7 @@ import {
   Clock,
   Plus,
   CheckCircle2,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { WarehouseTransfersTab } from './inventory/WarehouseTransfersTab';
 import { StocktakingTab } from './inventory/StocktakingTab';
@@ -44,6 +45,7 @@ import { BarcodePrintTab } from './inventory/BarcodePrintTab';
 import { WarehousesManagementTab } from './inventory/WarehousesManagementTab';
 import { InventoryReportsView } from './InventoryReportsView';
 import { QuickAddModal } from './QuickAddModal';
+import { BulkImportModal } from './BulkImportModal';
 import { SearchableSelect } from './SearchableSelect';
 import {
   GOVERNORATES_DATA,
@@ -108,6 +110,7 @@ export const InventoryView: React.FC = () => {
 
   // Modals
   const [showQuickAddProduct, setShowQuickAddProduct] = useState(false);
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -162,6 +165,7 @@ export const InventoryView: React.FC = () => {
   const [editExpiryDate, setEditExpiryDate] = useState('');
   const [editBatchNumber, setEditBatchNumber] = useState('');
   const [editImageBase64, setEditImageBase64] = useState<string | undefined>(undefined);
+  const [editUnits, setEditUnits] = useState<ProductUnit[]>([]);
 
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -284,6 +288,7 @@ export const InventoryView: React.FC = () => {
     setEditBatchNumber(p.batchNumber || '');
     setEditImageBase64(p.imageBase64);
     setSelectedBatchFocusId('');
+    setEditUnits(p.units ? JSON.parse(JSON.stringify(p.units)) : []);
 
     // Load all existing batches for this product from productBatches
     const existing = productBatches.filter((b) => b.productId === p.id);
@@ -540,6 +545,15 @@ export const InventoryView: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowBulkImportModal(true)}
+                className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
+                title="استيراد وتحديث الأصناف من ملف إكسيل"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                استيراد من إكسيل
+              </button>
               <button
                 onClick={() => setShowQuickAddProduct(true)}
                 className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
@@ -803,6 +817,13 @@ export const InventoryView: React.FC = () => {
         initialTab="product"
       />
 
+      {/* Modal 1.2: Bulk Import Modal */}
+      <BulkImportModal
+        isOpen={showBulkImportModal}
+        onClose={() => setShowBulkImportModal(false)}
+        defaultType="products"
+      />
+
       {/* Modal 1.5: Comprehensive Edit Product */}
       {showEditModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -868,6 +889,7 @@ export const InventoryView: React.FC = () => {
                   expiryDate: editHasExpiry ? (primaryBatch?.expiryDate || editExpiryDate) : undefined,
                   batchNumber: editHasExpiry ? (primaryBatch?.batchNumber?.trim() || editBatchNumber.trim() || undefined) : undefined,
                   imageBase64: editImageBase64,
+                  units: editUnits.length > 0 ? editUnits : undefined,
                 });
 
                 if (editHasExpiry && editBatches.length > 0) {
@@ -1383,7 +1405,149 @@ export const InventoryView: React.FC = () => {
                 )}
               </div>
 
-              {/* القسم الخامس: صورة الصنف */}
+              {/* القسم الخامس: الوحدات المتعددة والعبوات والباركود الإضافي */}
+              <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-4">
+                <div className="flex items-center justify-between text-slate-700 font-bold border-b border-slate-200/60 pb-2">
+                  <span className="flex items-center gap-1.5 text-xs text-slate-900">
+                    <Layers className="w-4 h-4 text-emerald-600" />
+                    الوحدات المتعددة والتعبئة والتجزئة (كرتونة / علبة / دستة)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditUnits((prev) => [
+                        ...prev,
+                        {
+                          id: `unit-${Date.now()}`,
+                          name: 'كرتونة',
+                          factor: 12,
+                          barcode: '',
+                          sellingPrice: Number(editSellingPrice) * 12,
+                          isDefaultSale: false,
+                        },
+                      ]);
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/70 hover:bg-emerald-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    إضافة وحدة تعبئة إضافية
+                  </button>
+                </div>
+
+                {editUnits.length === 0 ? (
+                  <div className="text-center py-4 bg-white/60 rounded-xl border border-dashed border-slate-200 text-slate-500 text-xs">
+                    الوحدة الأساسية الحالية للصنف هي: <strong className="text-slate-800">({editUnit || 'قطعة'})</strong>.
+                    يمكنك إضافة وحدات كرتونة أو علبة لتسهيل بيعها بالباركود والخصم التلقائي من المخزون.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {editUnits.map((u, idx) => (
+                      <div
+                        key={u.id}
+                        className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end"
+                      >
+                        <div className="sm:col-span-3">
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                            اسم الوحدة (مثال: كرتونة)
+                          </label>
+                          <input
+                            type="text"
+                            value={u.name}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setEditUnits((prev) =>
+                                prev.map((item, i) => (i === idx ? { ...item, name: val } : item))
+                              );
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-bold"
+                            placeholder="كرتونة / علبة"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                            معامل التحويل (قطع)
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={u.factor}
+                            onChange={(e) => {
+                              const factor = parseFloat(e.target.value) || 1;
+                              setEditUnits((prev) =>
+                                prev.map((item, i) =>
+                                  i === idx
+                                    ? {
+                                        ...item,
+                                        factor,
+                                        sellingPrice: Number(editSellingPrice) * factor,
+                                      }
+                                    : item
+                                )
+                              );
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-bold font-mono text-center"
+                            placeholder="12"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3">
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                            باركود الوحدة (للماسح الضوئي)
+                          </label>
+                          <input
+                            type="text"
+                            value={u.barcode || ''}
+                            onChange={(e) => {
+                              const bCode = e.target.value;
+                              setEditUnits((prev) =>
+                                prev.map((item, i) => (i === idx ? { ...item, barcode: bCode } : item))
+                              );
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-mono"
+                            placeholder="باركود الكرتونة"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3">
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                            سعر بيع الوحدة
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={u.sellingPrice ?? ''}
+                            onChange={(e) => {
+                              const sprice = parseFloat(e.target.value) || 0;
+                              setEditUnits((prev) =>
+                                prev.map((item, i) => (i === idx ? { ...item, sellingPrice: sprice } : item))
+                              );
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-bold font-mono text-emerald-700"
+                            placeholder="سعر الكرتونة"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-1 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditUnits((prev) => prev.filter((_, i) => i !== idx));
+                            }}
+                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="حذف الوحدة"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* القسم السادس: صورة الصنف */}
               <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80">
                 <label className="block font-bold text-slate-900 mb-2 flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-xs">

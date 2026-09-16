@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useErp } from '../context/ErpContext';
 import { AppUser, CompanyProfile, Currency, UserRole } from '../types';
 import { ImageCropModal } from './ImageCropModal';
@@ -160,6 +160,8 @@ export const SettingsView: React.FC = () => {
   const [editUserRole, setEditUserRole] = useState<UserRole>('sales_cashier');
   const [editUserPermissions, setEditUserPermissions] = useState<string[]>([]);
   const [editUserIsActive, setEditUserIsActive] = useState<boolean>(true);
+  const editUserModalScrollRef = useRef<HTMLDivElement>(null);
+  const addUserModalScrollRef = useRef<HTMLDivElement>(null);
 
   // Google Sheets Local State
   const [gsheetForm, setGsheetForm] = useState(googleSheetConfig);
@@ -250,6 +252,133 @@ export const SettingsView: React.FC = () => {
     } finally {
       setIsCloudSqlSyncing(false);
     }
+  };
+
+  // PostgreSQL Server Backup Management State
+  interface ServerBackupItem {
+    filename: string;
+    size: number;
+    createdAt: string;
+  }
+  const [serverBackups, setServerBackups] = useState<ServerBackupItem[]>([]);
+  const [isLoadingBackups, setIsLoadingBackups] = useState(false);
+  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+  const [backupActionMessage, setBackupActionMessage] = useState<{ success: boolean; message: string } | null>(null);
+
+  const ADMIN_SECURITY_KEY = (import.meta as any).env?.VITE_ADMIN_SECURITY_KEY || 'orbix_enterprise_sec_2026';
+
+  const fetchServerBackups = async () => {
+    setIsLoadingBackups(true);
+    try {
+      const res = await fetch('/api/backup/list', {
+        headers: { 'X-Orbix-Admin-Key': ADMIN_SECURITY_KEY },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setServerBackups(data.backups || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch backups:', err);
+    } finally {
+      setIsLoadingBackups(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'database_backup') {
+      fetchServerBackups();
+    }
+  }, [activeTab]);
+
+  const handleCreateServerBackup = async () => {
+    setIsCreatingBackup(true);
+    setBackupActionMessage(null);
+    try {
+      const res = await fetch('/api/backup/create', {
+        method: 'POST',
+        headers: {
+          'X-Orbix-Admin-Key': ADMIN_SECURITY_KEY,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setBackupActionMessage({ success: true, message: 'تم إنشاء نسخة احتياطية بنجاح!' });
+        fetchServerBackups();
+      } else {
+        setBackupActionMessage({ success: false, message: data.error || 'فشل إنشاء النسخة' });
+      }
+    } catch (err: any) {
+      setBackupActionMessage({ success: false, message: err?.message || 'خطأ في الاتصال بالخادم' });
+    } finally {
+      setIsCreatingBackup(false);
+    }
+  };
+
+  const handleRestoreServerBackup = async (filename: string) => {
+    showConfirm(
+      `هل أنت متأكد من استرجاع النسخة الاحتياطية (${filename})؟ سيتم استبدال البيانات الحالية ببيانات النسخة.`,
+      async () => {
+        try {
+          const res = await fetch('/api/backup/restore', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Orbix-Admin-Key': ADMIN_SECURITY_KEY,
+            },
+            body: JSON.stringify({ filename }),
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            showAlert({
+              title: 'تمت الاستعادة بنجاح',
+              message: 'تم استرجاع النسخة بنجاح. سيتم إعادة تحميل الصفحة لتطبيق البيانات.',
+              type: 'info',
+              confirmText: 'إعادة التحميل الآن',
+              onConfirm: () => window.location.reload(),
+            });
+          } else {
+            showAlert({
+              title: 'خطأ في الاسترجاع',
+              message: data.error || 'تعذر استرجاع النسخة الاحتياطية',
+              type: 'error',
+              confirmText: 'حسناً',
+            });
+          }
+        } catch (err: any) {
+          showAlert({
+            title: 'خطأ في الاتصال',
+            message: err?.message || 'تعذر الاتصال بالخادم',
+            type: 'error',
+            confirmText: 'حسناً',
+          });
+        }
+      },
+      'تأكيد استرجاع النسخة الاحتياطية',
+      'استرجاع النسخة'
+    );
+  };
+
+  const handleDeleteServerBackup = async (filename: string) => {
+    showConfirm(
+      `هل تريد حذف ملف النسخة الاحتياطية (${filename}) نهائياً؟`,
+      async () => {
+        try {
+          const res = await fetch(`/api/backup/${encodeURIComponent(filename)}`, {
+            method: 'DELETE',
+            headers: {
+              'X-Orbix-Admin-Key': ADMIN_SECURITY_KEY,
+            },
+          });
+          if (res.ok) {
+            fetchServerBackups();
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      },
+      'تأكيد الحذف',
+      'حذف النسخة'
+    );
   };
 
   // Multi-Tenant / Custom Client PostgreSQL Database Connection State
@@ -676,10 +805,10 @@ export const SettingsView: React.FC = () => {
       if (emp.photoBase64) {
         setNewUserAvatar(emp.photoBase64);
       }
-      const codeClean = emp.employeeCode.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const codeClean = (emp.employeeCode || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       setNewUserUsername(codeClean || `user_${emp.id.slice(0, 4)}`);
       
-      const title = emp.jobTitle.toLowerCase();
+      const title = (emp.jobTitle || '').toLowerCase();
       if (title.includes('كاشير') || title.includes('مبيعات') || title.includes('cashier') || title.includes('sales')) {
         setNewUserRole('sales_cashier');
         setNewUserPermissions(['dashboard', 'quick_pos', 'sales', 'crm_collections', 'edit_invoices']);
@@ -704,33 +833,63 @@ export const SettingsView: React.FC = () => {
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUserName.trim() || !newUserUsername.trim()) {
-      showAlert({
-        title: 'بيانات غير مكتملة',
-        message: 'يرجى إدخال اسم المستخدم واسم الدخول لإتمام إنشاء الحساب.',
-        type: 'warning',
-        confirmText: 'فهمت',
+    try {
+      if (!newUserName.trim() || !newUserUsername.trim()) {
+        showAlert({
+          title: 'بيانات غير مكتملة',
+          message: 'يرجى إدخال اسم المستخدم واسم الدخول لإتمام إنشاء الحساب.',
+          type: 'warning',
+          confirmText: 'فهمت',
+        });
+        return;
+      }
+
+      const isTaken = users.some(
+        (u) => u.username.toLowerCase() === newUserUsername.trim().toLowerCase()
+      );
+      if (isTaken) {
+        showAlert({
+          title: 'اسم الدخول مسجل مسبقاً',
+          message: `اسم المستخدم "${newUserUsername.trim()}" مستخدم بالفعل لمستخدم آخر. يرجى اختيار اسم مستخدم فريد.`,
+          type: 'warning',
+          confirmText: 'فهمت',
+        });
+        return;
+      }
+
+      addUser({
+        name: newUserName.trim(),
+        username: newUserUsername.trim(),
+        password: newUserPassword.trim() || '123456',
+        pin: newUserPin.trim() || '1234',
+        role: newUserRole,
+        employeeId: selectedEmployeeId || undefined,
+        permissions: newUserPermissions,
+        isActive: true,
+        avatarUrl: newUserAvatar || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80`,
       });
-      return;
+
+      setShowAddUserModal(false);
+      showAlert({
+        title: 'تمت إضافة المستخدم بنجاح',
+        message: `تم إنشاء حساب المستخدم "${newUserName.trim()}" (${newUserUsername.trim()}) واعتماد صلاحياته بنجاح.`,
+        type: 'success',
+        confirmText: 'تم',
+      });
+      setNewUserName('');
+      setNewUserUsername('');
+      setNewUserPassword('');
+      setNewUserPin('');
+      setSelectedEmployeeId('');
+      setNewUserAvatar(undefined);
+    } catch (err: any) {
+      console.error(err);
+      showAlert({
+        title: 'تعذر إضافة المستخدم',
+        message: err.message || 'حدث خطأ غير متوقع أثناء حفظ بيانات المستخدم الجديد',
+        type: 'error',
+      });
     }
-
-    addUser({
-      name: newUserName.trim(),
-      username: newUserUsername.trim(),
-      password: newUserPassword || '123456',
-      pin: newUserPin || '1234',
-      role: newUserRole,
-      employeeId: selectedEmployeeId || undefined,
-      permissions: newUserPermissions,
-      isActive: true,
-      avatarUrl: newUserAvatar || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80`,
-    });
-
-    setShowAddUserModal(false);
-    setNewUserName('');
-    setNewUserUsername('');
-    setSelectedEmployeeId('');
-    setNewUserAvatar(undefined);
   };
 
   // Google Sheets Manual Sync
@@ -835,33 +994,52 @@ function doPost(e) {
 
   // Available System Permissions for RBAC Matrix
   const availablePermissions = [
-    // Module Access
-    { key: 'dashboard', label: 'لوحة القيادة والملخصات', group: 'modules' },
-    { key: 'quick_pos', label: 'نقطة البيع والفاتورة السريعة POS', group: 'modules' },
-    { key: 'sales', label: 'المبيعات والفواتير الضريبية', group: 'modules' },
-    { key: 'purchases', label: 'المشتريات والموردين', group: 'modules' },
-    { key: 'inventory', label: 'المخازن والأصناف والتسعير', group: 'modules' },
-    { key: 'accounts', label: 'شجرة الحسابات وقيود اليومية', group: 'modules' },
-    { key: 'crm_collections', label: 'العملاء CRM وأعمار الديون والتحصيل', group: 'modules' },
-    { key: 'hr_payroll', label: 'الموارد البشرية ومسيرات الرواتب', group: 'modules' },
-    { key: 'financial_reports', label: 'القوائم والتقارير المالية والأرباح', group: 'modules' },
-    { key: 'settings', label: 'الإعدادات وقاعدة البيانات والمستخدمين', group: 'modules' },
+    // 1. Module Access (صلاحيات الوصول للوحدات والشاشات الرئيسية)
+    { key: 'dashboard', label: 'لوحة القيادة والملخصات العامة', group: 'modules', desc: 'عرض مؤشرات الأداء والرسوم البيانية' },
+    { key: 'quick_pos', label: 'نقطة البيع والفاتورة السريعة POS', group: 'modules', desc: 'شاشة الكاشير والبيع السريع الميداني' },
+    { key: 'sales', label: 'المبيعات والفواتير الضريبية', group: 'modules', desc: 'إدارة فواتير المبيعات ومردوداتها وعروض الأسعار' },
+    { key: 'purchases', label: 'المشتريات وسندات التوريد', group: 'modules', desc: 'فواتير الشراء ومردودات المشتريات والموردين' },
+    { key: 'inventory', label: 'المخازن والأصناف والتسعير', group: 'modules', desc: 'إدارة المستودعات والباركود وبطاقات الأصناف' },
+    { key: 'accounts', label: 'شجرة الحسابات وقيود اليومية', group: 'modules', desc: 'الدليل المحاسبي والسندات ومراكز التكلفة' },
+    { key: 'crm_collections', label: 'العملاء CRM وأعمار الديون والتحصيل', group: 'modules', desc: 'ملفات العملاء والتحصيل ومتابعة المديونيات' },
+    { key: 'hr_payroll', label: 'الموارد البشرية ومسيرات الرواتب', group: 'modules', desc: 'سجلات الموظفين والرواتب والبدلات والجزاءات' },
+    { key: 'financial_reports', label: 'القوائم والتقارير المالية والأرباح', group: 'modules', desc: 'قوائم الدخل والميزانية العمومية والتحليلات' },
+    { key: 'settings', label: 'الإعدادات وقاعدة البيانات والمستخدمين', group: 'modules', desc: 'إعدادات النظام والنسخ الاحتياطي والمستخدمين' },
 
-    // Granular CRUD / Edit & Delete
-    { key: 'edit_invoices', label: 'تعديل فواتير المبيعات والتاريخ والبنود', group: 'crud' },
-    { key: 'delete_invoices', label: 'حذف وإلغاء فواتير المبيعات نهائياً', group: 'crud' },
-    { key: 'edit_products', label: 'تعديل بيانات المنتجات وأسعار البيع والتكلفة', group: 'crud' },
-    { key: 'delete_products', label: 'حذف الأصناف والمنتجات من المخزن', group: 'crud' },
-    { key: 'edit_employees', label: 'تعديل بيانات الموظفين والرواتب والبدلات', group: 'crud' },
-    { key: 'delete_employees', label: 'حذف سجلات الموظفين من الموارد البشرية', group: 'crud' },
-    { key: 'edit_accounts', label: 'تعديل الحسابات ودليل الحسابات', group: 'crud' },
-    { key: 'delete_accounts', label: 'حذف الحسابات المالية وقيود اليومية', group: 'crud' },
-    { key: 'edit_customers', label: 'تعديل بيانات العملاء والحدود الائتمانية', group: 'crud' },
-    { key: 'delete_customers', label: 'حذف بطاقات العملاء', group: 'crud' },
-    { key: 'edit_suppliers', label: 'تعديل بيانات الموردين', group: 'crud' },
-    { key: 'delete_suppliers', label: 'حذف بطاقات الموردين', group: 'crud' },
-    { key: 'edit_expenses', label: 'تعديل بنود وقيود المصروفات', group: 'crud' },
-    { key: 'delete_expenses', label: 'حذف سندات الصرف والمصروفات', group: 'crud' },
+    // 2. Granular CRUD / Edit & Delete (صلاحيات التعديل والحذف المتقدمة)
+    { key: 'edit_invoices', label: 'تعديل فواتير المبيعات والتاريخ والبنود', group: 'crud', desc: 'تعديل الفواتير المعتمدة وتواريخها' },
+    { key: 'delete_invoices', label: 'حذف وإلغاء فواتير المبيعات نهائياً', group: 'crud', desc: 'إلغاء فواتير المبيعات وحذفها' },
+    { key: 'edit_purchases', label: 'تعديل فواتير المشتريات ومردوداتها', group: 'crud', desc: 'تعديل فواتير الشراء والتوريد' },
+    { key: 'delete_purchases', label: 'حذف فواتير المشتريات نهائياً', group: 'crud', desc: 'إلغاء فواتير الشراء وحذفها' },
+    { key: 'edit_products', label: 'تعديل بيانات المنتجات وأسعار البيع والتكلفة', group: 'crud', desc: 'تعديل بطاقة الصنف وتكلفته وسعر بيعه' },
+    { key: 'delete_products', label: 'حذف الأصناف والمنتجات من المخزن', group: 'crud', desc: 'حذف الصنف نهائياً من المستودعات' },
+    { key: 'edit_customers', label: 'تعديل بيانات العملاء والحدود الائتمانية', group: 'crud', desc: 'تعديل بطاقات العملاء والتسهيلات الائتمانية' },
+    { key: 'delete_customers', label: 'حذف بطاقات وسجلات العملاء', group: 'crud', desc: 'إلغاء حساب العميل وسجلاته' },
+    { key: 'edit_suppliers', label: 'تعديل بيانات الموردين والشروط', group: 'crud', desc: 'تعديل بطاقات الموردين وأرقام التواصل' },
+    { key: 'delete_suppliers', label: 'حذف بطاقات الموردين', group: 'crud', desc: 'حذف بيانات المورد وسجلاته' },
+    { key: 'edit_accounts', label: 'تعديل الحسابات ودليل الحسابات', group: 'crud', desc: 'تعديل الدليل المحاسبي ومراكز التكلفة' },
+    { key: 'delete_accounts', label: 'حذف الحسابات المالية وقيود اليومية', group: 'crud', desc: 'حذف القيود اليومية والحسابات المالية' },
+    { key: 'edit_employees', label: 'تعديل بيانات الموظفين والرواتب والبدلات', group: 'crud', desc: 'تعديل عقود ورواتب الموظفين' },
+    { key: 'delete_employees', label: 'حذف سجلات الموظفين من الموارد البشرية', group: 'crud', desc: 'حذف ملف الموظف من HR' },
+    { key: 'edit_expenses', label: 'تعديل بنود وقيود المصروفات', group: 'crud', desc: 'تعديل سندات الصرف وقيود المصروفات' },
+    { key: 'delete_expenses', label: 'حذف سندات الصرف والمصروفات', group: 'crud', desc: 'إلغاء سندات الصرف نهائياً' },
+
+    // 3. POS & Cashier Operations (صلاحيات نقطة البيع والكاشير الميداني)
+    { key: 'pos_discount', label: 'منح خصومات يدوية على الفاتورة بالـ POS', group: 'pos', desc: 'تطبيق تخفيض أو خصم استثنائي للعميل' },
+    { key: 'pos_refund', label: 'إصدار مرتجع مبيعات واسترداد نقدي فوري', group: 'pos', desc: 'قبول إعادة البضاعة ورد المبالغ نقداً' },
+    { key: 'pos_price_override', label: 'تعديل سعر البيع المعتمد أثناء عمل الفاتورة', group: 'pos', desc: 'تغيير السعر الافتراضي للصنف' },
+    { key: 'pos_open_cash_drawer', label: 'فتح درج النقدية يدوياً بدون عملية بيع', group: 'pos', desc: 'إصدار نبضة فتح الصندوق يدوياً' },
+    { key: 'pos_close_shift', label: 'إغلاق الوردية وطباعة تقرير Z-Report وجرد الدرج', group: 'pos', desc: 'إنهاء المناوبة والاطلاع على جرد الخزينة' },
+    { key: 'pos_reprint', label: 'إعادة طباعة فواتير وإيصالات حرارية سابقة', group: 'pos', desc: 'إعادة إصدار إيصالات مطبوعة سابقة' },
+
+    // 4. Supervision & Financial Protection (صلاحيات الرقابة والتكلفة والعمليات المتقدمة)
+    { key: 'view_cost_price', label: 'رؤية أسعار التكلفة وهوامش الربح للأصناف', group: 'supervision', desc: 'كشف تكلفة الأصناف ونسبة الأرباح للمنتجات' },
+    { key: 'export_reports_excel', label: 'تصدير البيانات والتقارير إلى Excel و PDF', group: 'supervision', desc: 'تنزيل قوائم العملاء وكشوف الحسابات' },
+    { key: 'approve_stocktaking', label: 'اعتماد وإقفال الجرد الفعلي للمستودعات', group: 'supervision', desc: 'تحديث أرصدة المخازن بموجب الجرد الفعلي' },
+    { key: 'manage_stock_adjustments', label: 'إجراء تسويات العجز والتالف وسندات الهالك', group: 'supervision', desc: 'إثبات الفاقد والتسويات المخزنية الدورية' },
+    { key: 'manage_warehouse_transfers', label: 'إنشاء واعتماد تحويلات البضائع بين الفروع والمخازن', group: 'supervision', desc: 'نقل الأصناف بين المستودعات' },
+    { key: 'backup_restore_db', label: 'إنشاء واسترجاع النسخ الاحتياطية لقاعدة البيانات', group: 'supervision', desc: 'أخذ نسخة وتنزيل ملفات SQL/JSON' },
+    { key: 'view_audit_logs', label: 'مراقبة سجل العمليات وتتبع نشاط المستخدمين (Audit Trail)', group: 'supervision', desc: 'عرض سجل Audit Trail الأمني للعمليات' },
   ];
 
   const handleOpenEditUserModal = (u: AppUser) => {
@@ -878,23 +1056,37 @@ function doPost(e) {
 
   const handleSaveEditUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingUserId) return;
-    const updates: Partial<AppUser> = {
-      name: editUserName,
-      username: editUserUsername,
-      role: editUserRole,
-      permissions: editUserPermissions,
-      isActive: editUserIsActive,
-    };
-    if (editUserPassword.trim()) {
-      updates.password = editUserPassword.trim();
+    try {
+      if (!editingUserId) return;
+      const updates: Partial<AppUser> = {
+        name: editUserName,
+        username: editUserUsername,
+        role: editUserRole,
+        permissions: editUserPermissions,
+        isActive: editUserIsActive,
+      };
+      if (editUserPassword.trim()) {
+        updates.password = editUserPassword.trim();
+      }
+      if (editUserPin.trim()) {
+        updates.pin = editUserPin.trim();
+      }
+      updateUser(editingUserId, updates);
+      setShowEditUserModal(false);
+      setEditingUserId(null);
+      showAlert({
+        title: 'تم تحديث بيانات المستخدم',
+        message: `تم حفظ تعديلات المستخدم "${editUserName}" والصلاحيات بنجاح.`,
+        type: 'success',
+      });
+    } catch (err: any) {
+      console.error(err);
+      showAlert({
+        title: 'خطأ أثناء تحديث المستخدم',
+        message: err.message || 'حدث خطأ غير متوقع أثناء حفظ تعديلات المستخدم',
+        type: 'error',
+      });
     }
-    if (editUserPin.trim()) {
-      updates.pin = editUserPin.trim();
-    }
-    updateUser(editingUserId, updates);
-    setShowEditUserModal(false);
-    setEditingUserId(null);
   };
 
   const handleCreateCurrency = (e: React.FormEvent) => {
@@ -1728,7 +1920,15 @@ pause
                         </td>
 
                         <td className="py-3 px-3 font-mono text-slate-600">
-                          {user.pin ? `PIN: ${user.pin}` : '—'}
+                          {user.pin ? (
+                            currentUser?.role === 'admin' || currentUser?.permissions.includes('*') ? (
+                              <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-xs font-bold text-slate-800">
+                                PIN: {user.pin}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 font-mono tracking-widest text-xs">••••</span>
+                            )
+                          ) : '—'}
                         </td>
 
                         <td className="py-3 px-3">
@@ -1819,252 +2019,455 @@ pause
 
           {/* EDIT USER & PERMISSIONS MODAL */}
           {showEditUserModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-              <div className="bg-white rounded-3xl p-6 max-w-2xl w-full shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
-                    <ShieldAlert className="w-5 h-5 text-indigo-600" />
-                    تعديل صلاحيات وبيانات المستخدم: <span className="text-indigo-600">{editUserName}</span>
-                  </h3>
-                  <button
-                    onClick={() => setShowEditUserModal(false)}
-                    className="text-slate-400 hover:text-slate-600 text-lg cursor-pointer"
-                  >
-                    ✕
-                  </button>
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+              <div className="bg-white rounded-3xl max-w-5xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[92vh] overflow-hidden">
+                {/* Sticky Header */}
+                <div className="sticky top-0 bg-white/95 backdrop-blur-xs z-20 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shadow-xs">
+                      <ShieldAlert className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                        تعديل صلاحيات وبيانات المستخدم: <span className="text-indigo-600 font-black">{editUserName}</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400">إدارة مصفوفة الوصول الدقيقة (RBAC) وقواعد الصلاحيات المتقدمة</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Quick Scroll Up/Down Buttons */}
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => editUserModalScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                        className="px-2.5 py-1 hover:bg-white text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs hover:text-indigo-600"
+                        title="التمرير لأعلى النافذة"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                        <span className="text-[10px] hidden sm:inline">للأعلى</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => editUserModalScrollRef.current?.scrollTo({ top: editUserModalScrollRef.current.scrollHeight, behavior: 'smooth' })}
+                        className="px-2.5 py-1 hover:bg-white text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs hover:text-indigo-600"
+                        title="التمرير لأسفل النافذة"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                        <span className="text-[10px] hidden sm:inline">للأسفل</span>
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => setShowEditUserModal(false)}
+                      className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors text-lg cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
 
-                <form onSubmit={handleSaveEditUser} className="space-y-4 text-xs">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">الاسم الكامل *</label>
-                      <input
-                        type="text"
-                        required
-                        value={editUserName}
-                        onChange={(e) => setEditUserName(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 focus:bg-white"
-                      />
+                <form onSubmit={handleSaveEditUser} className="flex flex-col flex-1 min-h-0">
+                  {/* Scrollable Body with Sleek Custom Scrollbar */}
+                  <div ref={editUserModalScrollRef} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 scroll-smooth text-xs">
+                    {/* Basic Info Fields */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">الاسم الكامل *</label>
+                        <input
+                          type="text"
+                          required
+                          value={editUserName}
+                          onChange={(e) => setEditUserName(e.target.value)}
+                          className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-semibold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">اسم تسجيل الدخول (Username) *</label>
+                        <input
+                          type="text"
+                          required
+                          value={editUserUsername}
+                          onChange={(e) => setEditUserUsername(e.target.value)}
+                          className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-mono font-semibold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">الدور الوظيفي</label>
+                        <select
+                          value={editUserRole}
+                          onChange={(e) => setEditUserRole(e.target.value as UserRole)}
+                          className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        >
+                          <option value="sales_cashier">كاشير مبيعات POS</option>
+                          <option value="accountant">محاسب مالي</option>
+                          <option value="warehouse_keeper">أمين مستودع</option>
+                          <option value="hr_manager">مدير موارد بشرية</option>
+                          <option value="admin">مدير عام / أدمن</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">رمز PIN السريع (أرقام)</label>
+                        <input
+                          type="password"
+                          maxLength={6}
+                          value={editUserPin}
+                          onChange={(e) => setEditUserPin(e.target.value)}
+                          placeholder="1234"
+                          className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-mono text-center font-bold tracking-widest focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 lg:col-span-4">
+                        <label className="block font-bold text-slate-700 mb-1">تغيير كلمة المرور (اختياري - اترك فارغاً لعدم التغيير)</label>
+                        <input
+                          type="password"
+                          value={editUserPassword}
+                          onChange={(e) => setEditUserPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">اسم تسجيل الدخول (Username) *</label>
-                      <input
-                        type="text"
-                        required
-                        value={editUserUsername}
-                        onChange={(e) => setEditUserUsername(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-mono focus:bg-white"
-                      />
+
+                    {/* Quick Preset Permissions Templates */}
+                    <div className="p-4 bg-gradient-to-r from-indigo-50/90 to-blue-50/70 rounded-2xl border border-indigo-100/90 shadow-xs space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
+                          <Sparkles className="w-4 h-4 text-indigo-600" />
+                          قوالب وحزم الصلاحيات السريعة الجاهزة (Presets):
+                        </span>
+                        <span className="text-[11px] font-bold text-indigo-600 bg-white/90 px-2 py-0.5 rounded-full border border-indigo-200">
+                          {editUserPermissions.length} من {availablePermissions.length} صلاحية مفعلة
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditUserPermissions(['dashboard', 'quick_pos', 'sales', 'crm_collections', 'pos_reprint'])
+                          }
+                          className="px-3 py-1.5 bg-white hover:bg-indigo-100 text-indigo-800 rounded-xl text-[11px] font-bold border border-indigo-200 transition-all shadow-xs cursor-pointer hover:shadow-sm"
+                        >
+                          ⚡ حزمة الكاشير
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditUserPermissions([
+                              'dashboard',
+                              'quick_pos',
+                              'sales',
+                              'crm_collections',
+                              'pos_discount',
+                              'pos_refund',
+                              'pos_price_override',
+                              'pos_open_cash_drawer',
+                              'pos_close_shift',
+                              'pos_reprint',
+                              'edit_invoices',
+                            ])
+                          }
+                          className="px-3 py-1.5 bg-white hover:bg-amber-100 text-amber-900 rounded-xl text-[11px] font-bold border border-amber-200 transition-all shadow-xs cursor-pointer hover:shadow-sm"
+                        >
+                          👑 مشرف الكاشير / POS
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditUserPermissions([
+                              'dashboard',
+                              'accounts',
+                              'sales',
+                              'purchases',
+                              'inventory',
+                              'financial_reports',
+                              'crm_collections',
+                              'edit_invoices',
+                              'delete_invoices',
+                              'edit_purchases',
+                              'delete_purchases',
+                              'edit_accounts',
+                              'edit_expenses',
+                              'delete_expenses',
+                              'view_cost_price',
+                              'export_reports_excel',
+                            ])
+                          }
+                          className="px-3 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 rounded-xl text-[11px] font-bold border border-emerald-200 transition-all shadow-xs cursor-pointer hover:shadow-sm"
+                        >
+                          📊 حزمة المحاسب المالي
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditUserPermissions([
+                              'dashboard',
+                              'inventory',
+                              'purchases',
+                              'edit_products',
+                              'manage_warehouse_transfers',
+                              'manage_stock_adjustments',
+                              'approve_stocktaking',
+                              'edit_suppliers',
+                            ])
+                          }
+                          className="px-3 py-1.5 bg-white hover:bg-cyan-100 text-cyan-900 rounded-xl text-[11px] font-bold border border-cyan-200 transition-all shadow-xs cursor-pointer hover:shadow-sm"
+                        >
+                          📦 حزمة أمين المستودع
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditUserPermissions([
+                              'dashboard',
+                              'hr_payroll',
+                              'edit_employees',
+                              'delete_employees',
+                              'export_reports_excel',
+                            ])
+                          }
+                          className="px-3 py-1.5 bg-white hover:bg-purple-100 text-purple-900 rounded-xl text-[11px] font-bold border border-purple-200 transition-all shadow-xs cursor-pointer hover:shadow-sm"
+                        >
+                          👥 حزمة الموارد البشرية
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditUserPermissions(availablePermissions.map((p) => p.key))}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-bold shadow-xs transition-all cursor-pointer hover:shadow-sm"
+                        >
+                          ✓ تحديد كافة الصلاحيات
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditUserPermissions([])}
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-[11px] font-bold border border-rose-200 transition-all shadow-xs cursor-pointer hover:shadow-sm"
+                        >
+                          ✕ إلغاء الكل
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Section 1: Module Access */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-indigo-100">
+                        <label className="font-extrabold text-xs text-indigo-950 flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">1</span>
+                          <FolderLock className="w-4 h-4 text-indigo-600" />
+                          صلاحيات الوصول للشاشات والوحدات الرئيسية (Module Access)
+                        </label>
+                        <span className="text-[10px] font-semibold text-slate-400">تحدد ما تراه القائمة الجانبية للمستخدم</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                        {availablePermissions
+                          .filter((p) => p.group === 'modules')
+                          .map((perm) => {
+                            const isChecked = editUserPermissions.includes(perm.key);
+                            return (
+                              <label
+                                key={perm.key}
+                                className={`flex items-start gap-2.5 p-3 rounded-2xl border transition-all cursor-pointer select-none ${
+                                  isChecked
+                                    ? 'bg-indigo-50/70 border-indigo-300 text-indigo-950 shadow-xs'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setEditUserPermissions([...editUserPermissions, perm.key]);
+                                    } else {
+                                      setEditUserPermissions(editUserPermissions.filter((k) => k !== perm.key));
+                                    }
+                                  }}
+                                  className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <div className="space-y-0.5">
+                                  <span className="block font-bold text-xs leading-tight">{perm.label}</span>
+                                  {perm.desc && <span className="block text-[10px] text-slate-400 leading-tight">{perm.desc}</span>}
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
+
+                    {/* Section 2: Granular CRUD Data Edit & Delete */}
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-rose-100">
+                        <label className="font-extrabold text-xs text-rose-950 flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-xs">2</span>
+                          <ShieldAlert className="w-4 h-4 text-rose-600" />
+                          صلاحيات التعديل والحذف المتقدمة للبيانات (Granular Data Edit & Delete)
+                        </label>
+                        <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                          صلاحيات حساسة تتطلب تدقيق
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                        {availablePermissions
+                          .filter((p) => p.group === 'crud')
+                          .map((perm) => {
+                            const isChecked = editUserPermissions.includes(perm.key);
+                            const isDelete = perm.key.startsWith('delete_');
+                            return (
+                              <label
+                                key={perm.key}
+                                className={`flex items-start gap-2.5 p-3 rounded-2xl border transition-all cursor-pointer select-none ${
+                                  isChecked
+                                    ? isDelete
+                                      ? 'bg-rose-50/80 border-rose-300 text-rose-950 shadow-xs'
+                                      : 'bg-indigo-50/70 border-indigo-300 text-indigo-950 shadow-xs'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setEditUserPermissions([...editUserPermissions, perm.key]);
+                                    } else {
+                                      setEditUserPermissions(editUserPermissions.filter((k) => k !== perm.key));
+                                    }
+                                  }}
+                                  className={`mt-0.5 rounded border-slate-300 ${
+                                    isDelete ? 'text-rose-600 focus:ring-rose-500' : 'text-indigo-600 focus:ring-indigo-500'
+                                  }`}
+                                />
+                                <div className="space-y-0.5">
+                                  <span className="block font-bold text-xs leading-tight">{perm.label}</span>
+                                  {perm.desc && <span className="block text-[10px] text-slate-400 leading-tight">{perm.desc}</span>}
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
+
+                    {/* Section 3: POS & Cashier Operations */}
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-amber-100">
+                        <label className="font-extrabold text-xs text-amber-950 flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">3</span>
+                          <Coins className="w-4 h-4 text-amber-600" />
+                          صلاحيات نقاط البيع والكاشير الميداني (POS & Cashier Security)
+                        </label>
+                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          الخصومات والمردودات ودرج النقدية
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                        {availablePermissions
+                          .filter((p) => p.group === 'pos')
+                          .map((perm) => {
+                            const isChecked = editUserPermissions.includes(perm.key);
+                            return (
+                              <label
+                                key={perm.key}
+                                className={`flex items-start gap-2.5 p-3 rounded-2xl border transition-all cursor-pointer select-none ${
+                                  isChecked
+                                    ? 'bg-amber-50/80 border-amber-300 text-amber-950 shadow-xs font-bold'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setEditUserPermissions([...editUserPermissions, perm.key]);
+                                    } else {
+                                      setEditUserPermissions(editUserPermissions.filter((k) => k !== perm.key));
+                                    }
+                                  }}
+                                  className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                                />
+                                <div className="space-y-0.5">
+                                  <span className="block font-bold text-xs leading-tight">{perm.label}</span>
+                                  {perm.desc && <span className="block text-[10px] text-slate-400 leading-tight">{perm.desc}</span>}
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
+
+                    {/* Section 4: Supervision, Pricing & Data Protection */}
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-emerald-100">
+                        <label className="font-extrabold text-xs text-emerald-950 flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">4</span>
+                          <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                          صلاحيات الرقابة والتكلفة والعمليات المتقدمة (Supervision & Auditing)
+                        </label>
+                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          حماية التكلفة واعتماد الجرد وتصدير البيانات
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                        {availablePermissions
+                          .filter((p) => p.group === 'supervision')
+                          .map((perm) => {
+                            const isChecked = editUserPermissions.includes(perm.key);
+                            return (
+                              <label
+                                key={perm.key}
+                                className={`flex items-start gap-2.5 p-3 rounded-2xl border transition-all cursor-pointer select-none ${
+                                  isChecked
+                                    ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950 shadow-xs font-bold'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setEditUserPermissions([...editUserPermissions, perm.key]);
+                                    } else {
+                                      setEditUserPermissions(editUserPermissions.filter((k) => k !== perm.key));
+                                    }
+                                  }}
+                                  className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                <div className="space-y-0.5">
+                                  <span className="block font-bold text-xs leading-tight">{perm.label}</span>
+                                  {perm.desc && <span className="block text-[10px] text-slate-400 leading-tight">{perm.desc}</span>}
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">الدور الوظيفي</label>
-                      <select
-                        value={editUserRole}
-                        onChange={(e) => setEditUserRole(e.target.value as UserRole)}
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold"
-                      >
-                        <option value="sales_cashier">كاشير مبيعات POS</option>
-                        <option value="accountant">محاسب مالي</option>
-                        <option value="warehouse_keeper">أمين مستودع</option>
-                        <option value="hr_manager">مدير موارد بشرية</option>
-                        <option value="admin">مدير عام / أدمن</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">رمز PIN السريع</label>
-                      <input
-                        type="password"
-                        maxLength={6}
-                        value={editUserPin}
-                        onChange={(e) => setEditUserPin(e.target.value)}
-                        placeholder="1234"
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-mono text-center font-bold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">كلمة المرور الجديدة (اختياري)</label>
-                      <input
-                        type="password"
-                        value={editUserPassword}
-                        onChange={(e) => setEditUserPassword(e.target.value)}
-                        placeholder="اترك فارغاً لعدم التغيير"
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Quick Preset Permissions Templates */}
-                  <div className="p-3 bg-indigo-50/60 rounded-2xl border border-indigo-100 space-y-2">
-                    <span className="text-[11px] font-bold text-indigo-900 block">قوالب الصلاحيات الجاهزة السريعة:</span>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditUserPermissions(['dashboard', 'quick_pos', 'sales', 'crm_collections', 'edit_invoices'])
-                        }
-                        className="px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-800 rounded-lg text-[10px] font-bold border border-indigo-200 transition-colors"
-                      >
-                        ⚡ حزمة الكاشير
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditUserPermissions([
-                            'dashboard',
-                            'accounts',
-                            'sales',
-                            'purchases',
-                            'inventory',
-                            'financial_reports',
-                            'crm_collections',
-                            'edit_invoices',
-                            'delete_invoices',
-                            'edit_accounts',
-                            'edit_expenses',
-                          ])
-                        }
-                        className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-bold border border-emerald-200 transition-colors"
-                      >
-                        ⚡ حزمة المحاسب المالي
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditUserPermissions([
-                            'dashboard',
-                            'inventory',
-                            'purchases',
-                            'edit_products',
-                            'delete_products',
-                            'edit_suppliers',
-                          ])
-                        }
-                        className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-800 rounded-lg text-[10px] font-bold border border-amber-200 transition-colors"
-                      >
-                        ⚡ حزمة أمين المستودع
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditUserPermissions(availablePermissions.map((p) => p.key))}
-                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold shadow-xs transition-colors"
-                      >
-                        ✓ تحديد كافة الصلاحيات
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditUserPermissions([])}
-                        className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-[10px] font-bold border border-rose-200 transition-colors"
-                      >
-                        ✕ إلغاء الكل
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Section 1: Module Access Permissions */}
-                  <div className="space-y-2 pt-2 border-t border-slate-100">
-                    <label className="font-bold text-slate-800 flex items-center gap-1.5">
-                      <FolderLock className="w-4 h-4 text-indigo-600" />
-                      1. صلاحيات الوصول للوحدات والشاشات (Module Access):
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
-                      {availablePermissions
-                        .filter((p) => p.group === 'modules')
-                        .map((perm) => {
-                          const isChecked = editUserPermissions.includes(perm.key);
-                          return (
-                            <label
-                              key={perm.key}
-                              className={`flex items-center gap-2 p-1.5 rounded-lg text-[11px] cursor-pointer select-none transition-colors ${
-                                isChecked ? 'bg-indigo-50/70 text-indigo-900 font-bold' : 'text-slate-700 hover:bg-white'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setEditUserPermissions([...editUserPermissions, perm.key]);
-                                  } else {
-                                    setEditUserPermissions(editUserPermissions.filter((k) => k !== perm.key));
-                                  }
-                                }}
-                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                              />
-                              <span>{perm.label}</span>
-                            </label>
-                          );
-                        })}
-                    </div>
-                  </div>
-
-                  {/* Section 2: Granular CRUD Data Permissions */}
-                  <div className="space-y-2 pt-2 border-t border-slate-100">
-                    <label className="font-bold text-slate-800 flex items-center gap-1.5">
-                      <ShieldAlert className="w-4 h-4 text-rose-600" />
-                      2. صلاحيات التعديل والحذف المتقدمة للبيانات (Granular Data Edit & Delete):
-                    </label>
-                    <p className="text-[10px] text-slate-500">
-                      حدد ما إذا كان يحق لهذا المستخدم تعديل أو حذف السجلات والفواتير والمنتجات والحسابات
-                    </p>
-                    <div className="grid grid-cols-2 gap-2 bg-rose-50/30 p-3 rounded-2xl border border-rose-100">
-                      {availablePermissions
-                        .filter((p) => p.group === 'crud')
-                        .map((perm) => {
-                          const isChecked = editUserPermissions.includes(perm.key);
-                          return (
-                            <label
-                              key={perm.key}
-                              className={`flex items-center gap-2 p-1.5 rounded-lg text-[11px] cursor-pointer select-none transition-colors ${
-                                isChecked ? 'bg-rose-50 text-rose-950 font-bold' : 'text-slate-700 hover:bg-white'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setEditUserPermissions([...editUserPermissions, perm.key]);
-                                  } else {
-                                    setEditUserPermissions(editUserPermissions.filter((k) => k !== perm.key));
-                                  }
-                                }}
-                                className="rounded border-rose-300 text-rose-600 focus:ring-rose-500"
-                              />
-                              <span>{perm.label}</span>
-                            </label>
-                          );
-                        })}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                  {/* Sticky Footer */}
+                  <div className="sticky bottom-0 bg-slate-50/95 backdrop-blur-xs px-6 py-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 z-20">
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={editUserIsActive}
                         onChange={(e) => setEditUserIsActive(e.target.checked)}
-                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
                       />
-                      <span className="font-bold text-slate-800">حساب المستخدم نشط ومصرح له بالدخول</span>
+                      <span className="font-bold text-slate-800 text-xs">حساب المستخدم نشط ومصرح له بالدخول للنظام</span>
                     </label>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       <button
                         type="button"
                         onClick={() => setShowEditUserModal(false)}
-                        className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer"
+                        className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 font-bold transition-colors cursor-pointer text-xs"
                       >
                         إلغاء
                       </button>
                       <button
                         type="submit"
-                        className="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer shadow-md"
+                        className="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer shadow-md transition-all hover:shadow-lg flex items-center gap-1.5 text-xs"
                       >
+                        <CheckCircle2 className="w-4 h-4 text-indigo-200" />
                         حفظ التعديلات والصلاحيات
                       </button>
                     </div>
@@ -2077,315 +2480,506 @@ pause
           {/* ADD USER MODAL */}
           {showAddUserModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-              <div className="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 my-auto max-h-[92vh] overflow-y-auto">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <div className="bg-white rounded-3xl max-w-5xl w-full shadow-2xl border border-slate-200 my-auto max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                {/* Sticky Header */}
+                <div className="sticky top-0 bg-white/95 backdrop-blur-xs px-6 py-4 border-b border-slate-100 flex items-center justify-between z-20">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shadow-xs">
                       <UserCheck className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-base text-slate-900">تعيين مستخدم جديد ومنح الصلاحيات</h3>
-                      <p className="text-xs text-slate-400">إنشاء حساب مستخدم جديد أو ربطه بموظف من إدارة الموارد البشرية</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddUserModal(false)}
-                    className="text-slate-400 hover:text-slate-600 text-lg cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <form onSubmit={handleCreateUser} className="space-y-4 text-xs">
-                  {/* Select Employee From HR */}
-                  <div className="bg-indigo-50/50 p-3.5 rounded-2xl border border-indigo-100 space-y-2">
-                    <label className="block font-bold text-indigo-900">
-                      ربط الحساب بموظف من الموارد البشرية (اختياري - يملأ البيانات والصورة تلقائياً):
-                    </label>
-                    <select
-                      value={selectedEmployeeId}
-                      onChange={(e) => handleSelectEmployeeForNewUser(e.target.value)}
-                      className="w-full bg-white border border-indigo-200 rounded-xl p-2.5 text-slate-900 font-bold"
-                    >
-                      <option value="">-- حساب مستقل (بدون ربط بموظف HR) --</option>
-                      {employees.map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.employeeCode} - {emp.name} ({emp.jobTitle} - {emp.department})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* User Profile Info */}
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                    <div className="sm:col-span-3 flex flex-col items-center justify-center bg-slate-50 p-3 rounded-2xl border border-slate-200 text-center">
-                      <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-200 border-2 border-indigo-200 mb-2 relative group">
-                        {newUserAvatar ? (
-                          <img src={newUserAvatar} alt="معاينة" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center font-bold text-slate-400 text-xl">
-                            {newUserName ? newUserName.charAt(0) : <User className="w-8 h-8" />}
-                          </div>
-                        )}
-                        <label
-                          className="absolute inset-0 bg-slate-900/60 rounded-2xl flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[9px] font-bold"
-                          title="رفع صورة"
-                        >
-                          <Camera className="w-4 h-4 text-emerald-400" />
-                          <span>تغيير</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onload = () => setNewUserAvatar(reader.result as string);
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                      <span className="text-[10px] text-slate-500 font-semibold">صورة المستخدم / الأفاتار</span>
-                    </div>
-
-                    <div className="sm:col-span-9 space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">الاسم الكامل *</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="مثال: أحمد عبد الله"
-                            value={newUserName}
-                            onChange={(e) => setNewUserName(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 focus:bg-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">اسم تسجيل الدخول (Username) *</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="مثال: ahmad_pos"
-                            value={newUserUsername}
-                            onChange={(e) => setNewUserUsername(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-mono focus:bg-white"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2">
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">الدور الوظيفي</label>
-                          <select
-                            value={newUserRole}
-                            onChange={(e) => setNewUserRole(e.target.value as UserRole)}
-                            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 text-slate-900 font-bold"
-                          >
-                            <option value="sales_cashier">كاشير مبيعات POS</option>
-                            <option value="accountant">محاسب مالي</option>
-                            <option value="warehouse_keeper">أمين مستودع</option>
-                            <option value="hr_manager">مدير موارد بشرية</option>
-                            <option value="admin">مدير عام / أدمن</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">كلمة المرور</label>
-                          <input
-                            type="password"
-                            required
-                            value={newUserPassword}
-                            onChange={(e) => setNewUserPassword(e.target.value)}
-                            placeholder="123456"
-                            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 text-slate-900 font-mono"
-                          />
-                        </div>
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">رمز PIN السريع</label>
-                          <input
-                            type="password"
-                            maxLength={6}
-                            value={newUserPin}
-                            onChange={(e) => setNewUserPin(e.target.value)}
-                            placeholder="1234"
-                            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 text-slate-900 font-mono text-center font-bold"
-                          />
-                        </div>
-                      </div>
+                      <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                        تعيين مستخدم جديد ومنح الصلاحيات
+                      </h3>
+                      <p className="text-[11px] text-slate-400">إنشاء حساب مستخدم جديد أو ربطه بموظف من إدارة الموارد البشرية وتحديد مصفوفة الصلاحيات</p>
                     </div>
                   </div>
 
-                  {/* Quick Preset Permissions Templates */}
-                  <div className="p-3 bg-indigo-50/60 rounded-2xl border border-indigo-100 space-y-2">
-                    <span className="text-[11px] font-bold text-indigo-900 block">قوالب الصلاحيات الجاهزة السريعة:</span>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    {/* Quick Scroll Up/Down Buttons */}
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
                       <button
                         type="button"
-                        onClick={() =>
-                          setNewUserPermissions(['dashboard', 'quick_pos', 'sales', 'crm_collections', 'edit_invoices'])
-                        }
-                        className="px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-800 rounded-lg text-[10px] font-bold border border-indigo-200 transition-colors"
+                        onClick={() => addUserModalScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                        className="px-2.5 py-1 hover:bg-white text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs hover:text-indigo-600"
+                        title="التمرير لأعلى النافذة"
                       >
-                        ⚡ حزمة الكاشير
+                        <ArrowUp className="w-3.5 h-3.5" />
+                        <span className="text-[10px] hidden sm:inline">للأعلى</span>
                       </button>
                       <button
                         type="button"
-                        onClick={() =>
-                          setNewUserPermissions([
-                            'dashboard',
-                            'accounts',
-                            'sales',
-                            'purchases',
-                            'inventory',
-                            'financial_reports',
-                            'crm_collections',
-                            'edit_invoices',
-                            'delete_invoices',
-                            'edit_accounts',
-                            'edit_customers',
-                            'edit_suppliers',
-                            'edit_expenses',
-                          ])
-                        }
-                        className="px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-800 rounded-lg text-[10px] font-bold border border-indigo-200 transition-colors"
+                        onClick={() => addUserModalScrollRef.current?.scrollTo({ top: addUserModalScrollRef.current.scrollHeight, behavior: 'smooth' })}
+                        className="px-2.5 py-1 hover:bg-white text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs hover:text-indigo-600"
+                        title="التمرير لأسفل النافذة"
                       >
-                        📊 حزمة المحاسب
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setNewUserPermissions(['dashboard', 'inventory', 'purchases', 'edit_products', 'edit_suppliers'])
-                        }
-                        className="px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-800 rounded-lg text-[10px] font-bold border border-indigo-200 transition-colors"
-                      >
-                        📦 حزمة أمين المخزن
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setNewUserPermissions(['dashboard', 'hr_payroll', 'edit_employees', 'delete_employees'])
-                        }
-                        className="px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-800 rounded-lg text-[10px] font-bold border border-indigo-200 transition-colors"
-                      >
-                        👥 حزمة الموارد البشرية
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNewUserPermissions(availablePermissions.map((p) => p.key))}
-                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-colors"
-                      >
-                        🛡️ منح كافة الصلاحيات (أدمن كامل)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNewUserPermissions([])}
-                        className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[10px] font-bold"
-                      >
-                        إلغاء تحديد الكل
+                        <ArrowDown className="w-3.5 h-3.5" />
+                        <span className="text-[10px] hidden sm:inline">للأسفل</span>
                       </button>
                     </div>
-                  </div>
 
-                  {/* Section 1: Modules */}
-                  <div className="space-y-2">
-                    <h4 className="font-bold text-slate-800 text-xs border-b border-slate-200 pb-1">
-                      1. صلاحيات الوصول للشاشات والوحدات الرئيسية (Modules)
-                    </h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {availablePermissions
-                        .filter((p) => p.group === 'modules')
-                        .map((perm) => {
-                          const isChecked = newUserPermissions.includes(perm.key);
-                          return (
-                            <label
-                              key={perm.key}
-                              className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all cursor-pointer ${
-                                isChecked
-                                  ? 'bg-indigo-50/80 border-indigo-300 text-indigo-950 font-bold'
-                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setNewUserPermissions([...newUserPermissions, perm.key]);
-                                  } else {
-                                    setNewUserPermissions(newUserPermissions.filter((k) => k !== perm.key));
-                                  }
-                                }}
-                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                              />
-                              <span className="text-[11px]">{perm.label}</span>
-                            </label>
-                          );
-                        })}
-                    </div>
-                  </div>
-
-                  {/* Section 2: Granular CRUD Actions */}
-                  <div className="space-y-2">
-                    <h4 className="font-bold text-slate-800 text-xs border-b border-slate-200 pb-1 flex items-center justify-between">
-                      <span>2. الصلاحيات التفصيلية (التعديل والحذف الحرج Granular CRUD)</span>
-                      <span className="text-[10px] text-amber-600 font-normal">تتطلب حذر وتدقيق</span>
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {availablePermissions
-                        .filter((p) => p.group === 'crud')
-                        .map((perm) => {
-                          const isChecked = newUserPermissions.includes(perm.key);
-                          const isDelete = perm.key.startsWith('delete_');
-                          return (
-                            <label
-                              key={perm.key}
-                              className={`flex items-center gap-2 p-2 rounded-xl border transition-all cursor-pointer ${
-                                isChecked
-                                  ? isDelete
-                                    ? 'bg-rose-50 border-rose-300 text-rose-950 font-bold'
-                                    : 'bg-indigo-50/60 border-indigo-200 text-indigo-900 font-bold'
-                                  : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setNewUserPermissions([...newUserPermissions, perm.key]);
-                                  } else {
-                                    setNewUserPermissions(newUserPermissions.filter((k) => k !== perm.key));
-                                  }
-                                }}
-                                className={`rounded border-slate-300 ${
-                                  isDelete ? 'text-rose-600 focus:ring-rose-500' : 'text-indigo-600 focus:ring-indigo-500'
-                                }`}
-                              />
-                              <span className="text-[11px]">{perm.label}</span>
-                            </label>
-                          );
-                        })}
-                    </div>
-                  </div>
-
-                  {/* Form Footer */}
-                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                     <button
                       type="button"
                       onClick={() => setShowAddUserModal(false)}
-                      className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer"
+                      className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors text-lg cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+
+                <form onSubmit={handleCreateUser} className="flex flex-col flex-1 min-h-0">
+                  {/* Scrollable Body with Sleek Custom Scrollbar */}
+                  <div ref={addUserModalScrollRef} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 scroll-smooth text-xs">
+                    {/* Select Employee From HR */}
+                    <div className="bg-gradient-to-r from-indigo-50/60 to-blue-50/40 p-4 rounded-2xl border border-indigo-100 space-y-2">
+                      <label className="block font-bold text-indigo-950 text-xs flex items-center gap-2">
+                        <Users2 className="w-4 h-4 text-indigo-600" />
+                        ربط الحساب بموظف من الموارد البشرية (اختياري - يملأ البيانات والصورة تلقائياً):
+                      </label>
+                      <select
+                        value={selectedEmployeeId}
+                        onChange={(e) => handleSelectEmployeeForNewUser(e.target.value)}
+                        className="w-full bg-white border border-indigo-200 rounded-xl p-2.5 text-slate-900 font-bold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-xs"
+                      >
+                        <option value="">-- حساب مستقل (بدون ربط بموظف HR) --</option>
+                        {employees.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.employeeCode} - {emp.name} ({emp.jobTitle} - {emp.department})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* User Profile Info */}
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80">
+                      <div className="sm:col-span-3 flex flex-col items-center justify-center bg-white p-3 rounded-2xl border border-slate-200 text-center shadow-xs">
+                        <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-200 border-2 border-indigo-200 mb-2 relative group shadow-xs">
+                          {newUserAvatar ? (
+                            <img src={newUserAvatar} alt="معاينة" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center font-bold text-slate-400 text-xl">
+                              {newUserName ? newUserName.charAt(0) : <User className="w-8 h-8" />}
+                            </div>
+                          )}
+                          <label
+                            className="absolute inset-0 bg-slate-900/60 rounded-2xl flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[9px] font-bold"
+                            title="رفع صورة"
+                          >
+                            <Camera className="w-4 h-4 text-emerald-400" />
+                            <span>تغيير</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = () => setNewUserAvatar(reader.result as string);
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-semibold">صورة المستخدم / الأفاتار</span>
+                      </div>
+
+                      <div className="sm:col-span-9 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">الاسم الكامل *</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="مثال: أحمد عبد الله"
+                              value={newUserName}
+                              onChange={(e) => setNewUserName(e.target.value)}
+                              className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-semibold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">اسم تسجيل الدخول (Username) *</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="مثال: ahmad_pos"
+                              value={newUserUsername}
+                              onChange={(e) => setNewUserUsername(e.target.value)}
+                              className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-mono font-semibold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">الدور الوظيفي</label>
+                            <select
+                              value={newUserRole}
+                              onChange={(e) => setNewUserRole(e.target.value as UserRole)}
+                              className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                            >
+                              <option value="sales_cashier">كاشير مبيعات POS</option>
+                              <option value="accountant">محاسب مالي</option>
+                              <option value="warehouse_keeper">أمين مستودع</option>
+                              <option value="hr_manager">مدير موارد بشرية</option>
+                              <option value="admin">مدير عام / أدمن</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">كلمة المرور (افتراضي: 123456)</label>
+                            <input
+                              type="password"
+                              value={newUserPassword}
+                              onChange={(e) => setNewUserPassword(e.target.value)}
+                              placeholder="123456"
+                              className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">رمز PIN السريع (أرقام)</label>
+                            <input
+                              type="password"
+                              maxLength={6}
+                              value={newUserPin}
+                              onChange={(e) => setNewUserPin(e.target.value)}
+                              placeholder="1234"
+                              className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-mono text-center font-bold tracking-widest focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Preset Permissions Templates */}
+                    <div className="p-4 bg-gradient-to-r from-indigo-50/90 to-blue-50/70 rounded-2xl border border-indigo-100/90 shadow-xs space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
+                          <Sparkles className="w-4 h-4 text-indigo-600" />
+                          قوالب وحزم الصلاحيات السريعة الجاهزة (Presets):
+                        </span>
+                        <span className="text-[11px] font-bold text-indigo-600 bg-white/90 px-2 py-0.5 rounded-full border border-indigo-200">
+                          {newUserPermissions.length} من {availablePermissions.length} صلاحية مفعلة
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewUserPermissions(['dashboard', 'quick_pos', 'sales', 'crm_collections', 'pos_reprint'])
+                          }
+                          className="px-3 py-1.5 bg-white hover:bg-indigo-100 text-indigo-800 rounded-xl text-[11px] font-bold border border-indigo-200 transition-all shadow-xs cursor-pointer hover:shadow-sm"
+                        >
+                          ⚡ حزمة الكاشير
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewUserPermissions([
+                              'dashboard',
+                              'quick_pos',
+                              'sales',
+                              'crm_collections',
+                              'pos_discount',
+                              'pos_refund',
+                              'pos_price_override',
+                              'pos_open_cash_drawer',
+                              'pos_close_shift',
+                              'pos_reprint',
+                              'edit_invoices',
+                            ])
+                          }
+                          className="px-3 py-1.5 bg-white hover:bg-amber-100 text-amber-900 rounded-xl text-[11px] font-bold border border-amber-200 transition-all shadow-xs cursor-pointer hover:shadow-sm"
+                        >
+                          👑 مشرف الكاشير / POS
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewUserPermissions([
+                              'dashboard',
+                              'accounts',
+                              'sales',
+                              'purchases',
+                              'inventory',
+                              'financial_reports',
+                              'crm_collections',
+                              'edit_invoices',
+                              'delete_invoices',
+                              'edit_purchases',
+                              'delete_purchases',
+                              'edit_accounts',
+                              'edit_expenses',
+                              'delete_expenses',
+                              'view_cost_price',
+                              'export_reports_excel',
+                            ])
+                          }
+                          className="px-3 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 rounded-xl text-[11px] font-bold border border-emerald-200 transition-all shadow-xs cursor-pointer hover:shadow-sm"
+                        >
+                          📊 حزمة المحاسب المالي
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewUserPermissions([
+                              'dashboard',
+                              'inventory',
+                              'purchases',
+                              'edit_products',
+                              'manage_warehouse_transfers',
+                              'manage_stock_adjustments',
+                              'approve_stocktaking',
+                              'edit_suppliers',
+                            ])
+                          }
+                          className="px-3 py-1.5 bg-white hover:bg-cyan-100 text-cyan-900 rounded-xl text-[11px] font-bold border border-cyan-200 transition-all shadow-xs cursor-pointer hover:shadow-sm"
+                        >
+                          📦 حزمة أمين المستودع
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewUserPermissions([
+                              'dashboard',
+                              'hr_payroll',
+                              'edit_employees',
+                              'delete_employees',
+                              'export_reports_excel',
+                            ])
+                          }
+                          className="px-3 py-1.5 bg-white hover:bg-purple-100 text-purple-900 rounded-xl text-[11px] font-bold border border-purple-200 transition-all shadow-xs cursor-pointer hover:shadow-sm"
+                        >
+                          👥 حزمة الموارد البشرية
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewUserPermissions(availablePermissions.map((p) => p.key))}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-bold shadow-xs transition-all cursor-pointer hover:shadow-sm"
+                        >
+                          ✓ تحديد كافة الصلاحيات
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewUserPermissions([])}
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-[11px] font-bold border border-rose-200 transition-all shadow-xs cursor-pointer hover:shadow-sm"
+                        >
+                          ✕ إلغاء الكل
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Section 1: Module Access */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-indigo-100">
+                        <label className="font-extrabold text-xs text-indigo-950 flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">1</span>
+                          <FolderLock className="w-4 h-4 text-indigo-600" />
+                          صلاحيات الوصول للشاشات والوحدات الرئيسية (Module Access)
+                        </label>
+                        <span className="text-[10px] font-semibold text-slate-400">تحدد ما تراه القائمة الجانبية للمستخدم</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                        {availablePermissions
+                          .filter((p) => p.group === 'modules')
+                          .map((perm) => {
+                            const isChecked = newUserPermissions.includes(perm.key);
+                            return (
+                              <label
+                                key={perm.key}
+                                className={`flex items-start gap-2.5 p-3 rounded-2xl border transition-all cursor-pointer select-none ${
+                                  isChecked
+                                    ? 'bg-indigo-50/70 border-indigo-300 text-indigo-950 shadow-xs'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setNewUserPermissions([...newUserPermissions, perm.key]);
+                                    } else {
+                                      setNewUserPermissions(newUserPermissions.filter((k) => k !== perm.key));
+                                    }
+                                  }}
+                                  className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <div className="space-y-0.5">
+                                  <span className="block font-bold text-xs leading-tight">{perm.label}</span>
+                                  {perm.desc && <span className="block text-[10px] text-slate-400 leading-tight">{perm.desc}</span>}
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
+
+                    {/* Section 2: Granular CRUD Data Edit & Delete */}
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-rose-100">
+                        <label className="font-extrabold text-xs text-rose-950 flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-xs">2</span>
+                          <ShieldAlert className="w-4 h-4 text-rose-600" />
+                          صلاحيات التعديل والحذف المتقدمة للبيانات (Granular Data Edit & Delete)
+                        </label>
+                        <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                          صلاحيات حساسة تتطلب تدقيق
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                        {availablePermissions
+                          .filter((p) => p.group === 'crud')
+                          .map((perm) => {
+                            const isChecked = newUserPermissions.includes(perm.key);
+                            const isDelete = perm.key.startsWith('delete_');
+                            return (
+                              <label
+                                key={perm.key}
+                                className={`flex items-start gap-2.5 p-3 rounded-2xl border transition-all cursor-pointer select-none ${
+                                  isChecked
+                                    ? isDelete
+                                      ? 'bg-rose-50/80 border-rose-300 text-rose-950 shadow-xs'
+                                      : 'bg-indigo-50/70 border-indigo-300 text-indigo-950 shadow-xs'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setNewUserPermissions([...newUserPermissions, perm.key]);
+                                    } else {
+                                      setNewUserPermissions(newUserPermissions.filter((k) => k !== perm.key));
+                                    }
+                                  }}
+                                  className={`mt-0.5 rounded border-slate-300 ${
+                                    isDelete ? 'text-rose-600 focus:ring-rose-500' : 'text-indigo-600 focus:ring-indigo-500'
+                                  }`}
+                                />
+                                <div className="space-y-0.5">
+                                  <span className="block font-bold text-xs leading-tight">{perm.label}</span>
+                                  {perm.desc && <span className="block text-[10px] text-slate-400 leading-tight">{perm.desc}</span>}
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
+
+                    {/* Section 3: POS & Cashier Operations */}
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-amber-100">
+                        <label className="font-extrabold text-xs text-amber-950 flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">3</span>
+                          <Coins className="w-4 h-4 text-amber-600" />
+                          صلاحيات نقاط البيع والكاشير الميداني (POS & Cashier Security)
+                        </label>
+                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          الخصومات والمردودات ودرج النقدية
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                        {availablePermissions
+                          .filter((p) => p.group === 'pos')
+                          .map((perm) => {
+                            const isChecked = newUserPermissions.includes(perm.key);
+                            return (
+                              <label
+                                key={perm.key}
+                                className={`flex items-start gap-2.5 p-3 rounded-2xl border transition-all cursor-pointer select-none ${
+                                  isChecked
+                                    ? 'bg-amber-50/80 border-amber-300 text-amber-950 shadow-xs font-bold'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setNewUserPermissions([...newUserPermissions, perm.key]);
+                                    } else {
+                                      setNewUserPermissions(newUserPermissions.filter((k) => k !== perm.key));
+                                    }
+                                  }}
+                                  className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                                />
+                                <div className="space-y-0.5">
+                                  <span className="block font-bold text-xs leading-tight">{perm.label}</span>
+                                  {perm.desc && <span className="block text-[10px] text-slate-400 leading-tight">{perm.desc}</span>}
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
+
+                    {/* Section 4: Supervision, Pricing & Data Protection */}
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-emerald-100">
+                        <label className="font-extrabold text-xs text-emerald-950 flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">4</span>
+                          <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                          صلاحيات الرقابة والتكلفة والعمليات المتقدمة (Supervision & Auditing)
+                        </label>
+                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          حماية التكلفة واعتماد الجرد وتصدير البيانات
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                        {availablePermissions
+                          .filter((p) => p.group === 'supervision')
+                          .map((perm) => {
+                            const isChecked = newUserPermissions.includes(perm.key);
+                            return (
+                              <label
+                                key={perm.key}
+                                className={`flex items-start gap-2.5 p-3 rounded-2xl border transition-all cursor-pointer select-none ${
+                                  isChecked
+                                    ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950 shadow-xs font-bold'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setNewUserPermissions([...newUserPermissions, perm.key]);
+                                    } else {
+                                      setNewUserPermissions(newUserPermissions.filter((k) => k !== perm.key));
+                                    }
+                                  }}
+                                  className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                <div className="space-y-0.5">
+                                  <span className="block font-bold text-xs leading-tight">{perm.label}</span>
+                                  {perm.desc && <span className="block text-[10px] text-slate-400 leading-tight">{perm.desc}</span>}
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sticky Footer */}
+                  <div className="sticky bottom-0 bg-slate-50/95 backdrop-blur-xs px-6 py-4 border-t border-slate-200 flex flex-wrap items-center justify-end gap-3 z-20">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddUserModal(false)}
+                      className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 font-bold transition-colors cursor-pointer text-xs"
                     >
                       إلغاء
                     </button>
                     <button
                       type="submit"
-                      className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer shadow-md flex items-center gap-1.5"
+                      className="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer shadow-md transition-all hover:shadow-lg flex items-center gap-1.5 text-xs"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className="w-4 h-4 text-indigo-200" />
                       إضافة المستخدم واعتماد الصلاحيات
                     </button>
                   </div>
@@ -2886,6 +3480,142 @@ pause
               )}
             </div>
           )}
+
+          {/* محرك النسخ الاحتياطية المحلي لـ PostgreSQL */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200">
+                  <HardDrive className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    محرك النسخ الاحتياطية لـ PostgreSQL (Backups Engine)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    إدارة وأرشفة ملفات الـ SQL الناتجة عن pg_dump محلياً مع إمكانية التحميل والاستعادة الفورية
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={fetchServerBackups}
+                  disabled={isLoadingBackups}
+                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs transition-colors"
+                  title="تحديث القائمة"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isLoadingBackups ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateServerBackup}
+                  disabled={isCreatingBackup}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{isCreatingBackup ? 'جاري إنشاء النسخة...' : 'إنشاء نسخة احتياطية فورية الآن'}</span>
+                </button>
+              </div>
+            </div>
+
+            {backupActionMessage && (
+              <div
+                className={`p-3 rounded-xl border flex items-center gap-2 text-xs animate-in fade-in duration-200 ${
+                  backupActionMessage.success
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}
+              >
+                {backupActionMessage.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                )}
+                <span>{backupActionMessage.message}</span>
+              </div>
+            )}
+
+            {/* Backups List Table */}
+            {isLoadingBackups ? (
+              <div className="text-center py-8 text-xs text-slate-400">
+                جاري تحميل قائمة النسخ الاحتياطية...
+              </div>
+            ) : serverBackups.length === 0 ? (
+              <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
+                <HardDrive className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="text-xs font-bold text-slate-600">لا توجد نسخ احتياطية محفوظة حالياً في مجلد backups</p>
+                <p className="text-[11px] text-slate-400">اضغط "إنشاء نسخة احتياطية فورية الآن" لإنشاء أول نسخة SQL لمشروعك</p>
+              </div>
+            ) : (
+              <div className="border border-slate-200 rounded-2xl overflow-hidden overflow-x-auto text-xs">
+                <table className="w-full text-right border-collapse">
+                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">اسم ملف النسخة</th>
+                      <th className="p-3">تاريخ ووقت الإنشاء</th>
+                      <th className="p-3">حجم الملف</th>
+                      <th className="p-3 text-center">الإجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {serverBackups.map((b) => (
+                      <tr key={b.filename} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="p-3 font-mono font-bold text-slate-800 flex items-center gap-2">
+                          <FileCode className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <span>{b.filename}</span>
+                        </td>
+                        <td className="p-3 text-slate-600">
+                          {new Date(b.createdAt).toLocaleString('ar-EG', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                          })}
+                        </td>
+                        <td className="p-3 font-mono text-slate-600">
+                          {b.size > 1024 * 1024
+                            ? `${(b.size / (1024 * 1024)).toFixed(2)} MB`
+                            : `${(b.size / 1024).toFixed(1)} KB`}
+                        </td>
+                        <td className="p-3 text-center">
+                          <div className="inline-flex items-center gap-1.5">
+                            <a
+                              href={`/api/backup/download/${encodeURIComponent(b.filename)}?key=${encodeURIComponent(ADMIN_SECURITY_KEY)}`}
+                              download={b.filename}
+                              className="p-1.5 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                              title="تحميل النسخة على جهازك"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreServerBackup(b.filename)}
+                              className="px-2.5 py-1 rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold text-[11px] transition-colors cursor-pointer"
+                              title="استعادة هذه النسخة إلى قاعدة البيانات"
+                            >
+                              استعادة
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteServerBackup(b.filename)}
+                              className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="حذف الملف"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
           {/* Audit Logs (سجل العمليات والرقابة والأمان) */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">

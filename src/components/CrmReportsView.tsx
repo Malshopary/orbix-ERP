@@ -865,8 +865,9 @@ export const CrmReportsView: React.FC = () => {
         </div>
       </div>
 
-      {/* REPORT CONTENT VIEW */}
-      {selectedReport === 'crm_customer_statement' && (
+      {/* REPORT CONTENT VIEW (BLURRED IN PRIVACY MODE) */}
+      <div className="report-sheet privacy-blur space-y-6">
+        {selectedReport === 'crm_customer_statement' && (
         <div className="space-y-4">
           {/* Customer Snapshot KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1656,6 +1657,7 @@ export const CrmReportsView: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
 
       {/* Print Preview Modal */}
       {showPrintModal && (
@@ -1665,7 +1667,7 @@ export const CrmReportsView: React.FC = () => {
           title={`طباعة ${currentMeta.title}`}
           defaultOrientation="landscape"
         >
-          <div className="space-y-6 text-right">
+          <div className="space-y-6 text-right report-sheet privacy-blur">
             <PrintHeader
               docTitle={currentMeta.title}
               docSubtitle={currentMeta.subtitle}

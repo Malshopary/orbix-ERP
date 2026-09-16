@@ -38,30 +38,35 @@ export const InitialSetupWizard: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  // Step 1: Company Profile State
+  // Step 1: Company Profile State - Clean and empty for the new user
+  const isOldDemo =
+    companyProfile.nameAr === 'شركة أوربكس للحلول المتكاملة والتجارة' ||
+    companyProfile.nameAr === 'شركة التجارة والحلول المتكاملة' ||
+    companyProfile.taxNumber === '30045678900003';
+
   const [companyForm, setCompanyForm] = useState({
-    nameAr: companyProfile.nameAr || 'شركة التجارة والحلول المتكاملة',
-    nameEn: companyProfile.nameEn || 'Integrated Solutions & Trading Co.',
-    taxNumber: companyProfile.taxNumber || '',
-    commercialRegister: companyProfile.commercialRegister || '',
-    city: companyProfile.city || 'القاهرة',
-    address: companyProfile.address || 'المقر الرئيسي - مبنى الإدارة',
-    phone: companyProfile.phone || '',
-    mobile: companyProfile.mobile || '',
-    email: companyProfile.email || 'info@company.eg',
+    nameAr: isOldDemo ? '' : (companyProfile.nameAr || ''),
+    nameEn: isOldDemo ? '' : (companyProfile.nameEn || ''),
+    taxNumber: isOldDemo ? '' : (companyProfile.taxNumber || ''),
+    commercialRegister: isOldDemo ? '' : (companyProfile.commercialRegister || ''),
+    city: isOldDemo ? '' : (companyProfile.city || ''),
+    address: isOldDemo ? '' : (companyProfile.address || ''),
+    phone: isOldDemo ? '' : (companyProfile.phone || ''),
+    mobile: isOldDemo ? '' : (companyProfile.mobile || ''),
+    email: isOldDemo ? '' : (companyProfile.email || ''),
     defaultCurrency: companyProfile.defaultCurrency || 'EGP',
     defaultVatRate: companyProfile.defaultVatRate ?? 14,
   });
 
   // Step 2: Super Admin Account State
   const [adminForm, setAdminForm] = useState({
-    name: 'م. المدير العام',
+    name: '',
     username: 'admin',
-    email: 'admin@company.eg',
+    email: '',
     phone: '',
-    password: '123',
-    confirmPassword: '123',
-    pin: '1234',
+    password: '',
+    confirmPassword: '',
+    pin: '',
   });
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});

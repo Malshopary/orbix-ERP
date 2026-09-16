@@ -86,7 +86,7 @@ export const ChequesPortfolioSection: React.FC = () => {
     return accounts.filter(
       (a) =>
         !a.isHeader &&
-        (a.code.startsWith('112') || a.name.includes('بنك') || a.name.toLowerCase().includes('bank'))
+        ((a.code || '').startsWith('112') || a.name.includes('بنك') || a.name.toLowerCase().includes('bank'))
     );
   }, [accounts]);
 
@@ -382,31 +382,31 @@ export const ChequesPortfolioSection: React.FC = () => {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-6 pt-5 border-t border-slate-100">
           <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
             <span className="text-slate-400 text-xs font-semibold block mb-1">أوراق قبض بالخزينة</span>
-            <span className="text-lg font-black text-amber-600">{formatMoney(stats.inPortfolioAmount)}</span>
+            <span className="text-lg font-black text-amber-600 privacy-blur">{formatMoney(stats.inPortfolioAmount)}</span>
             <span className="text-[11px] text-slate-500 block mt-0.5">{stats.inPortfolioCount} شيكات مؤجلة</span>
           </div>
 
           <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
             <span className="text-slate-400 text-xs font-semibold block mb-1">برسم التحصيل بالبنوك</span>
-            <span className="text-lg font-black text-blue-600">{formatMoney(stats.underCollectionAmount)}</span>
+            <span className="text-lg font-black text-blue-600 privacy-blur">{formatMoney(stats.underCollectionAmount)}</span>
             <span className="text-[11px] text-slate-500 block mt-0.5">{stats.underCollectionCount} قيد المقاصة</span>
           </div>
 
           <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
             <span className="text-slate-400 text-xs font-semibold block mb-1">تم تحصيلها بنجاح</span>
-            <span className="text-lg font-black text-emerald-600">{formatMoney(stats.collectedAmount)}</span>
+            <span className="text-lg font-black text-emerald-600 privacy-blur">{formatMoney(stats.collectedAmount)}</span>
             <span className="text-[11px] text-slate-500 block mt-0.5">{stats.collectedCount} شيكات مقبوضة</span>
           </div>
 
           <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
             <span className="text-slate-400 text-xs font-semibold block mb-1">شيكات مرتدة (مرفوضة)</span>
-            <span className="text-lg font-black text-rose-600">{formatMoney(stats.bouncedAmount)}</span>
+            <span className="text-lg font-black text-rose-600 privacy-blur">{formatMoney(stats.bouncedAmount)}</span>
             <span className="text-[11px] text-rose-500 font-bold block mt-0.5">{stats.bouncedCount} بحاجة لمتابعة</span>
           </div>
 
           <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100 col-span-2 md:col-span-1">
             <span className="text-slate-400 text-xs font-semibold block mb-1">أوراق دفع مستحقة للموردين</span>
-            <span className="text-lg font-black text-purple-600">{formatMoney(stats.pendingIssuedAmount)}</span>
+            <span className="text-lg font-black text-purple-600 privacy-blur">{formatMoney(stats.pendingIssuedAmount)}</span>
             <span className="text-[11px] text-slate-500 block mt-0.5">{stats.pendingIssuedCount} شيكات صادرة</span>
           </div>
         </div>
@@ -609,7 +609,7 @@ export const ChequesPortfolioSection: React.FC = () => {
                       </td>
 
                       {/* Amount */}
-                      <td className="p-4 text-left font-black text-sm text-slate-900 whitespace-nowrap">
+                      <td className="p-4 text-left font-black text-sm text-slate-900 whitespace-nowrap privacy-blur">
                         {formatMoney(chq.amount)}
                       </td>
 

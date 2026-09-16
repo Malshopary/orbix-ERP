@@ -891,15 +891,15 @@ export const AccountsView: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-100">
             <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
               <span className="text-slate-400 text-xs font-semibold block mb-1">إجمالي ذمم العملاء (مدين)</span>
-              <span className="text-lg font-black text-rose-600">{formatMoney(totalReceivables)}</span>
+              <span className="text-lg font-black text-rose-600 privacy-blur">{formatMoney(totalReceivables)}</span>
             </div>
             <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
               <span className="text-slate-400 text-xs font-semibold block mb-1">تحصيلات الشهر الحالية</span>
-              <span className="text-lg font-black text-emerald-600">{formatMoney(totalCollectionsMonth)}</span>
+              <span className="text-lg font-black text-emerald-600 privacy-blur">{formatMoney(totalCollectionsMonth)}</span>
             </div>
             <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
               <span className="text-slate-400 text-xs font-semibold block mb-1">عمولات مناديب مستحقة</span>
-              <span className="text-lg font-black text-indigo-600">{formatMoney(pendingCommissions)}</span>
+              <span className="text-lg font-black text-indigo-600 privacy-blur">{formatMoney(pendingCommissions)}</span>
             </div>
             <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
               <span className="text-slate-400 text-xs font-semibold block mb-1">نقاط الولاء النشطة</span>
@@ -1071,7 +1071,7 @@ export const AccountsView: React.FC = () => {
                         <td className="p-4 text-slate-500 max-w-xs truncate">
                           {acc.description || '—'}
                         </td>
-                        <td className="p-4 text-left font-mono font-bold text-slate-900">
+                        <td className="p-4 text-left font-mono font-bold text-slate-900 privacy-blur">
                           {formatMoney(acc.balance)}
                         </td>
                         <td className="p-4 text-center">
@@ -1170,10 +1170,10 @@ export const AccountsView: React.FC = () => {
                           <td className="py-1.5 font-bold text-slate-700">{line.accountCode}</td>
                           <td className="py-1.5 font-sans font-semibold text-slate-800">{line.accountName}</td>
                           <td className="py-1.5 font-sans text-slate-500">{line.description || '—'}</td>
-                          <td className="py-1.5 text-left text-emerald-700 font-bold">
+                          <td className="py-1.5 text-left text-emerald-700 font-bold privacy-blur">
                             {line.debit > 0 ? formatMoney(line.debit) : '—'}
                           </td>
-                          <td className="py-1.5 text-left text-blue-700 font-bold">
+                          <td className="py-1.5 text-left text-blue-700 font-bold privacy-blur">
                             {line.credit > 0 ? formatMoney(line.credit) : '—'}
                           </td>
                         </tr>
@@ -1222,7 +1222,7 @@ export const AccountsView: React.FC = () => {
                   }`}
                 >
                   <span className="text-xs font-bold block mb-1 text-slate-600">{bucket.range}</span>
-                  <div className="text-lg font-black">{formatMoney(bucket.totalAmount)}</div>
+                  <div className="text-lg font-black privacy-blur">{formatMoney(bucket.totalAmount)}</div>
                   <span className="text-[11px] text-slate-500 font-semibold block mt-1">
                     {bucket.customerCount} عميل مستحق
                   </span>
@@ -1236,7 +1236,7 @@ export const AccountsView: React.FC = () => {
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <h3 className="font-black text-slate-900 text-sm">متابعة أرصدة العملاء وسندات القبض</h3>
               <span className="text-xs text-slate-500 font-bold">
-                إجمالي الديون: {formatMoney(totalReceivables)}
+                إجمالي الديون: <span className="privacy-blur">{formatMoney(totalReceivables)}</span>
               </span>
             </div>
 
@@ -1271,8 +1271,8 @@ export const AccountsView: React.FC = () => {
                               <span className="text-slate-400 text-[11px]">بدون مندوب</span>
                             )}
                           </td>
-                          <td className="p-4 font-mono text-slate-600">{formatMoney(cust.creditLimit)}</td>
-                          <td className="p-4 font-black text-rose-600 font-mono text-sm">
+                          <td className="p-4 font-mono text-slate-600 privacy-blur">{formatMoney(cust.creditLimit)}</td>
+                          <td className="p-4 font-black text-rose-600 font-mono text-sm privacy-blur">
                             {formatMoney(cust.currentBalance)}
                           </td>
                           <td className="p-4 text-center">

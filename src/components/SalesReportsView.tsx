@@ -915,10 +915,14 @@ export const SalesReportsView: React.FC = () => {
       </div>
 
       {/* =========================================================================
-          REPORT 1: SALES SUMMARY (ملخص المبيعات الدوري والتحليلي)
+          SALES REPORTS VIEWPORT (BLURRED IN PRIVACY MODE)
          ========================================================================= */}
-      {reportType === 'sales_summary' && (
-        <div className="space-y-6">
+      <div className="report-sheet privacy-blur space-y-6">
+        {/* =========================================================================
+            REPORT 1: SALES SUMMARY (ملخص المبيعات الدوري والتحليلي)
+           ========================================================================= */}
+        {reportType === 'sales_summary' && (
+          <div className="space-y-6">
           {/* Key Metric Highlights */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
@@ -1711,6 +1715,7 @@ export const SalesReportsView: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
 
       {/* Global Print Modal */}
       {showPrintModal && (
@@ -1719,7 +1724,7 @@ export const SalesReportsView: React.FC = () => {
           subtitle={`للفترة من ${dateFrom || 'البداية'} إلى ${dateTo || 'النهاية'}`}
           onClose={() => setShowPrintModal(false)}
         >
-          <div className="space-y-6 text-right text-xs" dir="rtl">
+          <div className="space-y-6 text-right text-xs report-sheet privacy-blur" dir="rtl">
             <PrintHeader title={currentMeta.title} subtitle={currentMeta.subtitle} />
 
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 grid grid-cols-2 gap-2 text-[11px]">

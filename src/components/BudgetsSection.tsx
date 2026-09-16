@@ -326,7 +326,7 @@ export const BudgetsSection: React.FC = () => {
             <span className="text-slate-500 text-xs font-semibold block mb-1">
               إجمالي الموازنة التقديرية المعتمدة
             </span>
-            <div className="text-xl font-black text-slate-900 font-mono">
+            <div className="text-xl font-black text-slate-900 font-mono privacy-blur">
               {formatMoney(comparisonData.totalBudget)}
             </div>
             <span className="text-[11px] text-slate-400 mt-1 block">
@@ -340,7 +340,7 @@ export const BudgetsSection: React.FC = () => {
               <span className="text-rose-700 text-xs font-bold">المصروف الفعلي المحقق</span>
               <TrendingDown className="w-4 h-4 text-rose-600" />
             </div>
-            <div className="text-xl font-black text-rose-700 font-mono">
+            <div className="text-xl font-black text-rose-700 font-mono privacy-blur">
               {formatMoney(comparisonData.totalActual)}
             </div>
             <span className="text-[11px] text-rose-600/80 mt-1 block">
@@ -362,7 +362,7 @@ export const BudgetsSection: React.FC = () => {
               </span>
               <Scale className="w-4 h-4" />
             </div>
-            <div className="text-xl font-black font-mono">
+            <div className="text-xl font-black font-mono privacy-blur">
               {formatMoney(Math.abs(comparisonData.totalVariance))}
             </div>
             <span className="text-[11px] mt-1 block opacity-90">
@@ -565,14 +565,14 @@ export const BudgetsSection: React.FC = () => {
                     >
                       <td className="p-4 font-mono font-bold text-slate-700">{item.accountCode}</td>
                       <td className="p-4 font-black text-slate-900">{item.accountName}</td>
-                      <td className="p-4 font-mono font-bold text-slate-800 text-left">
+                      <td className="p-4 font-mono font-bold text-slate-800 text-left privacy-blur">
                         {formatMoney(item.budgetAmount)}
                       </td>
-                      <td className="p-4 font-mono font-black text-left text-slate-900">
+                      <td className="p-4 font-mono font-black text-left text-slate-900 privacy-blur">
                         {formatMoney(item.actualAmount)}
                       </td>
                       <td
-                        className={`p-4 font-mono font-bold text-left ${
+                        className={`p-4 font-mono font-bold text-left privacy-blur ${
                           item.variance > 0 ? 'text-rose-600' : 'text-emerald-600'
                         }`}
                       >

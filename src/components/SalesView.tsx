@@ -42,7 +42,10 @@ import {
   Sparkles,
   RefreshCw,
   CheckCircle2,
+  MessageCircle,
 } from 'lucide-react';
+import { InvoiceQrCode } from '../utils/qrCodeGenerator';
+import { openWhatsAppShare } from '../utils/whatsappShare';
 
 export const SalesView: React.FC = () => {
   const {
@@ -1025,16 +1028,16 @@ export const SalesView: React.FC = () => {
                         </td>
                         <td className="py-3 px-4 text-slate-600">{inv.date}</td>
                         <td className="py-3 px-4 text-slate-600">{inv.dueDate}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-800">
+                        <td className="py-3 px-4 font-semibold text-slate-800 privacy-blur">
                           {formatMoney(inv.subtotal)}
                         </td>
-                        <td className="py-3 px-4 text-slate-600">
+                        <td className="py-3 px-4 text-slate-600 privacy-blur">
                           {formatMoney(inv.vatTotal)}
                         </td>
-                        <td className="py-3 px-4 font-extrabold text-slate-900 text-sm">
+                        <td className="py-3 px-4 font-extrabold text-slate-900 text-sm privacy-blur">
                           {formatMoney(inv.grandTotal)}
                         </td>
-                        <td className="py-3 px-4 font-bold text-amber-700">
+                        <td className="py-3 px-4 font-bold text-amber-700 privacy-blur">
                           {inv.remainingAmount > 0 ? formatMoney(inv.remainingAmount) : 'مسدد'}
                         </td>
                         <td className="py-3 px-4">
@@ -1938,6 +1941,31 @@ export const SalesView: React.FC = () => {
               : 'bg-rose-50 text-rose-800 border-rose-200'
           }
           elementId="sales-invoice-print-sheet"
+          extraActions={
+            <button
+              type="button"
+              onClick={() => {
+                const customer = customers.find((c) => c.id === selectedInvoice.customerId);
+                openWhatsAppShare({
+                  companyName: companyProfile.nameAr || companyProfile.nameEn || 'متجرنا',
+                  invoiceNumber: selectedInvoice.invoiceNumber,
+                  date: selectedInvoice.date,
+                  customerName: selectedInvoice.customerName,
+                  customerPhone: customer?.phone || '',
+                  total: selectedInvoice.grandTotal,
+                  taxTotal: selectedInvoice.vatTotal,
+                  balanceDue: selectedInvoice.remainingAmount,
+                  currency: currency,
+                  notes: selectedInvoice.notes,
+                });
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl inline-flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              title="مشاركة الفاتورة للعميل عبر واتساب"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>إرسال عبر واتساب</span>
+            </button>
+          }
         >
           {({ orientation }) => {
             const isVatZero = (selectedInvoice.vatRate === 0 || selectedInvoice.vatRate === undefined || selectedInvoice.vatRate === null) && (!selectedInvoice.vatTotal || selectedInvoice.vatTotal === 0);
@@ -2056,12 +2084,20 @@ export const SalesView: React.FC = () => {
                 {/* Calculation Breakdown & ZATCA notice */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
                   <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                    <div className="w-14 h-14 bg-white border border-slate-300 p-1 flex items-center justify-center rounded-lg">
-                      <QrCode className="w-12 h-12 text-slate-800" />
-                    </div>
+                    <InvoiceQrCode
+                      data={{
+                        sellerName: companyProfile.nameAr || companyProfile.nameEn || 'متجرنا',
+                        taxNumber: companyProfile.taxNumber || '300000000000003',
+                        timestamp: selectedInvoice.date + 'T12:00:00',
+                        totalWithVat: selectedInvoice.grandTotal,
+                        vatAmount: selectedInvoice.vatTotal,
+                        invoiceNumber: selectedInvoice.invoiceNumber,
+                      }}
+                      size={64}
+                    />
                     <div className="text-[11px] text-slate-600 max-w-[200px]">
-                      <span className="font-bold block text-slate-900">رمز الاستجابة السريع ZATCA</span>
-                      مشفر وفق متطلبات هيئة الزكاة والضريبة والجمارك
+                      <span className="font-bold block text-slate-900">رمز الفوترة الإلكترونية (ZATCA/ETA)</span>
+                      مشفر ببيانات الفاتورة ومعتمد للمسح والتحقق
                     </div>
                   </div>
 

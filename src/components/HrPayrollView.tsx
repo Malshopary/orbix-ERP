@@ -26,15 +26,44 @@ import {
   Briefcase,
   Layers,
   Sparkles,
+  Banknote,
+  Building2,
+  Landmark,
+  Wallet,
 } from 'lucide-react';
+import { HrAttendanceTab } from './hr/HrAttendanceTab';
+import { HrLeavesTab } from './hr/HrLeavesTab';
+import { HrLoansTab } from './hr/HrLoansTab';
+import { HrAdjustmentsTab } from './hr/HrAdjustmentsTab';
+import { HrCustodiesTab } from './hr/HrCustodiesTab';
+import { HrContractsTab } from './hr/HrContractsTab';
+import { HrReportsTab } from './hr/HrReportsTab';
+
+export type HrSubTab =
+  | 'payroll'
+  | 'employees'
+  | 'attendance'
+  | 'leaves'
+  | 'loans'
+  | 'adjustments'
+  | 'custodies'
+  | 'contracts_docs'
+  | 'hr_reports';
 
 export const HrPayrollView: React.FC = () => {
   const {
     employees,
+    attendances,
+    leaveRequests,
+    employeeLoans,
+    employeeAdjustments,
+    employeeCustodies,
+    employeeDocuments,
     salesReps,
     payrollRuns,
     jobTitles,
     departments,
+    accounts,
     addJobTitle,
     addDepartment,
     formatMoney,
@@ -44,6 +73,7 @@ export const HrPayrollView: React.FC = () => {
     deleteEmployee,
     generateMonthlyPayroll,
     approvePayrollRun,
+    updatePayslipPaymentMethod,
     hasPermission,
     activeSubTab,
     setActiveSubTab,
@@ -53,15 +83,28 @@ export const HrPayrollView: React.FC = () => {
     currency,
   } = useErp();
 
-  const [activeTab, setActiveTabLocal] = useState<'payroll' | 'employees'>('payroll');
+  const [activeTab, setActiveTabLocal] = useState<HrSubTab>('payroll');
 
   React.useEffect(() => {
-    if (activeSubTab && ['payroll', 'employees'].includes(activeSubTab)) {
-      setActiveTabLocal(activeSubTab as any);
+    if (
+      activeSubTab &&
+      [
+        'payroll',
+        'employees',
+        'attendance',
+        'leaves',
+        'loans',
+        'adjustments',
+        'custodies',
+        'contracts_docs',
+        'hr_reports',
+      ].includes(activeSubTab)
+    ) {
+      setActiveTabLocal(activeSubTab as HrSubTab);
     }
   }, [activeSubTab]);
 
-  const setActiveTab = (tab: 'payroll' | 'employees') => {
+  const setActiveTab = (tab: HrSubTab) => {
     setActiveTabLocal(tab);
     setActiveSubTab(tab);
   };
@@ -85,6 +128,8 @@ export const HrPayrollView: React.FC = () => {
   const [editEmpNationalId, setEditEmpNationalId] = useState('');
   const [editEmpBankName, setEditEmpBankName] = useState('');
   const [editEmpBankIban, setEditEmpBankIban] = useState('');
+  const [editEmpSalaryPaymentMethod, setEditEmpSalaryPaymentMethod] = useState<'bank_transfer' | 'cash'>('bank_transfer');
+  const [editEmpDisbursementAccountId, setEditEmpDisbursementAccountId] = useState('1120');
   const [editEmpBasicSalary, setEditEmpBasicSalary] = useState(0);
   const [editEmpHousingAllowance, setEditEmpHousingAllowance] = useState(0);
   const [editEmpTransportAllowance, setEditEmpTransportAllowance] = useState(0);
@@ -161,6 +206,8 @@ export const HrPayrollView: React.FC = () => {
     setEditEmpNationalId(emp.nationalId || '');
     setEditEmpBankName(emp.bankName || '');
     setEditEmpBankIban(emp.bankIban || '');
+    setEditEmpSalaryPaymentMethod(emp.salaryPaymentMethod || 'bank_transfer');
+    setEditEmpDisbursementAccountId(emp.salaryDisbursementAccountId || (emp.salaryPaymentMethod === 'cash' ? '1110' : '1120'));
     setEditEmpBasicSalary(emp.basicSalary);
     setEditEmpHousingAllowance(emp.housingAllowance);
     setEditEmpTransportAllowance(emp.transportAllowance);
@@ -214,13 +261,31 @@ export const HrPayrollView: React.FC = () => {
   };
 
   const handleApprovePayroll = (runId: string) => {
+    const run = payrollRuns.find((r) => r.id === runId);
+    if (!run) return;
+
+    const cashTotal = run.payslips
+      .filter((p) => p.paymentMethod === 'cash' || p.disbursementAccountId === '1110')
+      .reduce((sum, p) => sum + p.netSalary, 0);
+    const bankTotal = run.payslips
+      .filter((p) => p.paymentMethod !== 'cash' && p.disbursementAccountId !== '1110')
+      .reduce((sum, p) => sum + p.netSalary, 0);
+
+    const confirmationMsg =
+      `هل تريد بالتأكيد اعتماد وصرف مسير رواتب شهر ${run.month}/${run.year}؟\n\n` +
+      `تفاصيل الصرف والخصم المالي من الحسابات:\n` +
+      `• إجمالي الصرف عبر البنك: ${formatMoney(bankTotal)}\n` +
+      `• إجمالي الصرف نقداً من الخزينة: ${formatMoney(cashTotal)}\n` +
+      `• الإجمالي الصافي المطلوب صرفه: ${formatMoney(run.totalNet)}\n\n` +
+      `سيتم إنشاء قيود الاستحقاق والصرف آلياً وتخفيض أرصدة الحسابات المعنية (البنك والخزينة) فورياً.`;
+
     showConfirm(
-      'هل تريد بالتأكيد اعتماد وصرف مسير الرواتب؟ سيتم إنشاء قيد استحقاق وصرف تلقائي لدفتر اليومية العامة وخصم المبلغ من الحساب البنكي.',
+      confirmationMsg,
       () => {
         approvePayrollRun(runId);
         showAlert({
-          title: 'تم اعتماد المسير بنجاح',
-          message: 'تم اعتماد وصرف مسير الرواتب وترحيله للحسابات وتوليد قيود اليومية بنجاح!',
+          title: 'تم اعتماد وصرف المسير بنجاح',
+          message: `تم اعتماد وصرف مسير الرواتب وترحيله للحسابات بنجاح!\n• تم خصم ${formatMoney(bankTotal)} من الحساب البنكي.\n• تم خصم ${formatMoney(cashTotal)} من الخزينة النقدية الرئيسية.`,
           type: 'success',
           confirmText: 'فهمت',
         });
@@ -239,51 +304,56 @@ export const HrPayrollView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <BadgeDollarSign className="w-5 h-5 text-emerald-600" />
-            الموارد البشرية ونظام مسير الرواتب الدقيق (HR & Payroll)
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            احتساب الرواتب والبدلات واستقطاعات التأمينات الاجتماعية بدقة، مع توليد القيود المحاسبية التلقائية
-          </p>
-        </div>
+      {/* Header & KPI Cards only for Payroll and Employees */}
+      {(activeTab === 'payroll' || activeTab === 'employees') && (
+        <>
+          {/* Header */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <BadgeDollarSign className="w-5 h-5 text-emerald-600" />
+                الموارد البشرية ونظام مسير الرواتب الدقيق (HR & Payroll)
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                احتساب الرواتب والبدلات واستقطاعات التأمينات الاجتماعية بدقة، مع توليد القيود المحاسبية التلقائية
+              </p>
+            </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowQuickAddEmployee(true)}
-            className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
-            title="إضافة موظف أو مندوب مبيعات جديد للنظام"
-          >
-            <Briefcase className="w-4 h-4" />
-            إضافة موظف
-          </button>
-        </div>
-      </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowQuickAddEmployee(true)}
+                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
+                title="إضافة موظف أو مندوب مبيعات جديد للنظام"
+              >
+                <Briefcase className="w-4 h-4" />
+                إضافة موظف
+              </button>
+            </div>
+          </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="text-xs font-medium text-slate-500">إجمالي الرواتب الأساسية الشهرية</div>
-          <div className="text-xl font-extrabold text-slate-900 mt-1">{formatMoney(totalBasic)}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">لعدد {employees.length} موظفاً</div>
-        </div>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="text-xs font-medium text-slate-500">إجمالي الرواتب الأساسية الشهرية</div>
+              <div className="text-xl font-extrabold text-slate-900 mt-1 privacy-blur">{formatMoney(totalBasic)}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">لعدد {employees.length} موظفاً</div>
+            </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="text-xs font-medium text-slate-500">إجمالي البدلات والمزايا</div>
-          <div className="text-xl font-extrabold text-blue-900 mt-1">{formatMoney(totalAllowances)}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">سكن + انتقال + مزايا أخرى</div>
-        </div>
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="text-xs font-medium text-slate-500">إجمالي البدلات والمزايا</div>
+              <div className="text-xl font-extrabold text-blue-900 mt-1 privacy-blur">{formatMoney(totalAllowances)}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">سكن + انتقال + مزايا أخرى</div>
+            </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="text-xs font-medium text-slate-500">الكتلة الشهرية الإجمالية (Gross Payroll)</div>
-          <div className="text-xl font-extrabold text-emerald-700 mt-1">{formatMoney(totalGrossPayroll)}</div>
-          <div className="text-[11px] text-emerald-700 mt-0.5">قبل خصم التأمينات والضرائب</div>
-        </div>
-      </div>
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="text-xs font-medium text-slate-500">الكتلة الشهرية الإجمالية (Gross Payroll)</div>
+              <div className="text-xl font-extrabold text-emerald-700 mt-1 privacy-blur">{formatMoney(totalGrossPayroll)}</div>
+              <div className="text-[11px] text-emerald-700 mt-0.5">قبل خصم التأمينات والضرائب</div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Tab 1: Monthly Payroll Run */}
       {activeTab === 'payroll' && (
@@ -367,66 +437,191 @@ export const HrPayrollView: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-right text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                      <th className="py-3 px-4">اسم الموظف</th>
-                      <th className="py-3 px-4">المسمى الوظيفي</th>
-                      <th className="py-3 px-4">الراتب الأساسي</th>
-                      <th className="py-3 px-4">إجمالي البدلات</th>
-                      <th className="py-3 px-4 font-bold text-slate-800">إجمالي الراتب (Gross)</th>
-                      <th className="py-3 px-4 text-rose-700">تأمينات GOSI (9%)</th>
-                      <th className="py-3 px-4 text-rose-700">إجمالي الاستقطاعات</th>
-                      <th className="py-3 px-4 font-extrabold text-emerald-700 text-sm">صافي الراتب المستحق (Net)</th>
-                      <th className="py-3 px-4">قسيمة الراتب</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {currentRun.payslips.map((slip) => (
-                      <tr key={slip.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-4 font-bold text-slate-900">{slip.employeeName}</td>
-                        <td className="py-3 px-4 text-slate-600">{slip.jobTitle}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-800">{formatMoney(slip.basicSalary)}</td>
-                        <td className="py-3 px-4 text-slate-600">
-                          {formatMoney(slip.housingAllowance + slip.transportAllowance + slip.otherAllowances)}
+            <div className="space-y-4">
+              {/* Disbursement Channels Breakdown */}
+              {(() => {
+                const cashNetSum = currentRun.payslips
+                  .filter((p) => p.paymentMethod === 'cash' || p.disbursementAccountId === '1110')
+                  .reduce((s, p) => s + p.netSalary, 0);
+                const bankNetSum = currentRun.payslips
+                  .filter((p) => p.paymentMethod !== 'cash' && p.disbursementAccountId !== '1110')
+                  .reduce((s, p) => s + p.netSalary, 0);
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-blue-50/80 border border-blue-200 p-3.5 rounded-2xl flex items-center justify-between">
+                      <div>
+                        <div className="text-[11px] font-bold text-blue-800 flex items-center gap-1.5">
+                          <Building2 className="w-4 h-4 text-blue-600" />
+                          صافي التحويلات البنكية
+                        </div>
+                        <div className="text-lg font-black text-blue-950 mt-1 privacy-blur">
+                          {formatMoney(currentRun.totalBankDisbursement ?? bankNetSum)}
+                        </div>
+                      </div>
+                      <span className="text-xs bg-white px-2.5 py-1 rounded-xl font-bold text-blue-700 border border-blue-200 shadow-2xs">
+                        {currentRun.payslips.filter((p) => p.paymentMethod !== 'cash' && p.disbursementAccountId !== '1110').length} موظف
+                      </span>
+                    </div>
+
+                    <div className="bg-amber-50/80 border border-amber-200 p-3.5 rounded-2xl flex items-center justify-between">
+                      <div>
+                        <div className="text-[11px] font-bold text-amber-800 flex items-center gap-1.5">
+                          <Wallet className="w-4 h-4 text-amber-600" />
+                          صافي المنصرف نقداً (الخزينة)
+                        </div>
+                        <div className="text-lg font-black text-amber-950 mt-1 privacy-blur">
+                          {formatMoney(currentRun.totalCashDisbursement ?? cashNetSum)}
+                        </div>
+                      </div>
+                      <span className="text-xs bg-white px-2.5 py-1 rounded-xl font-bold text-amber-700 border border-amber-200 shadow-2xs">
+                        {currentRun.payslips.filter((p) => p.paymentMethod === 'cash' || p.disbursementAccountId === '1110').length} موظف
+                      </span>
+                    </div>
+
+                    <div className="bg-emerald-50/80 border border-emerald-200 p-3.5 rounded-2xl flex items-center justify-between">
+                      <div>
+                        <div className="text-[11px] font-bold text-emerald-800 flex items-center gap-1.5">
+                          <BadgeDollarSign className="w-4 h-4 text-emerald-600" />
+                          إجمالي صافي المسير المنصرف
+                        </div>
+                        <div className="text-lg font-black text-emerald-950 mt-1 privacy-blur">
+                          {formatMoney(currentRun.totalNet)}
+                        </div>
+                      </div>
+                      <span className="text-xs bg-white px-2.5 py-1 rounded-xl font-bold text-emerald-700 border border-emerald-200 shadow-2xs">
+                        {currentRun.payslips.length} موظف
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                        <th className="py-3 px-4">اسم الموظف</th>
+                        <th className="py-3 px-4">المسمى الوظيفي</th>
+                        <th className="py-3 px-4">الراتب الأساسي</th>
+                        <th className="py-3 px-4">إجمالي البدلات</th>
+                        <th className="py-3 px-4 font-bold text-slate-800">إجمالي الراتب (Gross)</th>
+                        <th className="py-3 px-4 text-rose-700">تأمينات GOSI (9%)</th>
+                        <th className="py-3 px-4 text-rose-700">إجمالي الاستقطاعات</th>
+                        <th className="py-3 px-4 font-extrabold text-emerald-700 text-sm">صافي الراتب المستحق (Net)</th>
+                        <th className="py-3 px-4">طريقة وحساب الصرف</th>
+                        <th className="py-3 px-4">قسيمة الراتب</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {currentRun.payslips.map((slip) => (
+                        <tr key={slip.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 px-4 font-bold text-slate-900">{slip.employeeName}</td>
+                          <td className="py-3 px-4 text-slate-600">{slip.jobTitle}</td>
+                          <td className="py-3 px-4 font-semibold text-slate-800 privacy-blur">{formatMoney(slip.basicSalary)}</td>
+                          <td className="py-3 px-4 text-slate-600 privacy-blur">
+                            {formatMoney(slip.housingAllowance + slip.transportAllowance + slip.otherAllowances)}
+                          </td>
+                          <td className="py-3 px-4 font-bold text-slate-900 privacy-blur">{formatMoney(slip.grossSalary)}</td>
+                          <td className="py-3 px-4 text-rose-700 font-semibold privacy-blur">{formatMoney(slip.socialInsuranceDeduction)}</td>
+                          <td className="py-3 px-4 text-rose-700 font-bold privacy-blur">{formatMoney(slip.totalDeductions)}</td>
+                          <td className="py-3 px-4 font-extrabold text-emerald-700 text-sm privacy-blur">
+                            {formatMoney(slip.netSalary)}
+                          </td>
+                          <td className="py-3 px-4">
+                            {currentRun.status !== 'posted_to_accounts' ? (
+                              <div className="flex flex-col gap-1 min-w-[170px]">
+                                <select
+                                  value={`${slip.paymentMethod || 'bank_transfer'}:${slip.disbursementAccountId || (slip.paymentMethod === 'cash' ? '1110' : '1120')}`}
+                                  onChange={(e) => {
+                                    const [method, accId] = e.target.value.split(':') as ['bank_transfer' | 'cash', string];
+                                    const acc = accounts.find((a) => a.id === accId || a.code === accId);
+                                    updatePayslipPaymentMethod(currentRun.id, slip.id, method, accId, acc?.name);
+                                  }}
+                                  className="text-[11px] font-bold p-1.5 rounded-lg border border-slate-200 bg-white focus:outline-hidden focus:border-indigo-500 cursor-pointer shadow-2xs"
+                                >
+                                  <optgroup label="🏦 تحويل بنكي">
+                                    {(accounts || [])
+                                      .filter((a) => a.type === 'asset' && a.code.startsWith('112'))
+                                      .map((acc) => (
+                                        <option key={`bank_transfer:${acc.id}`} value={`bank_transfer:${acc.id}`}>
+                                          🏦 بنك: {acc.code} - {acc.name}
+                                        </option>
+                                      ))}
+                                    {!accounts?.some((a) => a.code === '1120') && (
+                                      <option value="bank_transfer:1120">🏦 1120 - الحساب البنكي الجاري الرئيسي</option>
+                                    )}
+                                  </optgroup>
+                                  <optgroup label="💵 نقداً من الخزينة">
+                                    {(accounts || [])
+                                      .filter((a) => a.type === 'asset' && a.code.startsWith('111'))
+                                      .map((acc) => (
+                                        <option key={`cash:${acc.id}`} value={`cash:${acc.id}`}>
+                                          💵 خزينة: {acc.code} - {acc.name}
+                                        </option>
+                                      ))}
+                                    {!accounts?.some((a) => a.code === '1110') && (
+                                      <option value="cash:1110">💵 1110 - الخزينة النقدية الرئيسية</option>
+                                    )}
+                                  </optgroup>
+                                </select>
+                              </div>
+                            ) : (
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                  slip.paymentMethod === 'cash'
+                                    ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                    : 'bg-blue-50 text-blue-800 border border-blue-200'
+                                }`}
+                              >
+                                {slip.paymentMethod === 'cash' ? (
+                                  <>
+                                    <Wallet className="w-3 h-3 text-amber-600" />
+                                    نقداً ({slip.disbursementAccountId === '1110' ? 'الخزينة الرئيسية' : slip.disbursementAccountId})
+                                  </>
+                                ) : (
+                                  <>
+                                    <Building2 className="w-3 h-3 text-blue-600" />
+                                    بنكي ({slip.disbursementAccountId === '1120' ? 'البنك الجاري' : slip.disbursementAccountId})
+                                  </>
+                                )}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <button
+                              onClick={() => {
+                                setSelectedPayslip(slip);
+                                setShowPayslipModal(true);
+                              }}
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <Printer className="w-3 h-3 text-slate-600" />
+                              قسيمة الراتب
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-900 text-white font-bold">
+                        <td colSpan={4} className="py-3 px-4">
+                          إجمالي مسير الرواتب المستحق للشهر:
                         </td>
-                        <td className="py-3 px-4 font-bold text-slate-900">{formatMoney(slip.grossSalary)}</td>
-                        <td className="py-3 px-4 text-rose-700 font-semibold">{formatMoney(slip.socialInsuranceDeduction)}</td>
-                        <td className="py-3 px-4 text-rose-700 font-bold">{formatMoney(slip.totalDeductions)}</td>
-                        <td className="py-3 px-4 font-extrabold text-emerald-700 text-sm">
-                          {formatMoney(slip.netSalary)}
+                        <td className="py-3 px-4">{formatMoney(currentRun.totalGross)}</td>
+                        <td className="py-3 px-4 text-rose-300">-</td>
+                        <td className="py-3 px-4 text-rose-300">{formatMoney(currentRun.totalDeductions)}</td>
+                        <td className="py-3 px-4 text-emerald-400 font-extrabold text-base">
+                          {formatMoney(currentRun.totalNet)}
                         </td>
-                        <td className="py-3 px-4">
-                          <button
-                            onClick={() => {
-                              setSelectedPayslip(slip);
-                              setShowPayslipModal(true);
-                            }}
-                            className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1"
-                          >
-                            <Printer className="w-3 h-3 text-slate-600" />
-                            قسيمة الراتب
-                          </button>
+                        <td colSpan={2} className="py-3 px-4 text-slate-300 text-[11px] font-medium text-left">
+                          {currentRun.status === 'posted_to_accounts' ? '✓ تم الترحيل والصرف المالي' : 'مسودة قابلة للتعديل'}
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-slate-900 text-white font-bold">
-                      <td colSpan={4} className="py-3 px-4">
-                        إجمالي مسير الرواتب المستحق للشهر:
-                      </td>
-                      <td className="py-3 px-4">{formatMoney(currentRun.totalGross)}</td>
-                      <td className="py-3 px-4 text-rose-300">-</td>
-                      <td className="py-3 px-4 text-rose-300">{formatMoney(currentRun.totalDeductions)}</td>
-                      <td colSpan={2} className="py-3 px-4 text-emerald-400 font-extrabold text-base">
-                        {formatMoney(currentRun.totalNet)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -481,14 +676,14 @@ export const HrPayrollView: React.FC = () => {
                 </div>
                 <div className="text-left">
                   <span className="text-[11px] text-slate-400 block">إجمالي الراتب التعاقدي:</span>
-                  <span className="font-extrabold text-slate-900 text-base">
+                  <span className="font-extrabold text-slate-900 text-base privacy-blur">
                     {formatMoney(emp.basicSalary + emp.housingAllowance + emp.transportAllowance + emp.otherAllowances)}
                   </span>
                 </div>
               </div>
 
               {/* Salary Breakdown */}
-              <div className="grid grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl text-[11px] text-center border border-slate-100">
+              <div className="grid grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl text-[11px] text-center border border-slate-100 privacy-blur">
                 <div>
                   <span className="text-slate-400 block">الأساسي</span>
                   <span className="font-bold text-slate-800">{formatMoney(emp.basicSalary)}</span>
@@ -520,9 +715,42 @@ export const HrPayrollView: React.FC = () => {
                 </div>
               )}
 
-              <div className="pt-2 border-t border-slate-100 text-xs text-slate-600 space-y-1">
-                <div>الهاتف: {emp.phone} | البريد: {emp.email}</div>
-                <div className="font-mono text-[11px]">الحساب البنكي (IBAN): {emp.bankIban} ({emp.bankName})</div>
+              <div className="pt-2 border-t border-slate-100 text-xs text-slate-600 space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-1">
+                  <div>الهاتف: {emp.phone || '-'} | البريد: {emp.email || '-'}</div>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                      emp.salaryPaymentMethod === 'cash'
+                        ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                        : 'bg-blue-50 text-blue-800 border border-blue-200'
+                    }`}
+                  >
+                    {emp.salaryPaymentMethod === 'cash' ? (
+                      <>
+                        <Wallet className="w-3 h-3 text-amber-600" />
+                        صرف نقدي من الخزينة
+                      </>
+                    ) : (
+                      <>
+                        <Building2 className="w-3 h-3 text-blue-600" />
+                        تحويل بنكي
+                      </>
+                    )}
+                  </span>
+                </div>
+                {emp.salaryPaymentMethod === 'cash' ? (
+                  <div className="text-[11px] text-slate-500 font-medium">
+                    حساب الصرف: {emp.salaryDisbursementAccountId === '1110' ? '1110 - الخزينة النقدية الرئيسية' : (emp.salaryDisbursementAccountId || '1110')}
+                  </div>
+                ) : emp.bankIban ? (
+                  <div className="font-mono text-[11px] text-slate-500">
+                    الحساب البنكي (IBAN): {emp.bankIban} {emp.bankName ? `(${emp.bankName})` : ''}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-slate-500 font-medium">
+                    حساب الصرف: {emp.salaryDisbursementAccountId === '1120' ? '1120 - الحساب البنكي الجاري الرئيسي' : (emp.salaryDisbursementAccountId || '1120')}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
@@ -558,6 +786,27 @@ export const HrPayrollView: React.FC = () => {
         </div>
       )}
 
+      {/* Sub-Tab 3: Attendance & Shifts */}
+      {activeTab === 'attendance' && <HrAttendanceTab />}
+
+      {/* Sub-Tab 4: Leaves & Permissions */}
+      {activeTab === 'leaves' && <HrLeavesTab />}
+
+      {/* Sub-Tab 5: Loans & Advances */}
+      {activeTab === 'loans' && <HrLoansTab />}
+
+      {/* Sub-Tab 6: Adjustments (Bonuses & Penalties) */}
+      {activeTab === 'adjustments' && <HrAdjustmentsTab />}
+
+      {/* Sub-Tab 7: Custodies & Assets */}
+      {activeTab === 'custodies' && <HrCustodiesTab />}
+
+      {/* Sub-Tab 8: Contracts & End of Service */}
+      {activeTab === 'contracts_docs' && <HrContractsTab />}
+
+      {/* Sub-Tab 9: HR Analytics & Reports */}
+      {activeTab === 'hr_reports' && <HrReportsTab />}
+
       {/* Modal 1: Quick Add Employee */}
       <QuickAddModal
         isOpen={showQuickAddEmployee}
@@ -582,28 +831,43 @@ export const HrPayrollView: React.FC = () => {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                editEmployee(editEmpId, {
-                  name: editEmpName,
-                  jobTitle: editEmpJobTitle,
-                  department: editEmpDepartment,
-                  hireDate: editEmpHireDate,
-                  phone: editEmpPhone,
-                  email: editEmpEmail,
-                  nationalId: editEmpNationalId,
-                  bankName: editEmpBankName,
-                  bankIban: editEmpBankIban,
-                  basicSalary: editEmpBasicSalary,
-                  housingAllowance: editEmpHousingAllowance,
-                  transportAllowance: editEmpTransportAllowance,
-                  otherAllowances: editEmpOtherAllowances,
-                  socialInsuranceEmployeeRate: editEmpSocialInsuranceRate,
-                  taxDeductionRate: editEmpTaxRate,
-                  commissionRate: Number(editCommissionRate) || 0,
-                  monthlySalesTarget: Number(editMonthlySalesTarget) || 0,
-                  salesTarget: Number(editMonthlySalesTarget) || 0,
-                  photoBase64: editPhotoBase64,
-                });
-                setShowEditEmployeeModal(false);
+                try {
+                  editEmployee(editEmpId, {
+                    name: editEmpName,
+                    jobTitle: editEmpJobTitle,
+                    department: editEmpDepartment,
+                    hireDate: editEmpHireDate,
+                    phone: editEmpPhone,
+                    email: editEmpEmail,
+                    nationalId: editEmpNationalId,
+                    bankName: editEmpBankName,
+                    bankIban: editEmpBankIban,
+                    salaryPaymentMethod: editEmpSalaryPaymentMethod,
+                    salaryDisbursementAccountId: editEmpDisbursementAccountId,
+                    basicSalary: editEmpBasicSalary,
+                    housingAllowance: editEmpHousingAllowance,
+                    transportAllowance: editEmpTransportAllowance,
+                    otherAllowances: editEmpOtherAllowances,
+                    socialInsuranceEmployeeRate: editEmpSocialInsuranceRate,
+                    taxDeductionRate: editEmpTaxRate,
+                    commissionRate: Number(editCommissionRate) || 0,
+                    monthlySalesTarget: Number(editMonthlySalesTarget) || 0,
+                    salesTarget: Number(editMonthlySalesTarget) || 0,
+                    photoBase64: editPhotoBase64,
+                  });
+                  setShowEditEmployeeModal(false);
+                  showAlert({
+                    title: 'تم حفظ التعديلات',
+                    message: `تم تحديث بيانات الموظف "${editEmpName}" بنجاح.`,
+                    type: 'success',
+                  });
+                } catch (err: any) {
+                  showAlert({
+                    title: 'خطأ أثناء الحفظ',
+                    message: err.message || 'حدث خطأ غير متوقع أثناء حفظ تعديلات الموظف',
+                    type: 'error',
+                  });
+                }
               }}
               className="space-y-3 text-xs"
             >
@@ -692,25 +956,93 @@ export const HrPayrollView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">اسم البنك</label>
-                  <input
-                    type="text"
-                    value={editEmpBankName}
-                    onChange={(e) => setEditEmpBankName(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200"
-                  />
+              {/* Salary Payment Channel & Method */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <label className="block font-bold text-slate-800 text-xs">
+                  طريقة وحساب صرف الراتب الشهري <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditEmpSalaryPaymentMethod('bank_transfer');
+                      setEditEmpDisbursementAccountId('1120');
+                    }}
+                    className={`p-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                      editEmpSalaryPaymentMethod === 'bank_transfer'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>تحويل بنكي</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditEmpSalaryPaymentMethod('cash');
+                      setEditEmpDisbursementAccountId('1110');
+                    }}
+                    className={`p-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                      editEmpSalaryPaymentMethod === 'cash'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Wallet className="w-3.5 h-3.5" />
+                    <span>نقداً من الخزينة</span>
+                  </button>
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">رقم الآيبان البنكي (IBAN)</label>
-                  <input
-                    type="text"
-                    value={editEmpBankIban}
-                    onChange={(e) => setEditEmpBankIban(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 font-mono"
-                  />
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700">
+                    {editEmpSalaryPaymentMethod === 'cash' ? 'حساب الخزينة المنصرف منها الراتب' : 'الحساب البنكي المنصرف منه الراتب'}
+                  </label>
+                  <select
+                    value={editEmpDisbursementAccountId}
+                    onChange={(e) => setEditEmpDisbursementAccountId(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
+                  >
+                    {(accounts || [])
+                      .filter((a) => a.type === 'asset' && (a.code.startsWith('111') || a.code.startsWith('112')))
+                      .map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.code} - {acc.name}
+                        </option>
+                      ))}
+                    {!accounts?.some((a) => a.code === '1120') && (
+                      <option value="1120">1120 - الحساب البنكي الجاري الرئيسي (Commercial Bank)</option>
+                    )}
+                    {!accounts?.some((a) => a.code === '1110') && (
+                      <option value="1110">1110 - الخزينة النقدية الرئيسية (Cash in Hand)</option>
+                    )}
+                  </select>
                 </div>
+
+                {editEmpSalaryPaymentMethod === 'bank_transfer' && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">اسم بنك الموظف</label>
+                      <input
+                        type="text"
+                        placeholder="مثال: CIB أو الأهلي"
+                        value={editEmpBankName}
+                        onChange={(e) => setEditEmpBankName(e.target.value)}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">رقم الآيبان (IBAN)</label>
+                      <input
+                        type="text"
+                        placeholder="EGxxxxxxxxxxxxxx"
+                        value={editEmpBankIban}
+                        onChange={(e) => setEditEmpBankIban(e.target.value)}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Sales Rep & Target Integration Section */}
@@ -850,14 +1182,30 @@ export const HrPayrollView: React.FC = () => {
               />
 
               {/* Employee Details Box */}
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
                 <div>
                   <span className="text-slate-500 font-semibold block">اسم الموظف:</span>
                   <span className="font-extrabold text-slate-900 text-sm">{selectedPayslip.employeeName}</span>
                 </div>
-                <div className="text-left">
+                <div>
                   <span className="text-slate-500 font-semibold block">المسمى الوظيفي:</span>
                   <span className="font-bold text-slate-900 text-sm">{selectedPayslip.jobTitle}</span>
+                </div>
+                <div className="text-left">
+                  <span className="text-slate-500 font-semibold block">طريقة وحساب الصرف:</span>
+                  <span className="font-bold text-indigo-700 text-xs inline-flex items-center gap-1 mt-0.5">
+                    {selectedPayslip.paymentMethod === 'cash' ? (
+                      <>
+                        <Wallet className="w-3.5 h-3.5 text-amber-600" />
+                        نقداً من الخزينة ({selectedPayslip.disbursementAccountId || '1110'})
+                      </>
+                    ) : (
+                      <>
+                        <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                        تحويل بنكي ({selectedPayslip.disbursementAccountId || '1120'})
+                      </>
+                    )}
+                  </span>
                 </div>
               </div>
 
@@ -910,7 +1258,7 @@ export const HrPayrollView: React.FC = () => {
 
               {/* Net Pay */}
               <div className="bg-slate-900 text-white p-4 rounded-xl flex justify-between items-center font-extrabold text-sm">
-                <span>صافي الراتب المستحق للتحويل:</span>
+                <span>صافي الراتب المستحق للصرف:</span>
                 <span className="text-emerald-400 font-mono font-black text-lg">{formatMoney(selectedPayslip.netSalary)}</span>
               </div>
 
@@ -919,7 +1267,11 @@ export const HrPayrollView: React.FC = () => {
                 preparedByTitle="مسؤول الموارد البشرية / الرواتب"
                 approvedByTitle="المدير المالي"
                 receivedByTitle="توقيع واستلام الموظف"
-                notes="تم تحويل المستحقات عبر نظام حماية الأجور (WPS) المعتمد في الحساب البنكي للموظف."
+                notes={
+                  selectedPayslip.paymentMethod === 'cash'
+                    ? 'تم صرف المستحقات نقداً من الخزينة النقدية الرئيسية بموجب سند صرف نقدية معتمد.'
+                    : 'تم تحويل المستحقات عبر نظام حماية الأجور (WPS) المعتمد في الحساب البنكي للموظف.'
+                }
               />
             </div>
           )}

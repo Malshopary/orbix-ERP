@@ -1125,11 +1125,11 @@ export const PurchasesReportsView: React.FC = () => {
       </div>
 
       {/* ========================================================== */}
-      {/* REPORT CONTENT VIEW                                        */}
+      {/* REPORT CONTENT VIEW (BLURRED IN PRIVACY MODE)              */}
       {/* ========================================================== */}
-
-      {/* 1. PURCHASES SUMMARY */}
-      {selectedReport === 'purchases_summary' && (
+      <div className="report-sheet privacy-blur space-y-6">
+        {/* 1. PURCHASES SUMMARY */}
+        {selectedReport === 'purchases_summary' && (
         <div className="space-y-6">
           {/* Top KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -1949,6 +1949,7 @@ export const PurchasesReportsView: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
 
       {/* ========================================================== */}
       {/* PRINT PREVIEW MODAL                                        */}
@@ -1958,7 +1959,7 @@ export const PurchasesReportsView: React.FC = () => {
           title={meta.title}
           onClose={() => setShowPrintModal(false)}
         >
-          <div className="space-y-6 text-right font-sans text-slate-800" dir="rtl">
+          <div className="space-y-6 text-right font-sans text-slate-800 report-sheet privacy-blur" dir="rtl">
             <PrintHeader title={meta.title} />
 
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs flex justify-between">

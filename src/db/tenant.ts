@@ -200,9 +200,48 @@ export async function initCustomTenantDatabase(config: TenantConnectionConfig): 
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS employee_tasks (
+      id VARCHAR(64) PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      priority VARCHAR(32) DEFAULT 'medium' NOT NULL,
+      status VARCHAR(32) DEFAULT 'pending' NOT NULL,
+      created_by_user_id VARCHAR(64) NOT NULL,
+      created_by_user_name VARCHAR(255) NOT NULL,
+      created_by_user_avatar TEXT,
+      assigned_to_user_ids JSONB NOT NULL,
+      assigned_to_user_names JSONB NOT NULL,
+      created_at VARCHAR(64) NOT NULL,
+      due_date VARCHAR(64),
+      completed_at VARCHAR(64),
+      approved_at VARCHAR(64),
+      completion_note TEXT,
+      rejection_reason TEXT,
+      history_json JSONB NOT NULL,
+      related_entity_type VARCHAR(64),
+      related_entity_id VARCHAR(64),
+      related_entity_name VARCHAR(255),
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id VARCHAR(64) PRIMARY KEY,
+      channel_id VARCHAR(128) NOT NULL,
+      sender_id VARCHAR(64) NOT NULL,
+      sender_name VARCHAR(255) NOT NULL,
+      sender_avatar TEXT,
+      sender_role VARCHAR(64),
+      text TEXT NOT NULL,
+      timestamp VARCHAR(64) NOT NULL,
+      is_system_notification BOOLEAN DEFAULT FALSE NOT NULL,
+      task_id VARCHAR(64),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS app_sync_store (
       key VARCHAR(128) PRIMARY KEY,
       payload JSONB NOT NULL,
+      version DOUBLE PRECISION DEFAULT 1,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
     );
   `;

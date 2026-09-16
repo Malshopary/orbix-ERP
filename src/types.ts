@@ -122,6 +122,17 @@ export interface WarehouseStockDetail {
   minStockAlert?: number;
 }
 
+export interface ProductUnit {
+  id: string;
+  name: string; // e.g. 'كرتونة', 'علبة', 'دستة', 'شريط'
+  factor: number; // معامل التحويل للوحدة الأساسية (مثال: 12 قطعة)
+  barcode?: string;
+  costPrice?: number;
+  sellingPrice?: number;
+  wholesalePrice?: number;
+  isDefaultSale?: boolean;
+}
+
 export interface Product {
   id: string;
   sku: string;
@@ -143,6 +154,7 @@ export interface Product {
   supplierId?: string; // المورد المفضل
   supplierName?: string;
   barcode?: string;
+  units?: ProductUnit[]; // الوحدات المتعددة والعبوات
   weight?: string | number;
   dimensions?: string;
   description?: string;
@@ -461,6 +473,9 @@ export interface InvoiceItem {
   subtotal: number;
   vatAmount: number;
   total: number;
+  unitName?: string;
+  unitFactor?: number;
+  unitBarcode?: string;
 }
 
 export interface ReturnItem {
@@ -472,6 +487,8 @@ export interface ReturnItem {
   subtotal: number;
   vatAmount: number;
   total: number;
+  unitName?: string;
+  unitFactor?: number;
   refundMethod?: 'customer_balance' | 'cash_vault' | 'bank';
   reason?: string;
 }
@@ -628,6 +645,8 @@ export interface PurchaseInvoiceItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  unitName?: string;
+  unitFactor?: number;
   batchNumber?: string;
   productionDate?: string;
   expiryDate?: string;
@@ -718,6 +737,8 @@ export interface Employee {
   photoBase64?: string;
   photoUrl?: string;
   accountId?: string; // Linked sub-account in Chart of Accounts
+  salaryPaymentMethod?: 'bank_transfer' | 'cash'; // طريقة صرف الراتب (تحويل بنكي / نقداً من الخزينة)
+  salaryDisbursementAccountId?: string; // حساب الصرف المالي (1120 للبنك، 1110 للخزينة، أو حساب مخصص)
   isSalesRep?: boolean; // هل يعمل كمندوب مبيعات
   commissionRate?: number;
   monthlySalesTarget?: number;
@@ -827,12 +848,17 @@ export interface Payslip {
   overtimeAmount: number;
   bonus: number;
   deductions: number; // penalties, absences
+  loanDeduction?: number;
+  penaltyDeduction?: number;
   socialInsuranceDeduction: number;
   taxDeduction: number;
   totalDeductions: number;
   netSalary: number;
   paymentStatus: 'pending' | 'approved' | 'paid';
   paymentDate?: string;
+  paymentMethod?: 'bank_transfer' | 'cash'; // طريقة الصرف (تحويل بنكي / نقداً)
+  disbursementAccountId?: string; // حساب الصرف (1120 للبنك، 1110 للخزينة)
+  disbursementAccountName?: string; // اسم حساب الصرف
 }
 
 export interface PayrollRun {
@@ -843,9 +869,162 @@ export interface PayrollRun {
   totalGross: number;
   totalDeductions: number;
   totalNet: number;
+  totalCashDisbursement?: number; // إجمالي المنصرف نقداً من الخزينة
+  totalBankDisbursement?: number; // إجمالي المنصرف عبر التحويلات البنكية
   employeesCount: number;
   status: 'draft' | 'approved' | 'posted_to_accounts';
   payslips: Payslip[];
+}
+
+// ==========================================
+// HR ENTERPRISE MODULES (الموارد البشرية المتكاملة)
+// ==========================================
+
+// 1. الحضور والانصراف والورديات (Attendance & Shifts)
+export interface EmployeeAttendance {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeCode?: string;
+  department?: string;
+  date: string; // YYYY-MM-DD
+  checkIn?: string; // HH:mm e.g. "08:30"
+  checkOut?: string; // HH:mm e.g. "17:00"
+  status: 'present' | 'absent' | 'late' | 'excused' | 'leave';
+  lateMinutes: number;
+  overtimeHours: number;
+  workShift?: 'morning' | 'evening' | 'flexible';
+  notes?: string;
+}
+
+// 2. الإجازات والأذونات الرسمية (Leaves & Permissions)
+export type LeaveType = 'annual' | 'sick' | 'casual' | 'unpaid' | 'maternity' | 'emergency';
+export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface LeaveRequest {
+  id: string;
+  requestNumber: string;
+  employeeId: string;
+  employeeName: string;
+  employeeCode?: string;
+  leaveType: LeaveType;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  daysCount: number;
+  reason: string;
+  status: LeaveStatus;
+  approvedBy?: string;
+  actionDate?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+// 3. السلف والقروض والأقساط الشهرية (Loans & Advances)
+export interface LoanInstallment {
+  id: string;
+  installmentNumber: number;
+  month: number;
+  year: number;
+  amount: number;
+  isPaid: boolean;
+  paidDate?: string;
+  payrollRunId?: string;
+}
+
+export interface EmployeeLoan {
+  id: string;
+  loanNumber: string;
+  employeeId: string;
+  employeeName: string;
+  employeeCode?: string;
+  totalAmount: number;
+  monthlyInstallment: number;
+  paidAmount: number;
+  remainingAmount: number;
+  startDate: string; // YYYY-MM-DD
+  termMonths: number;
+  reason?: string;
+  status: 'active' | 'completed' | 'cancelled';
+  installments: LoanInstallment[];
+  createdAt: string;
+}
+
+// 4. الجزاءات والمكافآت (Penalties & Bonuses)
+export type AdjustmentType = 'bonus' | 'reward' | 'penalty' | 'deduction';
+
+export interface EmployeeAdjustment {
+  id: string;
+  adjustmentNumber: string;
+  employeeId: string;
+  employeeName: string;
+  employeeCode?: string;
+  type: AdjustmentType;
+  amount: number;
+  daysEquivalent?: number; // مثلاً خصم يوم أو مكافأة يومين
+  date: string; // YYYY-MM-DD
+  month: number;
+  year: number;
+  reason: string;
+  status: 'pending' | 'applied_to_payroll';
+  payrollRunId?: string;
+  appliedDate?: string;
+  createdAt: string;
+}
+
+// 5. العهد العينية والمالية (Custodies & Company Assets)
+export type CustodyCategory = 'laptop' | 'mobile' | 'vehicle' | 'cash_advance' | 'keys' | 'tools' | 'device' | 'other';
+export type CustodyStatus = 'delivered' | 'returned' | 'damaged' | 'lost';
+
+export interface EmployeeCustody {
+  id: string;
+  custodyNumber: string;
+  employeeId: string;
+  employeeName: string;
+  employeeCode?: string;
+  itemName: string;
+  category: CustodyCategory;
+  serialNumber?: string;
+  estimatedValue?: number;
+  deliveredDate: string;
+  expectedReturnDate?: string;
+  returnedAt?: string;
+  status: CustodyStatus;
+  condition?: string; // الحالة عند التسليم
+  returnCondition?: string; // الحالة عند الاسترجاع
+  notes?: string;
+  createdAt: string;
+}
+
+// 6. العقود ومكافأة نهاية الخدمة والوثائق (Contracts & Documents & Gratuity)
+export interface EmployeeDocument {
+  id: string;
+  employeeId: string;
+  title: string;
+  category: 'national_id' | 'contract' | 'certificate' | 'medical' | 'military' | 'other';
+  documentNumber?: string;
+  expiryDate?: string;
+  fileBase64?: string;
+  fileName?: string;
+  notes?: string;
+  uploadedAt: string;
+}
+
+export interface EndOfServiceCalculation {
+  employeeId: string;
+  employeeName: string;
+  hireDate: string;
+  terminationDate: string;
+  lastBasicSalary: number;
+  lastGrossSalary: number;
+  yearsOfService: number;
+  monthsOfService: number;
+  daysOfService: number;
+  reason: 'resignation' | 'contract_end' | 'termination' | 'retirement' | 'death';
+  gratuityAmount: number;
+  leaveEncashmentAmount: number; // بدل رصيد الإجازات المتبقي
+  pendingLoanBalance: number; // السلف المتبقية للخصم
+  finalSettlementNet: number; // صافي مستحقات نهاية الخدمة
+  calculatedAt: string;
 }
 
 export interface DebtAgingBucket {
@@ -1307,5 +1486,107 @@ export interface BudgetPlan {
   notes?: string;
 }
 
+// ==========================================
+// 8. ورديات الكاشير والإغلاق اليومي (Z-Report)
+// ==========================================
+export interface CashierShift {
+  id: string;
+  shiftNumber: string;
+  cashierId: string;
+  cashierName: string;
+  startTime: string;
+  endTime?: string;
+  initialCash: number; // رصيد بداية الدرج
+  totalSales: number;
+  totalCash: number;
+  totalCard: number;
+  totalEWallet: number;
+  totalCredit: number;
+  totalReturns: number;
+  totalDiscounts: number;
+  totalTax: number;
+  invoiceCount: number;
+  expectedCash: number; // النقدية المتوقعة بالدرج
+  actualCash?: number; // النقدية الفعلية بعد الجرد
+  difference?: number; // العجز أو الزيادة (actualCash - expectedCash)
+  notes?: string;
+  status: 'open' | 'closed';
+  closedAt?: string;
+}
 
+// ==========================================
+// 9. نظام الدردشة التفاعلية والمهام التشاركية (Team Chat & To-Do System)
+// ==========================================
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 
+export type TaskStatus =
+  | 'pending'                 // قيد الانتظار / جارية التنفيذ لدى المنفّذ
+  | 'completed_by_assignee'   // أكد المنفّذ أنه أنجزها (في انتظار اعتماد ومراجعة الطالب)
+  | 'approved'                // اعتمدها الطالب وتأكدت نهائياً وأرشفت
+  | 'reopened';               // أعاد الطالب فتحها لعدم اكتمال التنفيذ
+
+export interface TaskVerificationHistory {
+  id: string;
+  action: 'created' | 'marked_completed' | 'approved' | 'reopened';
+  byUserId: string;
+  byUserName: string;
+  timestamp: string;
+  notes?: string;
+}
+
+export interface EmployeeTask {
+  id: string;
+  title: string;
+  description?: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+
+  // الطالب / منشئ المهمة
+  createdByUserId: string;
+  createdByUserName: string;
+  createdByUserAvatar?: string;
+
+  // الموظفون المكلفون بالتنفيذ (دعم التعيين الفردي والمتعدد)
+  assignedToUserIds: string[];
+  assignedToUserNames: string[];
+
+  // التواريخ الزمنية
+  createdAt: string;
+  dueDate?: string;
+  completedAt?: string;
+  approvedAt?: string;
+
+  // ملاحظات التنفيذ والاعتماد / الرفض
+  completionNote?: string;  // ملاحظة يكتبها المنفّذ عند إنجاز المهمة
+  rejectionReason?: string; // سبب الإعادة يكتبه الطالب إذا أعاد فتحها
+
+  // السجل الزمني للتأكيدات (Audit Trail)
+  history: TaskVerificationHistory[];
+
+  // ربط اختياري بكيانات النظام (فاتورة، عميل، مورد، صنف)
+  relatedEntityType?: 'invoice' | 'customer' | 'supplier' | 'product' | 'general';
+  relatedEntityId?: string;
+  relatedEntityName?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  channelId: string; // 'general' أو `dm_${minId}_${maxId}`
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  senderRole?: string;
+  text: string;
+  timestamp: string;
+  isSystemNotification?: boolean;
+  taskId?: string; // إذا كانت الرسالة مرتبطة بمهمة
+}
+
+export interface ChatChannel {
+  id: string;
+  type: 'direct' | 'group';
+  name: string;
+  memberIds: string[];
+  lastMessage?: string;
+  lastMessageTime?: string;
+}

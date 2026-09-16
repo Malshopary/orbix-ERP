@@ -2,6 +2,7 @@ import React from 'react';
 import { useErp } from '../context/ErpContext';
 import { OrbixLogo } from './OrbixLogo';
 import { Building2, Phone, MapPin, QrCode, FileText, Calendar, Hash } from 'lucide-react';
+import { InvoiceQrCode } from '../utils/qrCodeGenerator';
 
 export interface PrintHeaderProps {
   docTitle?: string;
@@ -65,7 +66,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
           {/* Company Business Text Information */}
           <div className="space-y-0.5 text-right">
             <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
-              {companyProfile.nameAr || 'شركة أوربكس للحلول المتكاملة والتجارة'}
+              {companyProfile.nameAr || ''}
             </h1>
             {companyProfile.nameEn && (
               <p className="text-[11px] font-semibold text-slate-600 font-sans leading-none">
@@ -153,7 +154,19 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
           {/* Optional Tax QR Code */}
           {showQrCode && (
             <div className="mt-1 flex items-center justify-center p-1 bg-white border border-slate-300 rounded-lg">
-              <QrCode className="w-10 h-10 text-slate-900" />
+              <InvoiceQrCode
+                data={
+                  qrPayload || {
+                    sellerName: companyProfile.nameAr || companyProfile.nameEn || 'متجرنا',
+                    taxNumber: companyProfile.taxNumber || '300000000000003',
+                    timestamp: date || new Date().toISOString(),
+                    totalWithVat: 0,
+                    vatAmount: 0,
+                    invoiceNumber: docNumber,
+                  }
+                }
+                size={48}
+              />
             </div>
           )}
         </div>

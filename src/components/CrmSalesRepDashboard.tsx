@@ -90,7 +90,7 @@ export const CrmSalesRepDashboard: React.FC<CrmSalesRepDashboardProps> = ({
 
   // Cash / Bank accounts for commission payout
   const paymentAccounts = accounts.filter(
-    (a) => a.type === 'asset' && (a.code.startsWith('111') || a.code.startsWith('112'))
+    (a) => a.type === 'asset' && ((a.code || '').startsWith('111') || (a.code || '').startsWith('112'))
   );
 
   // Compute enriched metrics for each sales representative

@@ -359,7 +359,7 @@ export const CostCentersSection: React.FC = () => {
               <span className="text-[11px] font-medium text-slate-500">إجمالي الموازنات المعتمدة</span>
               <DollarSign className="w-4 h-4 text-blue-500" />
             </div>
-            <div className="text-lg font-black text-blue-700">
+            <div className="text-lg font-black text-blue-700 privacy-blur">
               {formatCurrency(totalBudget)}
             </div>
             <div className="text-[10px] text-slate-500 mt-1 font-medium">
@@ -372,7 +372,7 @@ export const CostCentersSection: React.FC = () => {
               <span className="text-[11px] font-medium text-slate-500">المصروفات الفعلية المحملة</span>
               <TrendingDown className="w-4 h-4 text-rose-500" />
             </div>
-            <div className="text-lg font-black text-rose-700">
+            <div className="text-lg font-black text-rose-700 privacy-blur">
               {formatCurrency(totalActualExpenses)}
             </div>
             <div className="text-[10px] text-slate-500 mt-1 font-medium">
@@ -385,7 +385,7 @@ export const CostCentersSection: React.FC = () => {
               <span className="text-[11px] font-medium text-slate-500">الإيرادات المحققة</span>
               <TrendingUp className="w-4 h-4 text-emerald-500" />
             </div>
-            <div className="text-lg font-black text-emerald-700">
+            <div className="text-lg font-black text-emerald-700 privacy-blur">
               {formatCurrency(totalRevenues)}
             </div>
             <div className="text-[10px] text-emerald-600 mt-1 font-medium">
@@ -511,11 +511,11 @@ export const CostCentersSection: React.FC = () => {
                         )}
                       </td>
 
-                      <td className="py-3 px-4 text-center font-bold text-slate-800">
+                      <td className="py-3 px-4 text-center font-bold text-slate-800 privacy-blur">
                         {budgetVal > 0 ? formatCurrency(budgetVal) : <span className="text-slate-400 font-normal">غير محدد</span>}
                       </td>
 
-                      <td className="py-3 px-4 text-center font-bold text-rose-600">
+                      <td className="py-3 px-4 text-center font-bold text-rose-600 privacy-blur">
                         {formatCurrency(fin.expenses)}
                       </td>
 

@@ -45,6 +45,14 @@ import {
   FiscalPeriod,
   BudgetPlan,
   BudgetItem,
+  EmployeeAttendance,
+  LeaveRequest,
+  EmployeeLoan,
+  EmployeeAdjustment,
+  EmployeeCustody,
+  EmployeeDocument,
+  EmployeeTask,
+  ChatMessage,
 } from '../types';
 
 export const INITIAL_CURRENCIES: ExchangeCurrency[] = [
@@ -88,19 +96,19 @@ export const INITIAL_CURRENCIES: ExchangeCurrency[] = [
 ];
 
 export const INITIAL_COMPANY_PROFILE: CompanyProfile = {
-  nameAr: 'شركة أوربكس للحلول المتكاملة والتجارة',
-  nameEn: 'ORBIX Integrated Solutions & Trading Co.',
-  taxNumber: '30045678900003',
-  commercialRegister: '1010456789',
-  address: 'المقر الرئيسي - الإدارة العامة',
-  city: 'القاهرة',
-  phone: '0223456789',
-  mobile: '01001234567',
-  email: 'info@orbix-erp.com',
-  website: 'www.orbix-erp.com',
+  nameAr: '',
+  nameEn: '',
+  taxNumber: '',
+  commercialRegister: '',
+  address: '',
+  city: '',
+  phone: '',
+  mobile: '',
+  email: '',
+  website: '',
   logoWidth: 160,
   logoHeight: 50,
-  invoiceFooterNotes: 'شكراً لتعاملكم معنا. تخضع جميع التعاملات للوائح والأنظمة التجارية والضريبية المعمول بها.',
+  invoiceFooterNotes: 'شكراً لتعاملكم معنا.',
   defaultVatRate: 14,
   defaultCurrency: 'EGP',
 };
@@ -1324,4 +1332,190 @@ export const INITIAL_BUDGET_PLANS: BudgetPlan[] = [
   },
 ];
 
+// ----------------------------------------------------
+// بيانات أولية للموارد البشرية المتطورة (HR Enterprise)
+// ----------------------------------------------------
+export const INITIAL_ATTENDANCE: EmployeeAttendance[] = [];
+export const INITIAL_ATTENDANCES: EmployeeAttendance[] = INITIAL_ATTENDANCE;
+export const INITIAL_LEAVE_REQUESTS: LeaveRequest[] = [];
+export const INITIAL_EMPLOYEE_LOANS: EmployeeLoan[] = [];
+export const INITIAL_EMPLOYEE_ADJUSTMENTS: EmployeeAdjustment[] = [];
+export const INITIAL_EMPLOYEE_CUSTODIES: EmployeeCustody[] = [];
+export const INITIAL_EMPLOYEE_DOCUMENTS: EmployeeDocument[] = [];
 
+// ----------------------------------------------------
+// 9. بيانات أولية لنظام المحادثات والمهام التشاركية
+// ----------------------------------------------------
+export const INITIAL_EMPLOYEE_TASKS: EmployeeTask[] = [
+  {
+    id: 'task-101',
+    title: 'مراجعة وتأكيد جرد المخزن الرئيسي لصنف السكر الأبيض والأرز',
+    description: 'يرجى مطابقة الأرصدة الفعلية في الرفوف مع المسجل بالنظام وتوثيق أي عجز أو تالف.',
+    priority: 'high',
+    status: 'pending',
+    createdByUserId: 'usr-admin',
+    createdByUserName: 'المدير العام',
+    assignedToUserIds: ['usr-warehouse', 'usr-cashier-1'],
+    assignedToUserNames: ['أمين المستودع', 'كاشير المبيعات'],
+    createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+    dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+    history: [
+      {
+        id: 'hist-1',
+        action: 'created',
+        byUserId: 'usr-admin',
+        byUserName: 'المدير العام',
+        timestamp: new Date(Date.now() - 3600000 * 5).toISOString(),
+        notes: 'تم تكليف الموظفين بالجرد الدوري',
+      },
+    ],
+    relatedEntityType: 'product',
+    relatedEntityName: 'سكر أبيض نقي 1 كجم',
+  },
+  {
+    id: 'task-102',
+    title: 'تحصيل دفعة الفاتورة المستحقة من شركة الأمل للتجارة',
+    description: 'التواصل مع المدير المالي لشركة الأمل واستلام شيك السداد أو إشعار التحويل البنكي.',
+    priority: 'urgent',
+    status: 'completed_by_assignee',
+    createdByUserId: 'usr-admin',
+    createdByUserName: 'المدير العام',
+    assignedToUserIds: ['usr-accountant'],
+    assignedToUserNames: ['المحاسب المالي'],
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+    dueDate: new Date().toISOString().split('T')[0],
+    completedAt: new Date(Date.now() - 1800000).toISOString(),
+    completionNote: 'تم التواصل مع العميل واستلام شيك مقاصة بقيمة 35,000 ج.م وإيداعه في البنك الأهلي.',
+    history: [
+      {
+        id: 'hist-2',
+        action: 'created',
+        byUserId: 'usr-admin',
+        byUserName: 'المدير العام',
+        timestamp: new Date(Date.now() - 86400000).toISOString(),
+      },
+      {
+        id: 'hist-3',
+        action: 'marked_completed',
+        byUserId: 'usr-accountant',
+        byUserName: 'المحاسب المالي',
+        timestamp: new Date(Date.now() - 1800000).toISOString(),
+        notes: 'تم استلام الشيك وإيداعه في البنك.',
+      },
+    ],
+    relatedEntityType: 'customer',
+    relatedEntityName: 'شركة الأمل للتجارة والتوزيع',
+  },
+  {
+    id: 'task-103',
+    title: 'تحديث أسعار قائمة مبيعات الجملة لمنتجات الألبان والأجبان',
+    description: 'تعديل هوامش الربح بنسبة 5% تماشياً مع قائمة أسعار المورد الجديدة.',
+    priority: 'medium',
+    status: 'approved',
+    createdByUserId: 'usr-admin',
+    createdByUserName: 'المدير العام',
+    assignedToUserIds: ['usr-cashier-1'],
+    assignedToUserNames: ['كاشير المبيعات'],
+    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+    dueDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+    completedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    approvedAt: new Date(Date.now() - 86400000).toISOString(),
+    completionNote: 'تم تطبيق نسب الخصم والأسعار الجديدة على شاشة الكاشير وقوائم البيع.',
+    history: [
+      {
+        id: 'hist-4',
+        action: 'created',
+        byUserId: 'usr-admin',
+        byUserName: 'المدير العام',
+        timestamp: new Date(Date.now() - 86400000 * 3).toISOString(),
+      },
+      {
+        id: 'hist-5',
+        action: 'marked_completed',
+        byUserId: 'usr-cashier-1',
+        byUserName: 'كاشير المبيعات',
+        timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
+        notes: 'تم إدخال الأسعار بنجاح.',
+      },
+      {
+        id: 'hist-6',
+        action: 'approved',
+        byUserId: 'usr-admin',
+        byUserName: 'المدير العام',
+        timestamp: new Date(Date.now() - 86400000).toISOString(),
+        notes: 'تمت المراجعة والاعتماد والمطابقة مع التكاليف.',
+      },
+    ],
+    relatedEntityType: 'product',
+  },
+  {
+    id: 'task-104',
+    title: 'إعداد مسير رواتب قسم المبيعات لشهر سبتمبر',
+    description: 'حساب العمولات والمكافآت والبدلات لجميع مندوبي المبيعات.',
+    priority: 'urgent',
+    status: 'reopened',
+    createdByUserId: 'usr-admin',
+    createdByUserName: 'المدير العام',
+    assignedToUserIds: ['usr-hr'],
+    assignedToUserNames: ['مدير الموارد البشرية'],
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    rejectionReason: 'يرجى خصم سلفة الموظف خالد قبل اعتماد المسير، وإعادة احتساب عمولة المندوب سيف.',
+    history: [
+      {
+        id: 'hist-7',
+        action: 'created',
+        byUserId: 'usr-admin',
+        byUserName: 'المدير العام',
+        timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
+      },
+      {
+        id: 'hist-8',
+        action: 'marked_completed',
+        byUserId: 'usr-hr',
+        byUserName: 'مدير الموارد البشرية',
+        timestamp: new Date(Date.now() - 86400000).toISOString(),
+        notes: 'تم تجهيز المسير.',
+      },
+      {
+        id: 'hist-9',
+        action: 'reopened',
+        byUserId: 'usr-admin',
+        byUserName: 'المدير العام',
+        timestamp: new Date(Date.now() - 14400000).toISOString(),
+        notes: 'يرجى خصم سلفة الموظف خالد قبل الاعتماد.',
+      },
+    ],
+  },
+];
+
+export const INITIAL_CHAT_MESSAGES: ChatMessage[] = [
+  {
+    id: 'msg-1',
+    channelId: 'general',
+    senderId: 'usr-admin',
+    senderName: 'المدير العام',
+    senderRole: 'admin',
+    text: 'مرحباً بجميع أعضاء الفريق في منظومة أوربكس ERP! تم تفعيل نظام المحادثات والمهام التشاركية لتسهيل متابعة الطلبات والمهام بين الأقسام.',
+    timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
+  },
+  {
+    id: 'msg-2',
+    channelId: 'general',
+    senderId: 'usr-accountant',
+    senderName: 'المحاسب المالي',
+    senderRole: 'accountant',
+    text: 'أهلاً بحضرتك يا فندم. ميزة ممتازة وستوفر وقتاً كبيراً في التنسيق وتأكيد استلام المستندات وسندات الصرف.',
+    timestamp: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: 'msg-3',
+    channelId: 'general',
+    senderId: 'system',
+    senderName: 'تنبيهات النظام',
+    text: 'قام المدير العام بتعيين مهمة جديدة إلى (المحاسب المالي)',
+    timestamp: new Date(Date.now() - 86400000).toISOString(),
+    isSystemNotification: true,
+    taskId: 'task-102',
+  },
+];

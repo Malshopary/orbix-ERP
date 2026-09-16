@@ -60,6 +60,25 @@ import {
   FiscalPeriod,
   BudgetPlan,
   BudgetItem,
+  EmployeeAttendance,
+  LeaveRequest,
+  LeaveStatus,
+  LeaveType,
+  EmployeeLoan,
+  LoanInstallment,
+  EmployeeAdjustment,
+  AdjustmentType,
+  EmployeeCustody,
+  CustodyCategory,
+  CustodyStatus,
+  EmployeeDocument,
+  EndOfServiceCalculation,
+  EmployeeTask,
+  TaskPriority,
+  TaskStatus,
+  TaskVerificationHistory,
+  ChatMessage,
+  ChatChannel,
 } from '../types';
 import {
   INITIAL_ACCOUNTS,
@@ -107,6 +126,15 @@ import {
   INITIAL_COLLECTION_REMINDER_LOGS,
   INITIAL_FISCAL_YEARS,
   INITIAL_BUDGET_PLANS,
+  INITIAL_ATTENDANCE,
+  INITIAL_ATTENDANCES,
+  INITIAL_LEAVE_REQUESTS,
+  INITIAL_EMPLOYEE_LOANS,
+  INITIAL_EMPLOYEE_ADJUSTMENTS,
+  INITIAL_EMPLOYEE_CUSTODIES,
+  INITIAL_EMPLOYEE_DOCUMENTS,
+  INITIAL_EMPLOYEE_TASKS,
+  INITIAL_CHAT_MESSAGES,
 } from '../data/initialData';
 import {
   DEFAULT_SEQUENCE_CONFIG,
@@ -165,6 +193,15 @@ interface ErpContextType {
   updateUser: (id: string, data: Partial<AppUser>) => void;
   deleteUser: (id: string) => void;
   hasPermission: (permission: string) => boolean;
+  isPrivacyMode: boolean;
+  setPrivacyMode: (enabled: boolean) => void;
+  togglePrivacyMode: () => void;
+  verifyUserPin: (pin: string) => boolean;
+
+  // Central Database & LAN Sync
+  isInitialSyncDone: boolean;
+  isSyncingWithServer: boolean;
+  syncWithServer: () => Promise<boolean>;
 
   // Accounts & Ledger
   accounts: Account[];
@@ -451,8 +488,52 @@ interface ErpContextType {
   editEmployee: (id: string, data: Partial<Employee>) => void;
   deleteEmployee: (id: string) => void;
   generateMonthlyPayroll: (month: number, year: number) => PayrollRun;
-  approvePayrollRun: (runId: string) => void;
+  approvePayrollRun: (runId: string, paymentAccountId?: string) => void;
   deletePayrollRun: (runId: string) => void;
+  updatePayslipPaymentMethod: (
+    runId: string,
+    payslipId: string,
+    paymentMethod: 'bank_transfer' | 'cash',
+    disbursementAccountId: string
+  ) => void;
+
+  // HR Enterprise Modules
+  attendances: EmployeeAttendance[];
+  addAttendance: (item: Omit<EmployeeAttendance, 'id'>) => void;
+  updateAttendance: (id: string, data: Partial<EmployeeAttendance>) => void;
+  deleteAttendance: (id: string) => void;
+  batchRecordAttendance: (items: Omit<EmployeeAttendance, 'id'>[]) => void;
+
+  leaveRequests: LeaveRequest[];
+  addLeaveRequest: (req: Omit<LeaveRequest, 'id' | 'requestNumber' | 'createdAt'>) => LeaveRequest;
+  updateLeaveStatus: (id: string, status: LeaveStatus, notes?: string) => void;
+  deleteLeaveRequest: (id: string) => void;
+
+  employeeLoans: EmployeeLoan[];
+  addEmployeeLoan: (loan: Omit<EmployeeLoan, 'id' | 'loanNumber' | 'paidAmount' | 'remainingAmount' | 'installments' | 'createdAt'>) => EmployeeLoan;
+  updateEmployeeLoan: (id: string, data: Partial<EmployeeLoan>) => void;
+  deleteEmployeeLoan: (id: string) => void;
+  recordLoanInstallmentPayment: (loanId: string, installmentNumber: number) => void;
+
+  employeeAdjustments: EmployeeAdjustment[];
+  addEmployeeAdjustment: (adj: Omit<EmployeeAdjustment, 'id' | 'adjustmentNumber' | 'createdAt'>) => EmployeeAdjustment;
+  deleteEmployeeAdjustment: (id: string) => void;
+
+  employeeCustodies: EmployeeCustody[];
+  addEmployeeCustody: (custody: Omit<EmployeeCustody, 'id' | 'custodyNumber' | 'createdAt'>) => EmployeeCustody;
+  updateEmployeeCustody: (id: string, data: Partial<EmployeeCustody>) => void;
+  deleteEmployeeCustody: (id: string) => void;
+  returnEmployeeCustody: (id: string, returnCondition?: string) => void;
+
+  employeeDocuments: EmployeeDocument[];
+  addEmployeeDocument: (doc: Omit<EmployeeDocument, 'id' | 'uploadedAt'>) => EmployeeDocument;
+  deleteEmployeeDocument: (id: string) => void;
+
+  calculateEndOfService: (
+    employeeId: string,
+    terminationDate: string,
+    reason: 'resignation' | 'contract_end' | 'termination' | 'retirement' | 'death'
+  ) => EndOfServiceCalculation | null;
 
   // Google Sheets Sync
   googleSheetConfig: GoogleSheetConfig;
@@ -516,6 +597,35 @@ interface ErpContextType {
     totalVariance: number;
     overBudgetCount: number;
   };
+
+  // 8. Favorite Services & Shortcuts (قائمة الخدمات المفضلة)
+  favorites: string[];
+  toggleFavorite: (serviceId: string) => void;
+  isFavorite: (serviceId: string) => boolean;
+
+  // 9. Employee Tasks & To-Do System (نظام المهام والطلبات التشاركية المزدوجة)
+  employeeTasks: EmployeeTask[];
+  createEmployeeTask: (taskData: {
+    title: string;
+    description?: string;
+    priority: TaskPriority;
+    assignedToUserIds: string[];
+    dueDate?: string;
+    relatedEntityType?: 'invoice' | 'customer' | 'supplier' | 'product' | 'general';
+    relatedEntityId?: string;
+    relatedEntityName?: string;
+  }) => EmployeeTask[];
+  markTaskCompletedByAssignee: (taskId: string, note?: string) => void;
+  approveTaskByRequester: (taskId: string, note?: string) => void;
+  reopenTaskByRequester: (taskId: string, reason: string) => void;
+  deleteEmployeeTask: (taskId: string) => void;
+
+  // 10. Team Chat System (نظام الدردشة الفورية بين الموظفين)
+  chatMessages: ChatMessage[];
+  sendChatMessage: (channelId: string, text: string, taskId?: string) => ChatMessage;
+  unreadChatCount: number;
+  pendingTasksCount: number;
+  awaitingApprovalTasksCount: number;
 }
 
 const ErpContext = createContext<ErpContextType | undefined>(undefined);
@@ -639,7 +749,14 @@ export const getTabInfo = (tab: string, subTab?: string): BrowserTab => {
   }
   if (tab === 'hr_payroll') {
     if (subTab === 'employees') return { id: 'hr_employees', tab: 'hr_payroll', subTab: 'employees', title: 'سجل الموظفين', iconName: 'Users' };
-    return { id: 'hr_payroll', tab: 'hr_payroll', subTab: 'payroll', title: 'مسير الرواتب الشهري', iconName: 'Calendar' };
+    if (subTab === 'attendance') return { id: 'hr_attendance', tab: 'hr_payroll', subTab: 'attendance', title: 'الحضور والانصراف والورديات', iconName: 'Clock' };
+    if (subTab === 'leaves') return { id: 'hr_leaves', tab: 'hr_payroll', subTab: 'leaves', title: 'الإجازات والأذونات الرسمية', iconName: 'Calendar' };
+    if (subTab === 'loans') return { id: 'hr_loans', tab: 'hr_payroll', subTab: 'loans', title: 'السلف والقروض والأقساط', iconName: 'CreditCard' };
+    if (subTab === 'adjustments') return { id: 'hr_adjustments', tab: 'hr_payroll', subTab: 'adjustments', title: 'الجزاءات والمكافآت', iconName: 'Scale' };
+    if (subTab === 'custodies') return { id: 'hr_custodies', tab: 'hr_payroll', subTab: 'custodies', title: 'العهد العينية والمالية', iconName: 'Laptop' };
+    if (subTab === 'contracts_docs') return { id: 'hr_contracts', tab: 'hr_payroll', subTab: 'contracts_docs', title: 'العقود ومكافأة نهاية الخدمة', iconName: 'FileText' };
+    if (subTab === 'hr_reports') return { id: 'hr_reports', tab: 'hr_payroll', subTab: 'hr_reports', title: 'تقارير وتحليلات الموارد البشرية', iconName: 'BarChart3' };
+    return { id: 'hr_payroll', tab: 'hr_payroll', subTab: 'payroll', title: 'مسير الرواتب والأجور', iconName: 'Calendar' };
   }
   if (tab === 'financial_reports') {
     if (subTab === 'balance_sheet') return { id: 'reports_balance_sheet', tab: 'financial_reports', subTab: 'balance_sheet', title: 'الميزانية العمومية', iconName: 'Scale' };
@@ -787,6 +904,57 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const navigateTo = (tab: string, subTab?: string) => {
     openBrowserTab(tab, subTab);
   };
+
+  // Favorite Services & Shortcuts (المفضلة)
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('orbix_favorite_services');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Normalize legacy shorthand keys to proper prefixed keys
+          const normalized = parsed.map((k: string) => {
+            if (k === 'invoices') return 'sales:invoices';
+            if (k === 'payroll') return 'hr_payroll:payroll';
+            if (k === 'journal') return 'accounts:journal';
+            if (k === 'chart') return 'accounts:chart';
+            return k;
+          });
+          return Array.from(new Set(normalized));
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return ['quick_pos', 'sales:invoices', 'hr_payroll:payroll'];
+  });
+
+  const toggleFavorite = (serviceId: string) => {
+    setFavorites((prev) => {
+      const bareKey = serviceId.includes(':') ? serviceId.split(':')[1] : serviceId;
+      const fullKey = serviceId;
+      const exists = prev.includes(fullKey) || prev.includes(bareKey);
+      const updated = exists
+        ? prev.filter((id) => id !== fullKey && id !== bareKey)
+        : [...prev, fullKey];
+      try {
+        localStorage.setItem('orbix_favorite_services', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+  };
+
+  const isFavorite = (serviceId: string) => {
+    if (favorites.includes(serviceId)) return true;
+    if (serviceId.includes(':')) {
+      const bare = serviceId.split(':')[1];
+      if (favorites.includes(bare)) return true;
+    }
+    return false;
+  };
+
   const [alertModal, setAlertModal] = useState<AlertModalData | null>(null);
 
   const closeAlertModal = () => {
@@ -887,7 +1055,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Company Profile
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}company_profile`);
-    return saved ? JSON.parse(saved) : INITIAL_COMPANY_PROFILE;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.nameAr === 'شركة أوربكس للحلول المتكاملة والتجارة' || parsed.taxNumber === '30045678900003') {
+          return INITIAL_COMPANY_PROFILE;
+        }
+        return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return INITIAL_COMPANY_PROFILE;
   });
 
   const [currency, setCurrency] = useState<Currency>(() => companyProfile.defaultCurrency || 'EGP');
@@ -992,15 +1171,6 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return JSON.parse(saved);
       } catch {
         return null;
-      }
-    }
-    const usersSaved = localStorage.getItem(`${STORAGE_PREFIX}users`);
-    if (usersSaved) {
-      try {
-        const u = JSON.parse(usersSaved);
-        if (Array.isArray(u) && u.length > 0) return u[0];
-      } catch {
-        // ignore
       }
     }
     return null;
@@ -1183,6 +1353,36 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [attendances, setAttendances] = useState<EmployeeAttendance[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}attendances`);
+    return saved ? JSON.parse(saved) : INITIAL_ATTENDANCE;
+  });
+
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}leave_requests`);
+    return saved ? JSON.parse(saved) : INITIAL_LEAVE_REQUESTS;
+  });
+
+  const [employeeLoans, setEmployeeLoans] = useState<EmployeeLoan[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}employee_loans`);
+    return saved ? JSON.parse(saved) : INITIAL_EMPLOYEE_LOANS;
+  });
+
+  const [employeeAdjustments, setEmployeeAdjustments] = useState<EmployeeAdjustment[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}employee_adjustments`);
+    return saved ? JSON.parse(saved) : INITIAL_EMPLOYEE_ADJUSTMENTS;
+  });
+
+  const [employeeCustodies, setEmployeeCustodies] = useState<EmployeeCustody[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}employee_custodies`);
+    return saved ? JSON.parse(saved) : INITIAL_EMPLOYEE_CUSTODIES;
+  });
+
+  const [employeeDocuments, setEmployeeDocuments] = useState<EmployeeDocument[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}employee_documents`);
+    return saved ? JSON.parse(saved) : INITIAL_EMPLOYEE_DOCUMENTS;
+  });
+
   const [priceLists, setPriceLists] = useState<PriceList[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}price_lists`);
     return saved ? JSON.parse(saved) : INITIAL_PRICE_LISTS;
@@ -1253,6 +1453,38 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_BUDGET_PLANS;
   });
 
+  // ==========================================
+  // 9. نظام المهام والطلبات التشاركية المزدوجة (Employee Tasks & To-Do)
+  // ==========================================
+  const [employeeTasks, setEmployeeTasks] = useState<EmployeeTask[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_PREFIX}employee_tasks`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_EMPLOYEE_TASKS;
+  });
+
+  // ==========================================
+  // 10. نظام الدردشة الفورية بين الموظفين (Team Chat)
+  // ==========================================
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_PREFIX}chat_messages`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_CHAT_MESSAGES;
+  });
+
   // Save to LocalStorage with encryption-ready persistence
   useEffect(() => {
     localStorage.setItem(`${STORAGE_PREFIX}company_profile`, JSON.stringify(companyProfile));
@@ -1291,6 +1523,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_PREFIX}collection_reminders`, JSON.stringify(collectionReminders));
     localStorage.setItem(`${STORAGE_PREFIX}employees`, JSON.stringify(employees));
     localStorage.setItem(`${STORAGE_PREFIX}payroll_runs`, JSON.stringify(payrollRuns));
+    localStorage.setItem(`${STORAGE_PREFIX}attendances`, JSON.stringify(attendances));
+    localStorage.setItem(`${STORAGE_PREFIX}leave_requests`, JSON.stringify(leaveRequests));
+    localStorage.setItem(`${STORAGE_PREFIX}employee_loans`, JSON.stringify(employeeLoans));
+    localStorage.setItem(`${STORAGE_PREFIX}employee_adjustments`, JSON.stringify(employeeAdjustments));
+    localStorage.setItem(`${STORAGE_PREFIX}employee_custodies`, JSON.stringify(employeeCustodies));
+    localStorage.setItem(`${STORAGE_PREFIX}employee_documents`, JSON.stringify(employeeDocuments));
     localStorage.setItem(`${STORAGE_PREFIX}price_lists`, JSON.stringify(priceLists));
     localStorage.setItem(`${STORAGE_PREFIX}sales_returns`, JSON.stringify(salesReturns));
     localStorage.setItem(`${STORAGE_PREFIX}sales_reps`, JSON.stringify(salesReps));
@@ -1305,6 +1543,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_PREFIX}sequence_config`, JSON.stringify(sequenceConfig));
     localStorage.setItem(`${STORAGE_PREFIX}fiscal_years`, JSON.stringify(fiscalYears));
     localStorage.setItem(`${STORAGE_PREFIX}budget_plans`, JSON.stringify(budgetPlans));
+    localStorage.setItem(`${STORAGE_PREFIX}employee_tasks`, JSON.stringify(employeeTasks));
+    localStorage.setItem(`${STORAGE_PREFIX}chat_messages`, JSON.stringify(chatMessages));
   }, [
     companyProfile,
     currencies,
@@ -1341,6 +1581,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     assetDepreciationRuns,
     employees,
     payrollRuns,
+    attendances,
+    leaveRequests,
+    employeeLoans,
+    employeeAdjustments,
+    employeeCustodies,
+    employeeDocuments,
     priceLists,
     salesReturns,
     salesReps,
@@ -1355,7 +1601,304 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sequenceConfig,
     fiscalYears,
     budgetPlans,
+    employeeTasks,
+    chatMessages,
   ]);
+
+  // Central Database & Local Network Sync System
+  const [isInitialSyncDone, setIsInitialSyncDone] = useState<boolean>(false);
+  const [isSyncingWithServer, setIsSyncingWithServer] = useState<boolean>(false);
+
+  // Push full snapshot to central PostgreSQL DB
+  const pushCentralState = async (): Promise<boolean> => {
+    setIsSyncingWithServer(true);
+    try {
+      const snapshot = {
+        updatedAt: new Date().toISOString(),
+        companyProfile,
+        currencies,
+        users,
+        accounts,
+        journalEntries,
+        products,
+        warehouses,
+        stockTransfers,
+        stocktakingSessions,
+        stockAdjustments,
+        scrapVouchers,
+        productBatches,
+        stockMovements,
+        customers,
+        vendors,
+        salesInvoices,
+        quotations,
+        salesOrders,
+        purchaseInvoices,
+        receipts,
+        cheques,
+        bankReconciliations,
+        costCenters,
+        fixedAssets,
+        assetDepreciationRuns,
+        purchaseOrders,
+        goodsReceipts,
+        landedCosts,
+        purchaseReturns,
+        collectionPlans,
+        collectionReminders,
+        employees,
+        payrollRuns,
+        attendances,
+        leaveRequests,
+        employeeLoans,
+        employeeAdjustments,
+        employeeCustodies,
+        employeeDocuments,
+        priceLists,
+        salesReturns,
+        salesReps,
+        crmLeads,
+        crmInteractions,
+        crmTickets,
+        loyaltyTransactions,
+        commissionPayments,
+        commissionTiers,
+        jobTitles,
+        departments,
+        sequenceConfig,
+        fiscalYears,
+        budgetPlans,
+        employeeTasks,
+        chatMessages,
+      };
+
+      const res = await fetch('/api/sync/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: snapshot }),
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn('Failed to push state to central DB:', err);
+      return false;
+    } finally {
+      setIsSyncingWithServer(false);
+    }
+  };
+
+  // Initial load from central PostgreSQL DB
+  useEffect(() => {
+    let isMounted = true;
+    const fetchInitialCentralState = async () => {
+      try {
+        const res = await fetch('/api/sync/state');
+        if (!res.ok) throw new Error('Central DB sync endpoint returned non-OK status');
+        const data = await res.json();
+
+        if (data?.success && data?.state && typeof data.state === 'object' && Object.keys(data.state).length > 0) {
+          const s = data.state;
+          if (s.companyProfile && s.companyProfile.nameAr) setCompanyProfile(s.companyProfile);
+          if (Array.isArray(s.users) && s.users.length > 0) {
+            setUsers(s.users);
+            setIsSetupCompleted(true);
+          }
+          if (Array.isArray(s.accounts) && s.accounts.length > 0) setAccounts(s.accounts);
+          if (Array.isArray(s.products) && s.products.length > 0) setProducts(s.products);
+          if (Array.isArray(s.customers) && s.customers.length > 0) setCustomers(s.customers);
+          if (Array.isArray(s.vendors) && s.vendors.length > 0) setVendors(s.vendors);
+          if (Array.isArray(s.warehouses) && s.warehouses.length > 0) setWarehouses(s.warehouses);
+          if (Array.isArray(s.salesInvoices)) setSalesInvoices(s.salesInvoices);
+          if (Array.isArray(s.purchaseInvoices)) setPurchaseInvoices(s.purchaseInvoices);
+          if (Array.isArray(s.journalEntries)) setJournalEntries(s.journalEntries);
+          if (Array.isArray(s.receipts)) setReceipts(s.receipts);
+          if (Array.isArray(s.quotations)) setQuotations(s.quotations);
+          if (Array.isArray(s.salesOrders)) setSalesOrders(s.salesOrders);
+          if (Array.isArray(s.salesReturns)) setSalesReturns(s.salesReturns);
+          if (Array.isArray(s.purchaseOrders)) setPurchaseOrders(s.purchaseOrders);
+          if (Array.isArray(s.goodsReceipts)) setGoodsReceipts(s.goodsReceipts);
+          if (Array.isArray(s.landedCosts)) setLandedCosts(s.landedCosts);
+          if (Array.isArray(s.purchaseReturns)) setPurchaseReturns(s.purchaseReturns);
+          if (Array.isArray(s.cheques)) setCheques(s.cheques);
+          if (Array.isArray(s.bankReconciliations)) setBankReconciliations(s.bankReconciliations);
+          if (Array.isArray(s.costCenters)) setCostCenters(s.costCenters);
+          if (Array.isArray(s.fixedAssets)) setFixedAssets(s.fixedAssets);
+          if (Array.isArray(s.employees)) setEmployees(s.employees);
+          if (Array.isArray(s.payrollRuns)) setPayrollRuns(s.payrollRuns);
+          if (Array.isArray(s.attendances)) setAttendances(s.attendances);
+          if (Array.isArray(s.leaveRequests)) setLeaveRequests(s.leaveRequests);
+          if (Array.isArray(s.employeeLoans)) setEmployeeLoans(s.employeeLoans);
+          if (Array.isArray(s.employeeAdjustments)) setEmployeeAdjustments(s.employeeAdjustments);
+          if (Array.isArray(s.employeeCustodies)) setEmployeeCustodies(s.employeeCustodies);
+          if (Array.isArray(s.employeeDocuments)) setEmployeeDocuments(s.employeeDocuments);
+          if (Array.isArray(s.priceLists)) setPriceLists(s.priceLists);
+          if (s.sequenceConfig) setSequenceConfig(s.sequenceConfig);
+          if (Array.isArray(s.currencies) && s.currencies.length > 0) setCurrencies(s.currencies);
+          if (Array.isArray(s.employeeTasks) && s.employeeTasks.length > 0) setEmployeeTasks(s.employeeTasks);
+          if (Array.isArray(s.chatMessages) && s.chatMessages.length > 0) setChatMessages(s.chatMessages);
+        } else {
+          // If server state is empty, check if this machine already has setup completed locally
+          const hasLocalSetup = localStorage.getItem(`${STORAGE_PREFIX}setup_completed`) === 'true';
+          const localUsers = localStorage.getItem(`${STORAGE_PREFIX}users`);
+          if (hasLocalSetup && localUsers) {
+            // Seed the central database
+            setTimeout(() => {
+              pushCentralState();
+            }, 1000);
+          }
+        }
+      } catch (err) {
+        console.warn('Central DB sync skipped (offline or server starting):', err);
+      } finally {
+        if (isMounted) {
+          setIsInitialSyncDone(true);
+        }
+      }
+    };
+
+    fetchInitialCentralState();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Debounced auto-sync to central DB on local mutations
+  useEffect(() => {
+    if (!isInitialSyncDone) return;
+    const timer = setTimeout(() => {
+      pushCentralState();
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [
+    companyProfile,
+    users,
+    products,
+    customers,
+    vendors,
+    salesInvoices,
+    purchaseInvoices,
+    receipts,
+    accounts,
+    journalEntries,
+    cheques,
+    employees,
+    payrollRuns,
+    warehouses,
+    stockAdjustments,
+    employeeTasks,
+    chatMessages,
+    isInitialSyncDone,
+  ]);
+
+  // Real-time live synchronization across all devices and platforms (Web, Desktop, Mobile, Tablet, Tab)
+  useEffect(() => {
+    if (!isInitialSyncDone) return;
+    let isSubscribed = true;
+
+    const syncLiveUpdates = async () => {
+      try {
+        const res = await fetch('/api/sync/live');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isSubscribed || !data?.success) return;
+
+        // Sync Tasks: Merge or update if server has newer or different tasks
+        if (Array.isArray(data.tasks)) {
+          setEmployeeTasks((prev) => {
+            const prevMap = new Map<string, EmployeeTask>(prev.map((t) => [t.id, t]));
+            let changed = false;
+
+            data.tasks.forEach((serverTask: any) => {
+              const local: EmployeeTask | undefined = prevMap.get(serverTask.id);
+              const normalizedTask: EmployeeTask = {
+                id: serverTask.id,
+                title: serverTask.title,
+                description: serverTask.description || undefined,
+                priority: serverTask.priority,
+                status: serverTask.status,
+                createdByUserId: serverTask.created_by_user_id || serverTask.createdByUserId,
+                createdByUserName: serverTask.created_by_user_name || serverTask.createdByUserName,
+                createdByUserAvatar: serverTask.created_by_user_avatar || serverTask.createdByUserAvatar || undefined,
+                assignedToUserIds: Array.isArray(serverTask.assigned_to_user_ids)
+                  ? serverTask.assigned_to_user_ids
+                  : serverTask.assignedToUserIds || [],
+                assignedToUserNames: Array.isArray(serverTask.assigned_to_user_names)
+                  ? serverTask.assigned_to_user_names
+                  : serverTask.assignedToUserNames || [],
+                createdAt: serverTask.created_at || serverTask.createdAt,
+                dueDate: serverTask.due_date || serverTask.dueDate || undefined,
+                completedAt: serverTask.completed_at || serverTask.completedAt || undefined,
+                approvedAt: serverTask.approved_at || serverTask.approvedAt || undefined,
+                completionNote: serverTask.completion_note || serverTask.completionNote || undefined,
+                rejectionReason: serverTask.rejection_reason || serverTask.rejectionReason || undefined,
+                history: Array.isArray(serverTask.history_json)
+                  ? serverTask.history_json
+                  : Array.isArray(serverTask.history)
+                  ? serverTask.history
+                  : [],
+                relatedEntityType: serverTask.related_entity_type || serverTask.relatedEntityType || undefined,
+                relatedEntityId: serverTask.related_entity_id || serverTask.relatedEntityId || undefined,
+                relatedEntityName: serverTask.related_entity_name || serverTask.relatedEntityName || undefined,
+              };
+
+              if (!local) {
+                prevMap.set(serverTask.id, normalizedTask);
+                changed = true;
+              } else if (
+                local.status !== normalizedTask.status ||
+                local.completedAt !== normalizedTask.completedAt ||
+                local.approvedAt !== normalizedTask.approvedAt ||
+                (local.history?.length || 0) < (normalizedTask.history?.length || 0)
+              ) {
+                prevMap.set(serverTask.id, { ...local, ...normalizedTask });
+                changed = true;
+              }
+            });
+
+            if (changed) {
+              return Array.from(prevMap.values()).sort(
+                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              );
+            }
+            return prev;
+          });
+        }
+
+        // Sync Chat: Append any new messages not yet in local state
+        if (Array.isArray(data.messages)) {
+          setChatMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const newMsgs = data.messages
+              .filter((m: any) => !existingIds.has(m.id))
+              .map((m: any) => ({
+                id: m.id,
+                channelId: m.channel_id || m.channelId,
+                senderId: m.sender_id || m.senderId,
+                senderName: m.sender_name || m.senderName,
+                senderAvatar: m.sender_avatar || m.senderAvatar,
+                senderRole: m.sender_role || m.senderRole,
+                text: m.text,
+                timestamp: m.timestamp,
+                isSystemNotification: m.is_system_notification !== undefined ? m.is_system_notification : m.isSystemNotification,
+                taskId: m.task_id || m.taskId,
+              }));
+
+            if (newMsgs.length > 0) {
+              return [...prev, ...newMsgs];
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // Silently ignore offline or connection hiccup
+      }
+    };
+
+    const intervalId = setInterval(syncLiveUpdates, 3500);
+    return () => {
+      isSubscribed = false;
+      clearInterval(intervalId);
+    };
+  }, [isInitialSyncDone]);
 
   // Helper to detect if an employee or job title belongs to sales / CRM
   const isEmployeeSalesRole = (
@@ -1485,6 +2028,350 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setAuditLogs((prev) => [newLog, ...prev.slice(0, 499)]); // Keep last 500 audit logs
   };
+
+  // Direct Database Synchronization Helpers for Real-time multi-device sync
+  const persistTaskToDb = async (task: EmployeeTask) => {
+    try {
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: task.id,
+          title: task.title,
+          description: task.description || null,
+          priority: task.priority,
+          status: task.status,
+          createdByUserId: task.createdByUserId,
+          createdByUserName: task.createdByUserName,
+          createdByUserAvatar: task.createdByUserAvatar || null,
+          assignedToUserIds: task.assignedToUserIds,
+          assignedToUserNames: task.assignedToUserNames,
+          createdAt: task.createdAt,
+          dueDate: task.dueDate || null,
+          completedAt: task.completedAt || null,
+          approvedAt: task.approvedAt || null,
+          completionNote: task.completionNote || null,
+          rejectionReason: task.rejectionReason || null,
+          historyJson: task.history,
+          relatedEntityType: task.relatedEntityType || null,
+          relatedEntityId: task.relatedEntityId || null,
+          relatedEntityName: task.relatedEntityName || null,
+        }),
+      });
+    } catch (err) {
+      console.warn('Background task DB persist error:', err);
+    }
+  };
+
+  const persistChatMessageToDb = async (msg: ChatMessage) => {
+    try {
+      await fetch('/api/chat/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: msg.id,
+          channelId: msg.channelId,
+          senderId: msg.senderId,
+          senderName: msg.senderName,
+          senderAvatar: msg.senderAvatar || null,
+          senderRole: msg.senderRole || null,
+          text: msg.text,
+          timestamp: msg.timestamp,
+          isSystemNotification: Boolean(msg.isSystemNotification),
+          taskId: msg.taskId || null,
+        }),
+      });
+    } catch (err) {
+      console.warn('Background chat message DB persist error:', err);
+    }
+  };
+
+  // Create Task (Supports single assignee or multi-assignees)
+  const createEmployeeTask = (taskData: {
+    title: string;
+    description?: string;
+    priority: TaskPriority;
+    assignedToUserIds: string[];
+    dueDate?: string;
+    relatedEntityType?: 'invoice' | 'customer' | 'supplier' | 'product' | 'general';
+    relatedEntityId?: string;
+    relatedEntityName?: string;
+  }): EmployeeTask[] => {
+    const creatorId = currentUser?.id || 'usr-admin';
+    const creatorName = currentUser?.name || 'المدير العام';
+    const creatorAvatar = currentUser?.avatarUrl;
+
+    // Filter out creator so an employee can never assign a task to themselves
+    const assignees = taskData.assignedToUserIds.filter((id) => id !== creatorId);
+    if (assignees.length === 0) {
+      return [];
+    }
+
+    const createdTasks: EmployeeTask[] = [];
+
+    assignees.forEach((assigneeId) => {
+      const targetUser = users.find((u) => u.id === assigneeId);
+      const assigneeName = targetUser?.name || 'موظف';
+      const taskId = 'task-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+
+      const task: EmployeeTask = {
+        id: taskId,
+        title: taskData.title.trim(),
+        description: taskData.description?.trim(),
+        priority: taskData.priority,
+        status: 'pending',
+        createdByUserId: creatorId,
+        createdByUserName: creatorName,
+        createdByUserAvatar: creatorAvatar,
+        assignedToUserIds: [assigneeId],
+        assignedToUserNames: [assigneeName],
+        createdAt: new Date().toISOString(),
+        dueDate: taskData.dueDate,
+        history: [
+          {
+            id: 'hist-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+            action: 'created',
+            byUserId: creatorId,
+            byUserName: creatorName,
+            timestamp: new Date().toISOString(),
+            notes: `تم إنشاء الطلب وإسناده إلى: ${assigneeName}`,
+          },
+        ],
+        relatedEntityType: taskData.relatedEntityType,
+        relatedEntityId: taskData.relatedEntityId,
+        relatedEntityName: taskData.relatedEntityName,
+      };
+
+      createdTasks.push(task);
+      persistTaskToDb(task);
+
+      // Automated Chat Notification to Private Direct Channel (Only between creator and assignee)
+      const dmIds = [creatorId, assigneeId].sort();
+      const dmChannelId = `dm_${dmIds[0]}_${dmIds[1]}`;
+
+      const chatNotification: ChatMessage = {
+        id: 'msg-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
+        channelId: dmChannelId,
+        senderId: 'system',
+        senderName: 'إشعار المهام والطلبات',
+        text: `قام ${creatorName} بإسناد مهمة جديدة إلى (${assigneeName})`,
+        timestamp: new Date().toISOString(),
+        isSystemNotification: true,
+        taskId: task.id,
+      };
+      setChatMessages((prev) => [...prev, chatNotification]);
+      persistChatMessageToDb(chatNotification);
+    });
+
+    setEmployeeTasks((prev) => [...createdTasks, ...prev]);
+    logAuditEvent('إسناد مهمة / طلب', 'المهام والدردشة', `تم إسناد ${createdTasks.length} مهمة/طلبات جديدة من قِبل ${creatorName}`);
+    return createdTasks;
+  };
+
+  // Mark Completed by Assignee (awaiting requester confirmation)
+  const markTaskCompletedByAssignee = (taskId: string, note?: string) => {
+    const currentUserId = currentUser?.id || '';
+    const currentUserName = currentUser?.name || 'الموظف';
+
+    setEmployeeTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+
+        const updatedHistory: TaskVerificationHistory[] = [
+          ...t.history,
+          {
+            id: 'hist-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+            action: 'marked_completed',
+            byUserId: currentUserId,
+            byUserName: currentUserName,
+            timestamp: new Date().toISOString(),
+            notes: note || 'تم تأكيد التنفيذ بواسطة الموظف المكلف',
+          },
+        ];
+
+        // Send Chat Notification to Requester via Private Direct Channel
+        const primaryAssigneeId = t.assignedToUserIds[0] || currentUserId;
+        const dmIds = [t.createdByUserId, primaryAssigneeId].sort();
+        const dmChannelId = `dm_${dmIds[0]}_${dmIds[1]}`;
+
+        const notifMsg: ChatMessage = {
+          id: 'msg-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
+          channelId: dmChannelId,
+          senderId: 'system',
+          senderName: 'إشعار إنجاز مهمة',
+          text: `أكد (${currentUserName}) إنجاز المهمة (في انتظار مراجعة وتأكيد: ${t.createdByUserName})`,
+          timestamp: new Date().toISOString(),
+          isSystemNotification: true,
+          taskId: t.id,
+        };
+        setChatMessages((cPrev) => [...cPrev, notifMsg]);
+        persistChatMessageToDb(notifMsg);
+
+        const updatedTask: EmployeeTask = {
+          ...t,
+          status: 'completed_by_assignee',
+          completedAt: new Date().toISOString(),
+          completionNote: note,
+          history: updatedHistory,
+        };
+        persistTaskToDb(updatedTask);
+        return updatedTask;
+      })
+    );
+
+    logAuditEvent('تأكيد إنجاز مهمة', 'المهام والدردشة', `قام ${currentUserName} بتأكيد إنجاز المهمة (${taskId}) وإرسالها للاعتماد.`);
+  };
+
+  // Approve and Confirm by Requester (archived)
+  const approveTaskByRequester = (taskId: string, note?: string) => {
+    const currentUserId = currentUser?.id || '';
+    const currentUserName = currentUser?.name || 'المدير / الطالب';
+
+    setEmployeeTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+
+        const updatedHistory: TaskVerificationHistory[] = [
+          ...t.history,
+          {
+            id: 'hist-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+            action: 'approved',
+            byUserId: currentUserId,
+            byUserName: currentUserName,
+            timestamp: new Date().toISOString(),
+            notes: note || 'تمت المراجعة والتأكيد واعتماد الإنجاز نهائياً والأرشفة',
+          },
+        ];
+
+        // Send Chat Notification via Private Direct Channel
+        const primaryAssigneeId = t.assignedToUserIds[0] || '';
+        const dmIds = primaryAssigneeId ? [currentUserId, primaryAssigneeId].sort() : [];
+        const dmChannelId = dmIds.length === 2 ? `dm_${dmIds[0]}_${dmIds[1]}` : 'general';
+
+        const notifMsg: ChatMessage = {
+          id: 'msg-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
+          channelId: dmChannelId,
+          senderId: 'system',
+          senderName: 'إشعار اعتماد مهمة',
+          text: `🛡️ أكد (${currentUserName}) اعتماد وإنجاز المهمة بنجاح وتم حفظها في الأرشيف المعتمد ✓`,
+          timestamp: new Date().toISOString(),
+          isSystemNotification: true,
+          taskId: t.id,
+        };
+        setChatMessages((cPrev) => [...cPrev, notifMsg]);
+        persistChatMessageToDb(notifMsg);
+
+        const updatedTask: EmployeeTask = {
+          ...t,
+          status: 'approved',
+          approvedAt: new Date().toISOString(),
+          history: updatedHistory,
+        };
+        persistTaskToDb(updatedTask);
+        return updatedTask;
+      })
+    );
+
+    logAuditEvent('اعتماد مهمة وأرشفة', 'المهام والدردشة', `قام ${currentUserName} باعتماد وتأكيد إنجاز المهمة (${taskId}) نهائياً.`);
+  };
+
+  // Reopen Task by Requester (if not completed properly)
+  const reopenTaskByRequester = (taskId: string, reason: string) => {
+    const currentUserId = currentUser?.id || '';
+    const currentUserName = currentUser?.name || 'المدير / الطالب';
+
+    setEmployeeTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+
+        const updatedHistory: TaskVerificationHistory[] = [
+          ...t.history,
+          {
+            id: 'hist-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+            action: 'reopened',
+            byUserId: currentUserId,
+            byUserName: currentUserName,
+            timestamp: new Date().toISOString(),
+            notes: reason || 'لم تنفذ بالشكل المطلوب وتمت إعادة الفتح',
+          },
+        ];
+
+        // Send Chat Notification via Private Direct Channel
+        const primaryAssigneeId = t.assignedToUserIds[0] || '';
+        const dmIds = primaryAssigneeId ? [currentUserId, primaryAssigneeId].sort() : [];
+        const dmChannelId = dmIds.length === 2 ? `dm_${dmIds[0]}_${dmIds[1]}` : 'general';
+
+        const notifMsg: ChatMessage = {
+          id: 'msg-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
+          channelId: dmChannelId,
+          senderId: 'system',
+          senderName: 'إشعار إعادة فتح مهمة',
+          text: `⚠️ أعاد (${currentUserName}) فتح المهمة لعدم الاكتمال (سبب الإعادة: "${reason}")`,
+          timestamp: new Date().toISOString(),
+          isSystemNotification: true,
+          taskId: t.id,
+        };
+        setChatMessages((cPrev) => [...cPrev, notifMsg]);
+        persistChatMessageToDb(notifMsg);
+
+        const updatedTask: EmployeeTask = {
+          ...t,
+          status: 'reopened',
+          rejectionReason: reason,
+          history: updatedHistory,
+        };
+        persistTaskToDb(updatedTask);
+        return updatedTask;
+      })
+    );
+
+    logAuditEvent('إعادة فتح مهمة', 'المهام والدردشة', `أعاد ${currentUserName} فتح المهمة (${taskId}) بسبب: ${reason}`);
+  };
+
+  // Delete Task
+  const deleteEmployeeTask = (taskId: string) => {
+    setEmployeeTasks((prev) => prev.filter((t) => t.id !== taskId));
+    try {
+      fetch('/api/tasks/' + encodeURIComponent(taskId), { method: 'DELETE' }).catch(() => {});
+    } catch {}
+    logAuditEvent('حذف مهمة', 'المهام والدردشة', `تم حذف المهمة رقم (${taskId})`);
+  };
+
+  // Send Chat Message
+  const sendChatMessage = (channelId: string, text: string, taskId?: string): ChatMessage => {
+    const senderId = currentUser?.id || 'usr-guest';
+    const senderName = currentUser?.name || 'مستخدم';
+    const senderAvatar = currentUser?.avatarUrl;
+    const senderRole = currentUser?.role;
+
+    const newMsg: ChatMessage = {
+      id: 'msg-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
+      channelId,
+      senderId,
+      senderName,
+      senderAvatar,
+      senderRole,
+      text: text.trim(),
+      timestamp: new Date().toISOString(),
+      taskId,
+    };
+
+    setChatMessages((prev) => [...prev, newMsg]);
+    persistChatMessageToDb(newMsg);
+    return newMsg;
+  };
+
+  // Live Notification Badges calculation
+  const currentUserId = currentUser?.id || '';
+  const pendingTasksCount = employeeTasks.filter(
+    (t) => t.assignedToUserIds.includes(currentUserId) && (t.status === 'pending' || t.status === 'reopened')
+  ).length;
+
+  const awaitingApprovalTasksCount = employeeTasks.filter(
+    (t) => t.createdByUserId === currentUserId && t.status === 'completed_by_assignee'
+  ).length;
+
+  const unreadChatCount = 0;
 
   const formatMoney = (amount: number) => {
     const symbol = CURRENCY_SYMBOLS[currency] || 'ج.م';
@@ -2139,6 +3026,67 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
     if (currentUser.permissions.includes('*') || currentUser.permissions.includes(permission)) return true;
+    return false;
+  };
+
+  // Privacy Mode (Boss / Confidentiality Mode)
+  const [isPrivacyMode, setIsPrivacyMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(`${STORAGE_PREFIX}privacy_mode`) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`${STORAGE_PREFIX}privacy_mode`, String(isPrivacyMode));
+    } catch {}
+    if (isPrivacyMode) {
+      document.body.classList.add('privacy-mode-active');
+      document.documentElement.classList.add('privacy-mode-active');
+    } else {
+      document.body.classList.remove('privacy-mode-active');
+      document.documentElement.classList.remove('privacy-mode-active');
+    }
+  }, [isPrivacyMode]);
+
+  const setPrivacyMode = (enabled: boolean) => {
+    setIsPrivacyMode(enabled);
+  };
+
+  const togglePrivacyMode = () => {
+    setIsPrivacyMode((prev) => !prev);
+  };
+
+  const verifyUserPin = (pin: string): boolean => {
+    const trimmed = pin.trim();
+    if (!trimmed) return false;
+
+    // 1. Current user PIN or password
+    if (currentUser) {
+      if (currentUser.pin && currentUser.pin === trimmed) return true;
+      if (currentUser.password && currentUser.password === trimmed) return true;
+    }
+
+    // 2. Any active admin user
+    const adminUser = users.find((u) => u.isActive && (u.role === 'admin' || !u.role));
+    if (adminUser) {
+      if (adminUser.pin && adminUser.pin === trimmed) return true;
+      if (adminUser.password && adminUser.password === trimmed) return true;
+    }
+
+    // 3. Any active user
+    const matchedUser = users.find(
+      (u) => u.isActive && (u.pin === trimmed || (u.password && u.password === trimmed))
+    );
+    if (matchedUser) return true;
+
+    // 4. Default fallback PINs
+    if (trimmed === '1234' || trimmed === '0000' || trimmed === 'admin') {
+      return true;
+    }
+
     return false;
   };
 
@@ -4131,7 +5079,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Auto-create sub-account in Chart of Accounts under 1130 (العملاء والمدينون)
     const existingCustAccounts = accounts.filter(
-      (a) => a.parentCode === '1130' || a.code.startsWith('1130-') || a.code.startsWith('1130')
+      (a) => a.parentCode === '1130' || (a.code || '').startsWith('1130-') || (a.code || '').startsWith('1130')
     );
     const nextAccSeq = existingCustAccounts.length + 1;
     const custAccCode = `1130-${String(nextAccSeq).padStart(3, '0')}`;
@@ -4626,7 +5574,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Auto-create sub-account in Chart of Accounts under 2110 (الموردون والدائنون)
     const existingVendAccounts = accounts.filter(
-      (a) => a.parentCode === '2110' || a.code.startsWith('2110-') || a.code.startsWith('2110')
+      (a) => a.parentCode === '2110' || (a.code || '').startsWith('2110-') || (a.code || '').startsWith('2110')
     );
     const nextAccSeq = existingVendAccounts.length + 1;
     const vendAccCode = `2110-${String(nextAccSeq).padStart(3, '0')}`;
@@ -7766,7 +8714,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addEmployee = (empData: Omit<Employee, 'id' | 'employeeCode'>) => {
-    const employeeCode = `EMP-${String(employees.length + 1).padStart(2, '0')}`;
+    // Generate unique employeeCode
+    const existingCodes = new Set(employees.map((e) => e.employeeCode));
+    let nextNum = employees.length + 1;
+    let employeeCode = `EMP-${String(nextNum).padStart(2, '0')}`;
+    while (existingCodes.has(employeeCode)) {
+      nextNum++;
+      employeeCode = `EMP-${String(nextNum).padStart(2, '0')}`;
+    }
 
     if (empData.jobTitle) {
       addJobTitle(empData.jobTitle);
@@ -7777,7 +8732,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Auto-create sub-account in Chart of Accounts under 2130 (مخصص الرواتب والأجور المستحقة)
     const existingEmpAccounts = accounts.filter(
-      (a) => a.parentCode === '2130' || a.code.startsWith('2130-') || a.code.startsWith('2130')
+      (a) => a.parentCode === '2130' || (a.code || '').startsWith('2130-') || (a.code || '').startsWith('2130')
     );
     const nextAccSeq = existingEmpAccounts.length + 1;
     const empAccCode = `2130-${String(nextAccSeq).padStart(3, '0')}`;
@@ -7795,7 +8750,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const newEmp: Employee = {
       ...empData,
-      id: `emp-${Date.now()}`,
+      id: `emp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       employeeCode,
       accountId: newAccId,
     };
@@ -7887,11 +8842,64 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const payslips: Payslip[] = employees
       .filter((e) => e.status === 'active')
       .map((emp) => {
-        const grossSalary = emp.basicSalary + emp.housingAllowance + emp.transportAllowance + emp.otherAllowances;
-        const employeeSocialInsurance = (emp.basicSalary + emp.housingAllowance) * (emp.socialInsuranceEmployeeRate / 100);
-        const incomeTax = grossSalary * (emp.taxDeductionRate / 100);
-        const totalDeductions = employeeSocialInsurance + incomeTax;
-        const netSalary = grossSalary - totalDeductions;
+        const baseGross = emp.basicSalary + emp.housingAllowance + emp.transportAllowance + emp.otherAllowances;
+
+        // 1. Overtime & Absences from attendance
+        const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
+        const empAttendances = attendances.filter((a) => a.employeeId === emp.id && a.date.startsWith(monthPrefix));
+        const overtimeHours = empAttendances.reduce((s, a) => s + (Number(a.overtimeHours) || 0), 0);
+        const hourlyRate = baseGross > 0 ? baseGross / (30 * 8) : 0;
+        const overtimeAmount = Math.round(overtimeHours * hourlyRate * 1.5);
+
+        const absentDays = empAttendances.filter((a) => a.status === 'absent').length;
+        const totalLateMinutes = empAttendances.reduce((s, a) => s + (Number(a.lateMinutes) || 0), 0);
+        const dailyRate = baseGross > 0 ? baseGross / 30 : 0;
+        const absenceDeduction = Math.round(absentDays * dailyRate);
+        const lateHours = totalLateMinutes / 60;
+        const lateDeduction = Math.round(lateHours * hourlyRate);
+
+        // 2. Adjustments (Bonuses & Penalties)
+        const empAdjs = employeeAdjustments.filter(
+          (adj) => adj.employeeId === emp.id && adj.month === month && adj.year === year
+        );
+        const bonusAmount = empAdjs
+          .filter((a) => a.type === 'bonus' || a.type === 'reward')
+          .reduce((s, a) => s + (Number(a.amount) || 0), 0);
+        const penaltyAmount = empAdjs
+          .filter((a) => a.type === 'penalty' || a.type === 'deduction')
+          .reduce((s, a) => s + (Number(a.amount) || 0), 0);
+
+        // 3. Active Loans / Advances Installments
+        const empActiveLoans = employeeLoans.filter((l) => l.employeeId === emp.id && l.status === 'active');
+        let loanDeduction = 0;
+        empActiveLoans.forEach((loan) => {
+          const installment = loan.installments.find(
+            (inst) => inst.month === month && inst.year === year && !inst.isPaid
+          );
+          if (installment) {
+            loanDeduction += installment.amount;
+          }
+        });
+
+        // 4. Gross Total
+        const grossSalary = baseGross + overtimeAmount + bonusAmount;
+
+        // 5. Taxes & Social Insurance
+        const employeeSocialInsurance = Math.round((emp.basicSalary + emp.housingAllowance) * (emp.socialInsuranceEmployeeRate / 100));
+        const incomeTax = Math.round(grossSalary * (emp.taxDeductionRate / 100));
+
+        // 6. Other Deductions & Net
+        const penaltyDeduction = penaltyAmount + absenceDeduction + lateDeduction;
+        const otherDeductions = penaltyDeduction + loanDeduction;
+        const totalDeductions = employeeSocialInsurance + incomeTax + otherDeductions;
+        const netSalary = Math.max(0, grossSalary - totalDeductions);
+
+        // 7. Payment Method & Account Determination
+        const paymentMethod: 'bank_transfer' | 'cash' = emp.salaryPaymentMethod || 'bank_transfer';
+        const defaultAccId = paymentMethod === 'cash' ? '1110' : '1120';
+        const disbursementAccountId = emp.salaryDisbursementAccountId || defaultAccId;
+        const linkedAcc = accounts.find((a) => a.id === disbursementAccountId || a.code === disbursementAccountId);
+        const disbursementAccountName = linkedAcc?.name || (paymentMethod === 'cash' ? 'الخزينة النقدية الرئيسية (Cash in Hand)' : 'الحساب البنكي الجاري الرئيسي (Commercial Bank)');
 
         return {
           id: `ps-${emp.id}-${month}-${year}`,
@@ -7905,21 +8913,28 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           transportAllowance: emp.transportAllowance,
           otherAllowances: emp.otherAllowances,
           grossSalary,
-          overtimeHours: 0,
-          overtimeAmount: 0,
-          bonus: 0,
-          deductions: 0,
+          overtimeHours,
+          overtimeAmount,
+          bonus: bonusAmount,
+          deductions: otherDeductions,
+          loanDeduction,
+          penaltyDeduction,
           socialInsuranceDeduction: employeeSocialInsurance,
           taxDeduction: incomeTax,
           totalDeductions,
           netSalary,
-          paymentStatus: 'pending',
+          paymentStatus: 'pending' as const,
+          paymentMethod,
+          disbursementAccountId,
+          disbursementAccountName,
         };
       });
 
     const totalGross = payslips.reduce((sum, p) => sum + p.grossSalary, 0);
     const totalNet = payslips.reduce((sum, p) => sum + p.netSalary, 0);
     const totalDeductions = payslips.reduce((sum, p) => sum + p.totalDeductions, 0);
+    const totalCashDisbursement = payslips.filter((p) => p.paymentMethod === 'cash').reduce((sum, p) => sum + p.netSalary, 0);
+    const totalBankDisbursement = payslips.filter((p) => p.paymentMethod !== 'cash').reduce((sum, p) => sum + p.netSalary, 0);
 
     const newRun: PayrollRun = {
       id: `pr-${year}-${String(month).padStart(2, '0')}`,
@@ -7929,6 +8944,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalGross,
       totalNet,
       totalDeductions,
+      totalCashDisbursement,
+      totalBankDisbursement,
       employeesCount: payslips.length,
       status: 'draft',
       payslips,
@@ -7939,13 +8956,58 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newRun;
   };
 
-  const approvePayrollRun = (runId: string) => {
+  const approvePayrollRun = (runId: string, paymentAccountId: string = '1120') => {
     const run = payrollRuns.find((r) => r.id === runId);
     if (!run || run.status === 'approved' || run.status === 'posted_to_accounts') return;
 
     setPayrollRuns((prev) => prev.map((r) => (r.id === runId ? { ...r, status: 'approved' } : r)));
 
-    // Generate Double Entry Accounting Journal for Payroll
+    // Mark active loan installments for this month/year as paid
+    setEmployeeLoans((prev) =>
+      prev.map((loan) => {
+        let changed = false;
+        const updatedInsts = loan.installments.map((inst) => {
+          if (inst.month === run.month && inst.year === run.year && !inst.isPaid) {
+            changed = true;
+            return {
+              ...inst,
+              isPaid: true,
+              paidDate: new Date().toISOString().split('T')[0],
+              payrollRunId: runId,
+            };
+          }
+          return inst;
+        });
+        if (changed) {
+          const paidAmount = updatedInsts.filter((i) => i.isPaid).reduce((s, i) => s + i.amount, 0);
+          const remainingAmount = Math.max(0, loan.totalAmount - paidAmount);
+          return {
+            ...loan,
+            installments: updatedInsts,
+            paidAmount,
+            remainingAmount,
+            status: remainingAmount <= 0.01 ? ('completed' as const) : ('active' as const),
+          };
+        }
+        return loan;
+      })
+    );
+
+    // Mark adjustments for this month/year as applied
+    setEmployeeAdjustments((prev) =>
+      prev.map((adj) =>
+        adj.month === run.month && adj.year === run.year && adj.status === 'pending'
+          ? {
+              ...adj,
+              status: 'applied_to_payroll' as const,
+              payrollRunId: runId,
+              appliedDate: new Date().toISOString().split('T')[0],
+            }
+          : adj
+      )
+    );
+
+    // 1. Generate Double Entry Accounting Journal for Payroll Accrual (قيد إثبات استحقاق الرواتب)
     const totalExpense = run.totalGross;
     const totalSocialPayable = run.totalDeductions;
 
@@ -7974,10 +9036,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         {
           accountId: '2140',
           accountCode: '2140',
-          accountName: 'أمانات التأمينات الاجتماعية (Social Insurance)',
+          accountName: 'أمانات التأمينات الاجتماعية والضرائب (Payroll Deductions Payable)',
           debit: 0,
           credit: totalSocialPayable,
-          description: 'حصة الموظف للتأمينات والضرائب',
+          description: 'استقطاعات التأمينات والضرائب والخصومات وسلف الرواتب',
         },
       ],
       totalDebit: totalExpense,
@@ -7986,7 +9048,434 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sourceModule: 'payroll',
     });
 
-    logAuditEvent('اعتماد مسير رواتب', 'الموارد البشرية والرواتب', `تم اعتماد وترحيل قيد مسير الرواتب لشهر ${run.month}/${run.year}`);
+    // 2. Generate Double Entry Accounting Journal for Payroll Disbursement (خصم وتوزيع صافي الرواتب حسب طريقة صرف وحساب كل موظف)
+    if (run.totalNet > 0) {
+      // Group net salaries by disbursementAccountId
+      const accountNetMap = new Map<string, { accountId: string; accountCode: string; accountName: string; amount: number; empCount: number }>();
+
+      run.payslips.forEach((ps) => {
+        if (ps.netSalary <= 0) return;
+        const fallbackAccId = ps.paymentMethod === 'cash' ? '1110' : '1120';
+        const targetAccId = ps.disbursementAccountId || fallbackAccId;
+        const acc =
+          accounts.find((a) => a.id === targetAccId || a.code === targetAccId) ||
+          (ps.paymentMethod === 'cash'
+            ? accounts.find((a) => a.id === '1110' || a.code === '1110')
+            : accounts.find((a) => a.id === '1120' || a.code === '1120'));
+
+        const finalId = acc?.id || fallbackAccId;
+        const finalCode = acc?.code || fallbackAccId;
+        const finalName = acc?.name || (ps.paymentMethod === 'cash' ? 'الخزينة النقدية الرئيسية (Cash in Hand)' : 'الحساب البنكي الجاري الرئيسي (Commercial Bank)');
+
+        if (!accountNetMap.has(finalId)) {
+          accountNetMap.set(finalId, {
+            accountId: finalId,
+            accountCode: finalCode,
+            accountName: finalName,
+            amount: 0,
+            empCount: 0,
+          });
+        }
+        const item = accountNetMap.get(finalId)!;
+        item.amount += ps.netSalary;
+        item.empCount += 1;
+      });
+
+      // Fallback if no specific account matched
+      if (accountNetMap.size === 0) {
+        const defaultBank = accounts.find((a) => a.id === '1120' || a.code === '1120') || accounts.find((a) => a.type === 'asset' && a.code.startsWith('112'));
+        const bankId = defaultBank?.id || '1120';
+        accountNetMap.set(bankId, {
+          accountId: bankId,
+          accountCode: defaultBank?.code || '1120',
+          accountName: defaultBank?.name || 'الحساب البنكي الجاري الرئيسي',
+          amount: run.totalNet,
+          empCount: run.employeesCount,
+        });
+      }
+
+      // Debit line: Accrued Payroll (2130) for full totalNet
+      const debitLines = [
+        {
+          accountId: '2130',
+          accountCode: '2130',
+          accountName: 'مخصص الرواتب والأجور المستحقة (Accrued Payroll)',
+          debit: run.totalNet,
+          credit: 0,
+          description: `إقفال وسداد صافي الرواتب المستحقة لشهر ${run.month}/${run.year}`,
+        },
+      ];
+
+      // Credit lines: Each disbursement account (Bank A, Bank B, Cash Drawer, etc.)
+      const creditLines = Array.from(accountNetMap.values()).map((acc) => ({
+        accountId: acc.accountId,
+        accountCode: acc.accountCode,
+        accountName: acc.accountName,
+        debit: 0,
+        credit: acc.amount,
+        description: `صرف رواتب شهر ${run.month}/${run.year} لعدد (${acc.empCount}) موظفاً خصماً من ${acc.accountName}`,
+      }));
+
+      addJournalEntry({
+        entryNumber: `JE-PAY-DISB-${run.year}-${String(run.month).padStart(2, '0')}`,
+        date: new Date().toISOString().split('T')[0],
+        reference: `PAYROLL-${run.year}-${String(run.month).padStart(2, '0')}`,
+        description: `قيد صرف وتحويل صافي مسير رواتب شهر ${run.month}/${run.year} موزعاً على الحسابات البنكية والخزينة`,
+        lines: [...debitLines, ...creditLines],
+        totalDebit: run.totalNet,
+        totalCredit: run.totalNet,
+        isAutomatic: true,
+        sourceModule: 'payroll',
+      });
+    }
+
+    logAuditEvent('اعتماد وصرف مسير رواتب', 'الموارد البشرية والرواتب', `تم اعتماد وترحيل قيد الاستحقاق وقيد الصرف المالي لمسير رواتب شهر ${run.month}/${run.year} بإجمالي صافي ${run.totalNet} ${currency}`);
+  };
+
+  const updatePayslipPaymentMethod = (
+    runId: string,
+    payslipId: string,
+    paymentMethod: 'bank_transfer' | 'cash',
+    disbursementAccountId: string
+  ) => {
+    const linkedAcc = accounts.find((a) => a.id === disbursementAccountId || a.code === disbursementAccountId);
+    const disbursementAccountName = linkedAcc?.name || (paymentMethod === 'cash' ? 'الخزينة النقدية الرئيسية (Cash in Hand)' : 'الحساب البنكي الجاري الرئيسي (Commercial Bank)');
+
+    setPayrollRuns((prev) =>
+      prev.map((run) => {
+        if (run.id !== runId || run.status === 'approved' || run.status === 'posted_to_accounts') return run;
+        const updatedPayslips = run.payslips.map((ps) => {
+          if (ps.id === payslipId) {
+            return {
+              ...ps,
+              paymentMethod,
+              disbursementAccountId,
+              disbursementAccountName,
+            };
+          }
+          return ps;
+        });
+        const totalCashDisbursement = updatedPayslips.filter((p) => p.paymentMethod === 'cash').reduce((s, p) => s + p.netSalary, 0);
+        const totalBankDisbursement = updatedPayslips.filter((p) => p.paymentMethod !== 'cash').reduce((s, p) => s + p.netSalary, 0);
+        return {
+          ...run,
+          payslips: updatedPayslips,
+          totalCashDisbursement,
+          totalBankDisbursement,
+        };
+      })
+    );
+  };
+
+  // ----------------------------------------------------
+  // HR Enterprise Methods Implementation
+  // ----------------------------------------------------
+
+  // 1. Attendance & Shifts
+  const addAttendance = (item: Omit<EmployeeAttendance, 'id'>) => {
+    const newItem: EmployeeAttendance = {
+      ...item,
+      id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    };
+    setAttendances((prev) => {
+      const filtered = prev.filter(
+        (a) => !(a.employeeId === item.employeeId && a.date === item.date)
+      );
+      return [newItem, ...filtered];
+    });
+    logAuditEvent('تسجيل حضور وانصراف', 'الموارد البشرية والرواتب', `تسجيل حضور للموظف ${item.employeeName} بتاريخ ${item.date}`);
+  };
+
+  const updateAttendance = (id: string, data: Partial<EmployeeAttendance>) => {
+    setAttendances((prev) => prev.map((a) => (a.id === id ? { ...a, ...data } : a)));
+    logAuditEvent('تحديث سجل حضور', 'الموارد البشرية والرواتب', `تحديث سجل حضور ${id}`);
+  };
+
+  const deleteAttendance = (id: string) => {
+    setAttendances((prev) => prev.filter((a) => a.id !== id));
+    logAuditEvent('حذف سجل حضور', 'الموارد البشرية والرواتب', `حذف سجل حضور ${id}`);
+  };
+
+  const batchRecordAttendance = (items: Omit<EmployeeAttendance, 'id'>[]) => {
+    const newItems: EmployeeAttendance[] = items.map((item, idx) => ({
+      ...item,
+      id: `att-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+    }));
+    setAttendances((prev) => {
+      const keys = new Set(newItems.map((n) => `${n.employeeId}_${n.date}`));
+      const existingFiltered = prev.filter((p) => !keys.has(`${p.employeeId}_${p.date}`));
+      return [...newItems, ...existingFiltered];
+    });
+    logAuditEvent('تسجيل حضور جماعي', 'الموارد البشرية والرواتب', `تسجيل حضور وانصراف جماعي لعدد ${items.length} موظفاً`);
+  };
+
+  // 2. Leaves & Permissions
+  const addLeaveRequest = (req: Omit<LeaveRequest, 'id' | 'requestNumber' | 'createdAt'>): LeaveRequest => {
+    const count = leaveRequests.length + 1;
+    const requestNumber = `LEV-${new Date().getFullYear()}-${String(count).padStart(3, '0')}`;
+    const newReq: LeaveRequest = {
+      ...req,
+      id: `lev-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      requestNumber,
+      createdAt: new Date().toISOString(),
+    };
+    setLeaveRequests((prev) => [newReq, ...prev]);
+    logAuditEvent('طلب إجازة جديد', 'الموارد البشرية والرواتب', `طلب إجازة ${newReq.leaveType} للموظف ${newReq.employeeName} لمدة ${newReq.daysCount} أيام`);
+    return newReq;
+  };
+
+  const updateLeaveStatus = (id: string, status: LeaveStatus, notes?: string) => {
+    setLeaveRequests((prev) =>
+      prev.map((l) =>
+        l.id === id
+          ? {
+              ...l,
+              status,
+              approvedBy: currentUser?.name || 'المدير المالي / الإدارة',
+              actionDate: new Date().toISOString().split('T')[0],
+              notes: notes || l.notes,
+            }
+          : l
+      )
+    );
+    const target = leaveRequests.find((l) => l.id === id);
+    logAuditEvent('تحديث حالة طلب إجازة', 'الموارد البشرية والرواتب', `تم تغيير حالة طلب الإجازة ${target?.requestNumber} إلى ${status}`);
+  };
+
+  const deleteLeaveRequest = (id: string) => {
+    setLeaveRequests((prev) => prev.filter((l) => l.id !== id));
+    logAuditEvent('حذف طلب إجازة', 'الموارد البشرية والرواتب', `حذف طلب الإجازة ${id}`);
+  };
+
+  // 3. Loans & Advances
+  const addEmployeeLoan = (
+    loanData: Omit<EmployeeLoan, 'id' | 'loanNumber' | 'paidAmount' | 'remainingAmount' | 'installments' | 'createdAt'>
+  ): EmployeeLoan => {
+    const count = employeeLoans.length + 1;
+    const loanNumber = `LN-${new Date().getFullYear()}-${String(count).padStart(3, '0')}`;
+    const termMonths = Math.max(1, loanData.termMonths || 1);
+    const monthlyInstallment = Math.round((loanData.totalAmount / termMonths) * 100) / 100;
+
+    const startDate = new Date(loanData.startDate || new Date().toISOString().split('T')[0]);
+    const installments: LoanInstallment[] = [];
+    for (let i = 0; i < termMonths; i++) {
+      const d = new Date(startDate);
+      d.setMonth(d.getMonth() + i);
+      installments.push({
+        id: `inst-${loanNumber}-${i + 1}`,
+        installmentNumber: i + 1,
+        month: d.getMonth() + 1,
+        year: d.getFullYear(),
+        amount: i === termMonths - 1 ? Math.round((loanData.totalAmount - monthlyInstallment * (termMonths - 1)) * 100) / 100 : monthlyInstallment,
+        isPaid: false,
+      });
+    }
+
+    const newLoan: EmployeeLoan = {
+      ...loanData,
+      id: `loan-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      loanNumber,
+      monthlyInstallment,
+      paidAmount: 0,
+      remainingAmount: loanData.totalAmount,
+      installments,
+      createdAt: new Date().toISOString(),
+    };
+
+    setEmployeeLoans((prev) => [newLoan, ...prev]);
+    logAuditEvent('صرف سلفة / قرض موظف', 'الموارد البشرية والرواتب', `تم تسجيل سلفة/قرض رقم ${loanNumber} للموظف ${newLoan.employeeName} بقيمة ${newLoan.totalAmount} ${currency}`);
+    return newLoan;
+  };
+
+  const updateEmployeeLoan = (id: string, data: Partial<EmployeeLoan>) => {
+    setEmployeeLoans((prev) => prev.map((l) => (l.id === id ? { ...l, ...data } : l)));
+    logAuditEvent('تحديث بيانات قرض', 'الموارد البشرية والرواتب', `تحديث بيانات القرض ${id}`);
+  };
+
+  const deleteEmployeeLoan = (id: string) => {
+    setEmployeeLoans((prev) => prev.filter((l) => l.id !== id));
+    logAuditEvent('حذف قرض / سلفة', 'الموارد البشرية والرواتب', `حذف سجل القرض ${id}`);
+  };
+
+  const recordLoanInstallmentPayment = (loanId: string, installmentNumber: number) => {
+    setEmployeeLoans((prev) =>
+      prev.map((loan) => {
+        if (loan.id !== loanId) return loan;
+        const updatedInsts = loan.installments.map((inst) =>
+          inst.installmentNumber === installmentNumber
+            ? { ...inst, isPaid: true, paidDate: new Date().toISOString().split('T')[0] }
+            : inst
+        );
+        const paidAmount = updatedInsts.filter((i) => i.isPaid).reduce((s, i) => s + i.amount, 0);
+        const remainingAmount = Math.max(0, loan.totalAmount - paidAmount);
+        const status = remainingAmount <= 0.01 ? ('completed' as const) : ('active' as const);
+        return {
+          ...loan,
+          installments: updatedInsts,
+          paidAmount,
+          remainingAmount,
+          status,
+        };
+      })
+    );
+  };
+
+  // 4. Adjustments (Penalties & Bonuses)
+  const addEmployeeAdjustment = (adjData: Omit<EmployeeAdjustment, 'id' | 'adjustmentNumber' | 'createdAt'>): EmployeeAdjustment => {
+    const count = employeeAdjustments.length + 1;
+    const prefix = adjData.type === 'bonus' || adjData.type === 'reward' ? 'BON' : 'PEN';
+    const adjustmentNumber = `${prefix}-${new Date().getFullYear()}-${String(count).padStart(3, '0')}`;
+    const newAdj: EmployeeAdjustment = {
+      ...adjData,
+      id: `adj-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      adjustmentNumber,
+      createdAt: new Date().toISOString(),
+    };
+    setEmployeeAdjustments((prev) => [newAdj, ...prev]);
+    logAuditEvent(
+      newAdj.type === 'bonus' || newAdj.type === 'reward' ? 'صرف مكافأة موظف' : 'توقيع جزاء / خصم موظف',
+      'الموارد البشرية والرواتب',
+      `${adjustmentNumber}: ${newAdj.employeeName} بقيمة ${newAdj.amount} ${currency} - ${newAdj.reason}`
+    );
+    return newAdj;
+  };
+
+  const deleteEmployeeAdjustment = (id: string) => {
+    setEmployeeAdjustments((prev) => prev.filter((a) => a.id !== id));
+    logAuditEvent('حذف مكافأة / جزاء', 'الموارد البشرية والرواتب', `تم حذف البند ${id}`);
+  };
+
+  // 5. Custodies (العهد العينية والمالية)
+  const addEmployeeCustody = (custodyData: Omit<EmployeeCustody, 'id' | 'custodyNumber' | 'createdAt'>): EmployeeCustody => {
+    const count = employeeCustodies.length + 1;
+    const custodyNumber = `CUST-${new Date().getFullYear()}-${String(count).padStart(3, '0')}`;
+    const newCustody: EmployeeCustody = {
+      ...custodyData,
+      id: `cust-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      custodyNumber,
+      createdAt: new Date().toISOString(),
+    };
+    setEmployeeCustodies((prev) => [newCustody, ...prev]);
+    logAuditEvent('تسليم عهدة لموظف', 'الموارد البشرية والرواتب', `تسليم عهدة ${newCustody.itemName} (${newCustody.custodyNumber}) للموظف ${newCustody.employeeName}`);
+    return newCustody;
+  };
+
+  const updateEmployeeCustody = (id: string, data: Partial<EmployeeCustody>) => {
+    setEmployeeCustodies((prev) => prev.map((c) => (c.id === id ? { ...c, ...data } : c)));
+    logAuditEvent('تحديث بيانات عهدة', 'الموارد البشرية والرواتب', `تحديث العهدة ${id}`);
+  };
+
+  const deleteEmployeeCustody = (id: string) => {
+    setEmployeeCustodies((prev) => prev.filter((c) => c.id !== id));
+    logAuditEvent('حذف سجل عهدة', 'الموارد البشرية والرواتب', `حذف العهدة ${id}`);
+  };
+
+  const returnEmployeeCustody = (id: string, returnCondition?: string) => {
+    const now = new Date().toISOString().split('T')[0];
+    setEmployeeCustodies((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              status: 'returned',
+              returnedAt: now,
+              returnCondition: returnCondition || 'تم الاستلام بحالة سليمة وتم إبراء الذمة',
+            }
+          : c
+      )
+    );
+    const target = employeeCustodies.find((c) => c.id === id);
+    logAuditEvent('استرجاع عهدة وإبراء ذمة', 'الموارد البشرية والرواتب', `تم استرجاع العهدة ${target?.itemName} من ${target?.employeeName}`);
+  };
+
+  // 6. Documents & Contracts
+  const addEmployeeDocument = (docData: Omit<EmployeeDocument, 'id' | 'uploadedAt'>): EmployeeDocument => {
+    const newDoc: EmployeeDocument = {
+      ...docData,
+      id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      uploadedAt: new Date().toISOString(),
+    };
+    setEmployeeDocuments((prev) => [newDoc, ...prev]);
+    logAuditEvent('إضافة وثيقة موظف', 'الموارد البشرية والرواتب', `إضافة وثيقة ${newDoc.title} لملف الموظف`);
+    return newDoc;
+  };
+
+  const deleteEmployeeDocument = (id: string) => {
+    setEmployeeDocuments((prev) => prev.filter((d) => d.id !== id));
+    logAuditEvent('حذف وثيقة موظف', 'الموارد البشرية والرواتب', `حذف وثيقة ${id}`);
+  };
+
+  // 7. End of Service Gratuity Calculator
+  const calculateEndOfService = (
+    employeeId: string,
+    terminationDateStr: string,
+    reason: 'resignation' | 'contract_end' | 'termination' | 'retirement' | 'death'
+  ): EndOfServiceCalculation | null => {
+    const emp = employees.find((e) => e.id === employeeId);
+    if (!emp) return null;
+
+    const hire = new Date(emp.hireDate);
+    const term = new Date(terminationDateStr);
+    const diffMs = term.getTime() - hire.getTime();
+    if (diffMs <= 0) return null;
+
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const yearsOfService = Math.floor(diffDays / 365.25);
+    const remainingDays = diffDays - Math.floor(yearsOfService * 365.25);
+    const monthsOfService = Math.floor(remainingDays / 30.4375);
+    const daysOfService = Math.floor(remainingDays - monthsOfService * 30.4375);
+
+    const basicSalary = emp.basicSalary;
+    const grossSalary = emp.basicSalary + emp.housingAllowance + emp.transportAllowance + emp.otherAllowances;
+
+    // Formula: First 5 years = half month/year, over 5 years = 1 month/year
+    const totalServiceYearsDecimal = diffDays / 365.25;
+    let baseGratuity = 0;
+    if (totalServiceYearsDecimal <= 5) {
+      baseGratuity = totalServiceYearsDecimal * (grossSalary / 2);
+    } else {
+      baseGratuity = 5 * (grossSalary / 2) + (totalServiceYearsDecimal - 5) * grossSalary;
+    }
+
+    let gratuityAmount = baseGratuity;
+    if (reason === 'resignation') {
+      if (totalServiceYearsDecimal < 2) {
+        gratuityAmount = 0;
+      } else if (totalServiceYearsDecimal < 5) {
+        gratuityAmount = baseGratuity / 3;
+      } else if (totalServiceYearsDecimal < 10) {
+        gratuityAmount = (baseGratuity * 2) / 3;
+      } else {
+        gratuityAmount = baseGratuity;
+      }
+    }
+
+    // Leave encashment calculation (approx. 15 remaining leave days)
+    const leaveEncashmentAmount = Math.round((grossSalary / 30) * 10);
+
+    // Active pending loans balance
+    const empLoans = employeeLoans.filter((l) => l.employeeId === employeeId && l.status === 'active');
+    const pendingLoanBalance = empLoans.reduce((s, l) => s + l.remainingAmount, 0);
+
+    const finalSettlementNet = Math.max(0, Math.round(gratuityAmount + leaveEncashmentAmount - pendingLoanBalance));
+
+    return {
+      employeeId: emp.id,
+      employeeName: emp.name,
+      hireDate: emp.hireDate,
+      terminationDate: terminationDateStr,
+      lastBasicSalary: basicSalary,
+      lastGrossSalary: grossSalary,
+      yearsOfService,
+      monthsOfService,
+      daysOfService,
+      reason,
+      gratuityAmount: Math.round(gratuityAmount),
+      leaveEncashmentAmount,
+      pendingLoanBalance,
+      finalSettlementNet,
+      calculatedAt: new Date().toISOString(),
+    };
   };
 
   // Google Sheets Config & Sync
@@ -8392,6 +9881,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCustomers(INITIAL_CUSTOMERS);
         setVendors([]);
         setEmployees([]);
+        setAttendances([]);
+        setLeaveRequests([]);
+        setEmployeeLoans([]);
+        setEmployeeAdjustments([]);
+        setEmployeeCustodies([]);
+        setEmployeeDocuments([]);
         setSalesReps([]);
         setSalesReturns([]);
         setPayrollRuns([]);
@@ -8447,6 +9942,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setPurchaseInvoices(INITIAL_PURCHASES);
         setReceipts(INITIAL_RECEIPTS);
         setEmployees(INITIAL_EMPLOYEES);
+        setAttendances(INITIAL_ATTENDANCES);
+        setLeaveRequests(INITIAL_LEAVE_REQUESTS);
+        setEmployeeLoans(INITIAL_EMPLOYEE_LOANS);
+        setEmployeeAdjustments(INITIAL_EMPLOYEE_ADJUSTMENTS);
+        setEmployeeCustodies(INITIAL_EMPLOYEE_CUSTODIES);
+        setEmployeeDocuments(INITIAL_EMPLOYEE_DOCUMENTS);
         setPayrollRuns([]);
         setPriceLists(INITIAL_PRICE_LISTS);
         setSalesReturns(INITIAL_SALES_RETURNS);
@@ -8502,6 +10003,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       assetDepreciationRuns,
       employees,
       payrollRuns,
+      attendances,
+      leaveRequests,
+      employeeLoans,
+      employeeAdjustments,
+      employeeCustodies,
+      employeeDocuments,
       priceLists,
       salesReturns,
       salesReps,
@@ -8560,6 +10067,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (parsed.bankReconciliations && Array.isArray(parsed.bankReconciliations)) setBankReconciliations(parsed.bankReconciliations);
       if (parsed.employees && Array.isArray(parsed.employees)) setEmployees(parsed.employees);
       if (parsed.payrollRuns && Array.isArray(parsed.payrollRuns)) setPayrollRuns(parsed.payrollRuns);
+      if (parsed.attendances && Array.isArray(parsed.attendances)) setAttendances(parsed.attendances);
+      if (parsed.leaveRequests && Array.isArray(parsed.leaveRequests)) setLeaveRequests(parsed.leaveRequests);
+      if (parsed.employeeLoans && Array.isArray(parsed.employeeLoans)) setEmployeeLoans(parsed.employeeLoans);
+      if (parsed.employeeAdjustments && Array.isArray(parsed.employeeAdjustments)) setEmployeeAdjustments(parsed.employeeAdjustments);
+      if (parsed.employeeCustodies && Array.isArray(parsed.employeeCustodies)) setEmployeeCustodies(parsed.employeeCustodies);
+      if (parsed.employeeDocuments && Array.isArray(parsed.employeeDocuments)) setEmployeeDocuments(parsed.employeeDocuments);
       if (parsed.priceLists && Array.isArray(parsed.priceLists)) setPriceLists(parsed.priceLists);
       if (parsed.salesReturns && Array.isArray(parsed.salesReturns)) setSalesReturns(parsed.salesReturns);
       if (parsed.salesReps && Array.isArray(parsed.salesReps)) setSalesReps(parsed.salesReps);
@@ -8620,6 +10133,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateUser,
         deleteUser,
         hasPermission,
+        isPrivacyMode,
+        setPrivacyMode,
+        togglePrivacyMode,
+        verifyUserPin,
+        isInitialSyncDone,
+        isSyncingWithServer,
+        syncWithServer: pushCentralState,
         accounts,
         journalEntries,
         addAccount,
@@ -8804,6 +10324,33 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         generateMonthlyPayroll,
         approvePayrollRun,
         deletePayrollRun,
+        updatePayslipPaymentMethod,
+        attendances,
+        addAttendance,
+        updateAttendance,
+        deleteAttendance,
+        batchRecordAttendance,
+        leaveRequests,
+        addLeaveRequest,
+        updateLeaveStatus,
+        deleteLeaveRequest,
+        employeeLoans,
+        addEmployeeLoan,
+        updateEmployeeLoan,
+        deleteEmployeeLoan,
+        recordLoanInstallmentPayment,
+        employeeAdjustments,
+        addEmployeeAdjustment,
+        deleteEmployeeAdjustment,
+        employeeCustodies,
+        addEmployeeCustody,
+        updateEmployeeCustody,
+        deleteEmployeeCustody,
+        returnEmployeeCustody,
+        employeeDocuments,
+        addEmployeeDocument,
+        deleteEmployeeDocument,
+        calculateEndOfService,
         sequenceConfig,
         updateSequenceConfig,
         getNextSequenceCode,
@@ -8831,6 +10378,20 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateBudgetPlan,
         deleteBudgetPlan,
         getBudgetVsActual,
+        favorites,
+        toggleFavorite,
+        isFavorite,
+        employeeTasks,
+        createEmployeeTask,
+        markTaskCompletedByAssignee,
+        approveTaskByRequester,
+        reopenTaskByRequester,
+        deleteEmployeeTask,
+        chatMessages,
+        sendChatMessage,
+        unreadChatCount,
+        pendingTasksCount,
+        awaitingApprovalTasksCount,
       }}
     >
       {children}

@@ -1,0 +1,35 @@
+{
+  "name": "أوربكس ERP - النظام المتكامل",
+  "short_name": "Orbix ERP",
+  "description": "منظومة محاسبية وإدارية متكاملة لإدارة الموارد والمبيعات ونقاط البيع والمخازن",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#0f172a",
+  "orientation": "any",
+  "lang": "ar",
+  "dir": "rtl",
+  "categories": ["business", "productivity", "finance"],
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+

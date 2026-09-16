@@ -48,6 +48,7 @@ import {
   ArrowUpDown,
   DollarSign,
   ArrowRightLeft,
+  Briefcase,
   X,
   Plus,
   MoreHorizontal,
@@ -57,6 +58,7 @@ import { BrowserTab } from '../types';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
+  Briefcase,
   Zap,
   BookOpenCheck,
   FileText,
@@ -115,7 +117,11 @@ export const BrowserTabBar: React.FC = () => {
     closeOtherBrowserTabs,
     closeAllBrowserTabs,
     openBrowserTab,
+    pendingTasksCount = 0,
+    awaitingApprovalTasksCount = 0,
   } = useErp();
+
+  const totalTasksBadge = (pendingTasksCount || 0) + (awaitingApprovalTasksCount || 0);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(1000);
@@ -296,14 +302,16 @@ export const BrowserTabBar: React.FC = () => {
 
         {/* Action Buttons (New Tab + Close All) */}
         <div className="flex items-center gap-1 shrink-0 my-auto pl-1">
-          <button
-            type="button"
-            onClick={() => openBrowserTab('dashboard')}
-            className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer shadow-xs border border-slate-700/60"
-            title="فتح الرئيسية في تبويب جديد"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
+          <div className="relative inline-flex items-center">
+            <button
+              type="button"
+              onClick={() => openBrowserTab('dashboard')}
+              className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer shadow-xs border border-slate-700/60 relative"
+              title="فتح الرئيسية في تبويب جديد"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
           {openTabs.length > 1 && (
             <button

@@ -89,7 +89,7 @@ export const PaymentVouchersSection: React.FC = () => {
     if (!expenseAccountId) {
       const defaultExp =
         accounts.find((a) => a.code === '5300') ||
-        accounts.find((a) => a.type === 'expense' && a.code.startsWith('5')) ||
+        accounts.find((a) => a.type === 'expense' && (a.code || '').startsWith('5')) ||
         accounts.find((a) => a.type === 'expense');
       if (defaultExp) setExpenseAccountId(defaultExp.id);
     }
@@ -307,7 +307,7 @@ export const PaymentVouchersSection: React.FC = () => {
               <TrendingDown className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
+          <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono privacy-blur">
             {formatMoney(totalAllPayments)}
           </div>
           <div className="flex items-center gap-1.5 mt-2 text-[11px] text-slate-500 font-bold">
@@ -323,7 +323,7 @@ export const PaymentVouchersSection: React.FC = () => {
               <Tag className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-amber-700 font-mono">
+          <div className="text-xl sm:text-2xl font-black text-amber-700 font-mono privacy-blur">
             {formatMoney(totalExpensePayments)}
           </div>
           <div className="flex items-center gap-1.5 mt-2 text-[11px] text-slate-500 font-bold">
@@ -339,11 +339,11 @@ export const PaymentVouchersSection: React.FC = () => {
               <Building2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-blue-700 font-mono">
+          <div className="text-xl sm:text-2xl font-black text-blue-700 font-mono privacy-blur">
             {formatMoney(totalVendorPayments)}
           </div>
           <div className="flex items-center gap-1.5 mt-2 text-[11px] text-slate-500 font-bold">
-            <span>ديون موردين متبقية: {formatMoney(totalVendorPayables)}</span>
+            <span>ديون موردين متبقية: <span className="privacy-blur">{formatMoney(totalVendorPayables)}</span></span>
           </div>
         </div>
 
@@ -355,10 +355,10 @@ export const PaymentVouchersSection: React.FC = () => {
               <Wallet className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-emerald-700 font-mono">
+          <div className="text-xl sm:text-2xl font-black text-emerald-700 font-mono privacy-blur">
             {formatMoney((treasuryAccount?.balance || 0) + (bankAccount?.balance || 0))}
           </div>
-          <div className="flex items-center justify-between mt-2 text-[11px] text-slate-500 font-mono">
+          <div className="flex items-center justify-between mt-2 text-[11px] text-slate-500 font-mono privacy-blur">
             <span>خزينة: {formatMoney(treasuryAccount?.balance || 0)}</span>
             <span>بنك: {formatMoney(bankAccount?.balance || 0)}</span>
           </div>
@@ -493,7 +493,7 @@ export const PaymentVouchersSection: React.FC = () => {
               >
                 <option value="all">كافة الخزائن والبنوك</option>
                 {accounts
-                  .filter((a) => a.type === 'asset' && (a.code.startsWith('111') || a.code.startsWith('112')))
+                  .filter((a) => a.type === 'asset' && ((a.code || '').startsWith('111') || (a.code || '').startsWith('112')))
                   .map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
@@ -989,7 +989,7 @@ export const PaymentVouchersSection: React.FC = () => {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-bold focus:outline-hidden"
                 >
                   {accounts
-                    .filter((a) => a.type === 'asset' && (a.code.startsWith('111') || a.code.startsWith('112')))
+                    .filter((a) => a.type === 'asset' && ((a.code || '').startsWith('111') || (a.code || '').startsWith('112')))
                     .map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.code} - {a.name} (الرصيد: {formatMoney(a.balance)})

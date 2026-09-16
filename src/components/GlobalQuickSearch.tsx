@@ -86,6 +86,7 @@ export const GlobalQuickSearch: React.FC = () => {
 
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<SearchCategory>('all');
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
@@ -98,6 +99,7 @@ export const GlobalQuickSearch: React.FC = () => {
   });
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -110,12 +112,22 @@ export const GlobalQuickSearch: React.FC = () => {
 
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
-        inputRef.current?.focus();
-        setIsOpen(true);
+        if (window.innerWidth < 768) {
+          setIsMobileSearchOpen(true);
+          setTimeout(() => mobileInputRef.current?.focus(), 150);
+        } else {
+          inputRef.current?.focus();
+          setIsOpen(true);
+        }
       } else if (e.key === '/' && !isInput) {
         e.preventDefault();
-        inputRef.current?.focus();
-        setIsOpen(true);
+        if (window.innerWidth < 768) {
+          setIsMobileSearchOpen(true);
+          setTimeout(() => mobileInputRef.current?.focus(), 150);
+        } else {
+          inputRef.current?.focus();
+          setIsOpen(true);
+        }
       }
     };
 
@@ -123,7 +135,23 @@ export const GlobalQuickSearch: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Click outside to close
+  // Custom event listener for mobile bottom nav search trigger
+  useEffect(() => {
+    const handleOpenSearchEvent = () => {
+      if (window.innerWidth < 1024) {
+        setIsMobileSearchOpen(true);
+        setTimeout(() => mobileInputRef.current?.focus(), 150);
+      } else {
+        inputRef.current?.focus();
+        setIsOpen(true);
+      }
+    };
+
+    window.addEventListener('orbix:open-search', handleOpenSearchEvent);
+    return () => window.removeEventListener('orbix:open-search', handleOpenSearchEvent);
+  }, []);
+
+  // Click outside to close desktop dropdown
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -653,6 +681,7 @@ export const GlobalQuickSearch: React.FC = () => {
     }
     navigateTo(item.actionTab, item.actionSubTab);
     setIsOpen(false);
+    setIsMobileSearchOpen(false);
   };
 
   // Keyboard navigation within list
@@ -671,7 +700,9 @@ export const GlobalQuickSearch: React.FC = () => {
     } else if (e.key === 'Escape') {
       e.preventDefault();
       setIsOpen(false);
+      setIsMobileSearchOpen(false);
       inputRef.current?.blur();
+      mobileInputRef.current?.blur();
     }
   };
 
@@ -688,186 +719,372 @@ export const GlobalQuickSearch: React.FC = () => {
   ];
 
   return (
-    <div className="relative flex-1 max-w-xl mx-2 sm:mx-4" ref={containerRef}>
-      {/* Central Search Input Bar */}
-      <div className="relative flex items-center w-full">
-        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center text-slate-400">
-          <Search className="w-4 h-4 text-emerald-600 transition-colors" />
-        </div>
-
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setSelectedIndex(0);
-            if (!isOpen) setIsOpen(true);
-          }}
-          onFocus={() => setIsOpen(true)}
-          onKeyDown={handleKeyDown}
-          placeholder="بحث سريع في السيستم (عملاء، فواتير، أصناف، حسابات، سندات...)"
-          className="w-full h-10 pr-10 pl-24 bg-slate-100 hover:bg-slate-200/70 focus:bg-white text-slate-900 placeholder:text-slate-400 border border-slate-200 focus:border-emerald-500 rounded-xl text-xs font-semibold focus:outline-hidden transition-all shadow-2xs focus:shadow-md"
-        />
-
-        {/* Action icons on left (in RTL layout) */}
-        <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          {query ? (
-            <button
-              type="button"
-              onClick={() => {
-                setQuery('');
-                setSelectedIndex(0);
-                inputRef.current?.focus();
-              }}
-              className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/80 cursor-pointer transition-colors"
-              title="مسح البحث"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          ) : (
-            <kbd className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono font-bold text-slate-500 bg-white/80 border border-slate-200 rounded shadow-2xs">
-              <span className="text-xs">⌘</span>K
-            </kbd>
-          )}
-
-          {query && (
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/90 px-1.5 py-0.5 rounded border border-emerald-200 font-mono">
-              {filteredResults.length}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Floating Instant Search Results Dropdown */}
-      {isOpen && (
-        <div className="absolute right-0 left-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[75vh]">
-          {/* Categories Quick Filter Chips */}
-          <div className="flex items-center gap-1.5 p-2.5 bg-slate-50 border-b border-slate-100 overflow-x-auto shrink-0 scrollbar-none">
-            {categoryFilters.map((cat) => {
-              const isActive = selectedCategory === cat.id;
-              if (cat.count === 0 && cat.id !== 'all') return null;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedCategory(cat.id);
-                    setSelectedIndex(0);
-                  }}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
-                    isActive
-                      ? 'bg-emerald-600 text-white shadow-2xs'
-                      : 'bg-white text-slate-600 hover:bg-slate-200/70 border border-slate-200'
-                  }`}
-                >
-                  <span>{cat.label}</span>
-                  <span
-                    className={`text-[9px] px-1 py-0.2 rounded-full font-mono ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
-                    }`}
-                  >
-                    {cat.count}
-                  </span>
-                </button>
-              );
-            })}
+    <>
+      {/* 1. Desktop Central Search Bar (visible on lg and up) */}
+      <div className="hidden lg:flex relative flex-1 max-w-xl mx-2 sm:mx-4" ref={containerRef}>
+        <div className="relative flex items-center w-full">
+          <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center text-slate-400">
+            <Search className="w-4 h-4 text-emerald-600 transition-colors" />
           </div>
 
-          {/* Search Results List */}
-          <div ref={listRef} className="overflow-y-auto p-2 space-y-1 flex-1 divide-y divide-slate-50">
-            {filteredResults.length > 0 ? (
-              filteredResults.map((item, index) => {
-                const isSelected = selectedIndex === index;
-                const IconComponent = item.categoryIcon;
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelectedIndex(0);
+              if (!isOpen) setIsOpen(true);
+            }}
+            onFocus={() => setIsOpen(true)}
+            onKeyDown={handleKeyDown}
+            placeholder="بحث سريع في السيستم (عملاء، فواتير، أصناف، حسابات، سندات...)"
+            className="w-full h-10 pr-10 pl-24 bg-slate-100 hover:bg-slate-200/70 focus:bg-white text-slate-900 placeholder:text-slate-400 border border-slate-200 focus:border-emerald-500 rounded-xl text-xs font-semibold focus:outline-hidden transition-all shadow-2xs focus:shadow-md"
+          />
 
+          {/* Action icons on left (in RTL layout) */}
+          <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {query ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  setSelectedIndex(0);
+                  inputRef.current?.focus();
+                }}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/80 cursor-pointer transition-colors"
+                title="مسح البحث"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <kbd className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono font-bold text-slate-500 bg-white/80 border border-slate-200 rounded shadow-2xs">
+                <span className="text-xs">⌘</span>K
+              </kbd>
+            )}
+
+            {query && (
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/90 px-1.5 py-0.5 rounded border border-emerald-200 font-mono">
+                {filteredResults.length}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Floating Instant Search Results Dropdown for Desktop */}
+        {isOpen && (
+          <div className="absolute right-0 left-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[75vh]">
+            {/* Categories Quick Filter Chips */}
+            <div className="flex items-center gap-1.5 p-2.5 bg-slate-50 border-b border-slate-100 overflow-x-auto shrink-0 scrollbar-none">
+              {categoryFilters.map((cat) => {
+                const isActive = selectedCategory === cat.id;
+                if (cat.count === 0 && cat.id !== 'all') return null;
                 return (
-                  <div
-                    key={item.id}
-                    onClick={() => handleSelectItem(item)}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                    className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all ${
-                      isSelected
-                        ? 'bg-emerald-50/90 border border-emerald-200 text-slate-900 shadow-2xs'
-                        : 'hover:bg-slate-50 border border-transparent text-slate-800'
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory(cat.id);
+                      setSelectedIndex(0);
+                    }}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'bg-white text-slate-600 hover:bg-slate-200/70 border border-slate-200'
                     }`}
                   >
-                    {/* Left Info with Icon */}
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${item.categoryColor}`}
-                      >
-                        <IconComponent className="w-4 h-4" />
-                      </div>
+                    <span>{cat.label}</span>
+                    <span
+                      className={`text-[9px] px-1 py-0.2 rounded-full font-mono ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {cat.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
-                      <div className="flex flex-col min-w-0 flex-1 text-right">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-black text-slate-900 truncate">
-                            {item.title}
-                          </span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                            {item.categoryLabel}
-                          </span>
+            {/* Search Results List */}
+            <div ref={listRef} className="overflow-y-auto p-2 space-y-1 flex-1 divide-y divide-slate-50">
+              {filteredResults.length > 0 ? (
+                filteredResults.map((item, index) => {
+                  const isSelected = selectedIndex === index;
+                  const IconComponent = item.categoryIcon;
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleSelectItem(item)}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                      className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-emerald-50/90 border border-emerald-200 text-slate-900 shadow-2xs'
+                          : 'hover:bg-slate-50 border border-transparent text-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${item.categoryColor}`}
+                        >
+                          <IconComponent className="w-4 h-4" />
                         </div>
 
-                        <span className="text-[11px] text-slate-500 truncate mt-0.5">
-                          {item.subtitle}
-                        </span>
+                        <div className="flex flex-col min-w-0 flex-1 text-right">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-black text-slate-900 truncate">
+                              {item.title}
+                            </span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                              {item.categoryLabel}
+                            </span>
+                          </div>
 
-                        {item.extraInfo && (
-                          <span className="text-[10px] text-emerald-700 font-semibold truncate mt-0.5">
-                            {item.extraInfo}
+                          <span className="text-[11px] text-slate-500 truncate mt-0.5">
+                            {item.subtitle}
                           </span>
+
+                          {item.extraInfo && (
+                            <span className="text-[10px] text-emerald-700 font-semibold truncate mt-0.5">
+                              {item.extraInfo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 mr-2">
+                        {item.metaBadge && (
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-lg font-bold shadow-2xs ${
+                              item.metaBadgeColor || 'bg-slate-800 text-white'
+                            }`}
+                          >
+                            {item.metaBadge}
+                          </span>
+                        )}
+
+                        {isSelected ? (
+                          <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-1 rounded-md">
+                            <span>فتح</span>
+                            <CornerDownLeft className="w-3 h-3" />
+                          </div>
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-slate-300" />
                         )}
                       </div>
                     </div>
-
-                    {/* Right Badges & Enter Hint */}
-                    <div className="flex items-center gap-2 shrink-0 mr-2">
-                      {item.metaBadge && (
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-lg font-bold shadow-2xs ${
-                            item.metaBadgeColor || 'bg-slate-800 text-white'
-                          }`}
-                        >
-                          {item.metaBadge}
-                        </span>
-                      )}
-
-                      {isSelected ? (
-                        <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-1 rounded-md">
-                          <span>فتح</span>
-                          <CornerDownLeft className="w-3 h-3" />
-                        </div>
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-slate-300" />
-                      )}
-                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-10 px-4 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 border border-slate-200 mx-auto flex items-center justify-center">
+                    <Search className="w-6 h-6" />
                   </div>
-                );
-              })
-            ) : (
-              <div className="py-10 px-4 text-center space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 border border-slate-200 mx-auto flex items-center justify-center">
-                  <Search className="w-6 h-6" />
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800">
+                      لا توجد نتائج مطابقة لـ "{query}"
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      جرب البحث بالاسم، رقم الفاتورة، كود الصنف SKU، رقم الهاتف، أو اسم الشاشة المطلوبة.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-800">
+              )}
+            </div>
+
+            {/* Quick Recent Searches & Footer Shortcuts */}
+            <div className="p-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> عمليات شائعة:
+                </span>
+                {recentSearches.map((term, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setQuery(term);
+                      inputRef.current?.focus();
+                    }}
+                    className="px-2 py-0.5 bg-white hover:bg-slate-200 border border-slate-200 rounded-md text-[10px] font-medium text-slate-700 transition-colors cursor-pointer"
+                  >
+                    {term}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-3 text-[10px] text-slate-400 mr-auto font-mono">
+                <span className="inline-flex items-center gap-1">
+                  <kbd className="bg-white px-1 py-0.5 rounded border border-slate-200">↑</kbd>
+                  <kbd className="bg-white px-1 py-0.5 rounded border border-slate-200">↓</kbd> للتنقل
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <kbd className="bg-white px-1 py-0.5 rounded border border-slate-200">↵</kbd> للاختيار
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <kbd className="bg-white px-1 py-0.5 rounded border border-slate-200">ESC</kbd> للإغلاق
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 2. Fullscreen Search Sheet / Modal for Mobile, Tablet & Tab (triggered from MobileBottomNav or shortcuts) */}
+      {isMobileSearchOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex flex-col lg:hidden animate-in fade-in duration-150" 
+          dir="rtl"
+        >
+          <div className="bg-white flex flex-col h-full shadow-2xl overflow-hidden animate-in slide-in-from-top-4 duration-200">
+            {/* Header: Back Button + Search Input + Clear Button */}
+            <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsMobileSearchOpen(false)}
+                className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 flex items-center justify-center shrink-0 cursor-pointer shadow-2xs active:scale-95"
+                title="رجوع / إغلاق"
+                aria-label="رجوع"
+              >
+                <ArrowRight className="w-5 h-5 text-slate-700" />
+              </button>
+
+              <div className="relative flex-1 flex items-center">
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <Search className="w-4 h-4 text-emerald-600" />
+                </div>
+                <input
+                  ref={mobileInputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setSelectedIndex(0);
+                  }}
+                  onKeyDown={handleKeyDown}
+                  autoFocus
+                  placeholder="ابحث عن عميل، صنف، فاتورة، حساب، شاشة..."
+                  className="w-full h-11 pr-10 pl-9 bg-white text-slate-900 placeholder:text-slate-400 border border-slate-300 focus:border-emerald-500 rounded-xl text-sm font-semibold focus:outline-hidden shadow-2xs"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery('');
+                      mobileInputRef.current?.focus();
+                    }}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    title="مسح"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Horizontal Scrollable Categories Filter Chips */}
+            <div className="flex items-center gap-1.5 p-2 bg-slate-100/90 border-b border-slate-200 overflow-x-auto shrink-0 scrollbar-none">
+              {categoryFilters.map((cat) => {
+                const isActive = selectedCategory === cat.id;
+                if (cat.count === 0 && cat.id !== 'all') return null;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory(cat.id);
+                      setSelectedIndex(0);
+                    }}
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+                    }`}
+                  >
+                    <span>{cat.label}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {cat.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Results List */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2 divide-y divide-slate-100">
+              {filteredResults.length > 0 ? (
+                filteredResults.map((item) => {
+                  const IconComponent = item.categoryIcon;
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleSelectItem(item)}
+                      className="flex items-center justify-between p-3 rounded-2xl bg-white hover:bg-emerald-50/70 active:bg-emerald-100 border border-slate-200/80 cursor-pointer transition-all shadow-2xs"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${item.categoryColor}`}
+                        >
+                          <IconComponent className="w-5 h-5" />
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1 text-right">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs sm:text-sm font-black text-slate-900 truncate">
+                              {item.title}
+                            </span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                              {item.categoryLabel}
+                            </span>
+                          </div>
+                          <span className="text-xs text-slate-500 truncate mt-0.5">
+                            {item.subtitle}
+                          </span>
+                          {item.extraInfo && (
+                            <span className="text-[11px] text-emerald-700 font-semibold truncate mt-0.5">
+                              {item.extraInfo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 mr-2">
+                        {item.metaBadge && (
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-lg font-bold shadow-2xs ${
+                              item.metaBadgeColor || 'bg-slate-800 text-white'
+                            }`}
+                          >
+                            {item.metaBadge}
+                          </span>
+                        )}
+                        <ChevronRight className="w-4 h-4 text-slate-300" />
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-14 px-4 text-center space-y-3">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 border border-slate-200 mx-auto flex items-center justify-center">
+                    <Search className="w-7 h-7" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800">
                     لا توجد نتائج مطابقة لـ "{query}"
                   </h4>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    جرب البحث بالاسم، رقم الفاتورة، كود الصنف SKU، رقم الهاتف، أو اسم الشاشة المطلوبة.
+                  <p className="text-xs text-slate-500">
+                    جرب البحث باسم الصنف، كود الباركود، رقم الفاتورة، أو اسم العميل.
                   </p>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* Quick Recent Searches & Footer Shortcuts */}
-          <div className="p-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-2">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                <Clock className="w-3 h-3" /> عمليات شائعة:
+            {/* Quick Searches at Bottom */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs text-slate-400 flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" /> شائع:
               </span>
               {recentSearches.map((term, i) => (
                 <button
@@ -875,30 +1092,17 @@ export const GlobalQuickSearch: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setQuery(term);
-                    inputRef.current?.focus();
+                    mobileInputRef.current?.focus();
                   }}
-                  className="px-2 py-0.5 bg-white hover:bg-slate-200 border border-slate-200 rounded-md text-[10px] font-medium text-slate-700 transition-colors cursor-pointer"
+                  className="px-2.5 py-1 bg-white hover:bg-slate-200 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
                 >
                   {term}
                 </button>
               ))}
             </div>
-
-            <div className="flex items-center gap-3 text-[10px] text-slate-400 mr-auto font-mono">
-              <span className="inline-flex items-center gap-1">
-                <kbd className="bg-white px-1 py-0.5 rounded border border-slate-200">↑</kbd>
-                <kbd className="bg-white px-1 py-0.5 rounded border border-slate-200">↓</kbd> للتنقل
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <kbd className="bg-white px-1 py-0.5 rounded border border-slate-200">↵</kbd> للاختيار
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <kbd className="bg-white px-1 py-0.5 rounded border border-slate-200">ESC</kbd> للإغلاق
-              </span>
-            </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
