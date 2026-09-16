@@ -9,6 +9,8 @@ declare global {
   var _postgresPool: Pool | undefined;
 }
 
+let _currentDrizzle: any = null;
+
 export const createPool = () => {
   if (!global._postgresPool) {
     dotenv.config();
@@ -30,5 +32,34 @@ export const createPool = () => {
   return global._postgresPool;
 };
 
-const pool = createPool();
-export const db = drizzle(pool, { schema });
+export const resetPool = async () => {
+  if (global._postgresPool) {
+    try {
+      await global._postgresPool.end();
+    } catch (e: any) {
+      console.warn('Warning ending postgres pool:', e?.message);
+    }
+    global._postgresPool = undefined;
+  }
+  _currentDrizzle = null;
+};
+
+export const getDb = () => {
+  const pool = createPool();
+  if (!_currentDrizzle) {
+    _currentDrizzle = drizzle(pool, { schema });
+  }
+  return _currentDrizzle;
+};
+
+export const db = new Proxy({} as ReturnType<typeof drizzle>, {
+  get(_target, prop) {
+    const instance = getDb();
+    const val = (instance as any)[prop];
+    if (typeof val === 'function') {
+      return val.bind(instance);
+    }
+    return val;
+  },
+});
+

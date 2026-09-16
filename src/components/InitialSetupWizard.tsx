@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useErp } from '../context/ErpContext';
 import {
   Building2,
@@ -6,6 +6,7 @@ import {
   KeyRound,
   UserCheck,
   CheckCircle2,
+  CheckCircle,
   Sparkles,
   ArrowLeft,
   ArrowRight,
@@ -27,6 +28,9 @@ import {
   Upload,
   Database,
   RefreshCw,
+  Server,
+  ShieldAlert,
+  AlertTriangle,
 } from 'lucide-react';
 import { AppUser, CompanyProfile } from '../types';
 
@@ -40,8 +44,9 @@ export const InitialSetupWizard: React.FC = () => {
     showAlert,
   } = useErp();
 
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showDbPassword, setShowDbPassword] = useState<boolean>(false);
 
   // Step 1: Company Profile State - Clean and empty for the new user
   const isOldDemo =
@@ -73,6 +78,79 @@ export const InitialSetupWizard: React.FC = () => {
     confirmPassword: '',
     pin: '',
   });
+
+  // Step 4: PostgreSQL Database Configuration State
+  const [dbForm, setDbForm] = useState({
+    host: 'localhost',
+    port: '5432',
+    database: 'orbix_erp',
+    user: 'postgres',
+    password: '123',
+    ssl: false,
+  });
+
+  const [securityWarning, setSecurityWarning] = useState<string | null>(null);
+  const [isTestingDb, setIsTestingDb] = useState<boolean>(false);
+  const [dbTestResult, setDbTestResult] = useState<{
+    ok: boolean;
+    latency?: number;
+    database?: string;
+    version?: string;
+    tablesCount?: number;
+    message?: string;
+    error?: string;
+  } | null>(null);
+
+  // Load current DB configuration from server environment on mount
+  useEffect(() => {
+    fetch('/api/setup/db-config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && data?.config) {
+          setDbForm({
+            host: data.config.host || 'localhost',
+            port: String(data.config.port || '5432'),
+            database: data.config.database || 'orbix_erp',
+            user: data.config.user || 'postgres',
+            password: data.config.password || '123',
+            ssl: Boolean(data.config.ssl),
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Real-time Database Input Sanitizer and Security Shield
+  const sanitizeDbInput = (field: 'host' | 'port' | 'database' | 'user', value: string) => {
+    // Check for dangerous SQL keywords or injection patterns
+    const dangerousPattern = /(union|select|insert|drop|truncate|delete|update|exec|xp_|--|\/\*|\*\/|;|<|>|"|')/i;
+    if (dangerousPattern.test(value)) {
+      setSecurityWarning('درع الأمان الوقائي: تم رصد محاولة إدخال غير آمنة أو رموز ضارة وتم حظرها فوراً.');
+    } else if (/[^\x00-\x7F]/.test(value)) {
+      setSecurityWarning('تنبيه: حقول خادم وقاعدة البيانات تقبل حصراً الأحرف والأرقام والرموز الإنجليزية القياسية.');
+    } else {
+      setSecurityWarning(null);
+    }
+
+    let cleaned = value;
+    if (field === 'port') {
+      cleaned = value.replace(/\D/g, '').slice(0, 5);
+    } else if (field === 'host') {
+      cleaned = value.replace(/[^a-zA-Z0-9.\-_]/g, '');
+    } else if (field === 'database' || field === 'user') {
+      cleaned = value.replace(/[^a-zA-Z0-9_]/g, '');
+    }
+
+    setDbForm((prev) => ({ ...prev, [field]: cleaned }));
+  };
+
+  const handleDbPasswordChange = (value: string) => {
+    if (value.includes('\0')) {
+      setSecurityWarning('غير مسموح بوجود أحرف Null Byte في كلمة المرور.');
+      return;
+    }
+    setDbForm((prev) => ({ ...prev, password: value }));
+  };
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -169,6 +247,60 @@ export const InitialSetupWizard: React.FC = () => {
     return Object.keys(errors).length === 0;
   };
 
+  // Validate Step 4 (PostgreSQL Database Credentials)
+  const validateStep4 = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!dbForm.host.trim()) {
+      errors.dbHost = 'يرجى إدخال عنوان المضيف (Host) مثل: localhost أو 127.0.0.1';
+    }
+    const portNum = parseInt(dbForm.port, 10);
+    if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+      errors.dbPort = 'منفذ الاتصال يجب أن يكون رقماً صحيحاً بين 1 و 65535';
+    }
+    if (!dbForm.database.trim()) {
+      errors.dbDatabase = 'يرجى إدخال اسم قاعدة البيانات (مثال: orbix_erp)';
+    }
+    if (!dbForm.user.trim()) {
+      errors.dbUser = 'يرجى إدخال اسم مستخدم قاعدة البيانات (مثال: postgres)';
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Test Database Connection
+  const handleTestDbConnection = async () => {
+    if (!validateStep4()) return;
+    setIsTestingDb(true);
+    setDbTestResult(null);
+    try {
+      const res = await fetch('/api/setup/test-db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dbForm),
+      });
+      const data = await res.json();
+      setDbTestResult(data);
+      if (data.ok) {
+        showAlert(
+          'success',
+          'نجح الاتصال بقاعدة البيانات!',
+          `زمن الاستجابة: ${data.latency}ms • إصدار: ${data.version || 'PostgreSQL'}`
+        );
+      } else {
+        showAlert(
+          'error',
+          'فشل الاتصال بقاعدة البيانات',
+          data.error || 'يرجى التأكد من تشغيل خادم PostgreSQL وصحة البيانات.'
+        );
+      }
+    } catch (err: any) {
+      setDbTestResult({ ok: false, error: err.message || 'تعذر التواصل مع خادم النظام.' });
+      showAlert('error', 'خطأ في الاتصال', 'تعذر إرسال طلب فحص الاتصال بالخادم.');
+    } finally {
+      setIsTestingDb(false);
+    }
+  };
+
   const handleNextStep = () => {
     if (currentStep === 1) {
       if (validateStep1()) {
@@ -178,6 +310,8 @@ export const InitialSetupWizard: React.FC = () => {
       if (validateStep2()) {
         setCurrentStep(3);
       }
+    } else if (currentStep === 3) {
+      setCurrentStep(4);
     }
   };
 
@@ -185,13 +319,32 @@ export const InitialSetupWizard: React.FC = () => {
     setFormErrors({});
     if (currentStep === 2) setCurrentStep(1);
     if (currentStep === 3) setCurrentStep(2);
+    if (currentStep === 4) setCurrentStep(3);
   };
 
-  const handleFinishSetup = () => {
-    if (!validateStep1() || !validateStep2()) return;
+  const handleFinishSetup = async () => {
+    if (!validateStep1() || !validateStep2() || !validateStep4()) return;
 
     setIsSubmitting(true);
 
+    // 1. Save database configuration to .env and auto-provision core tables
+    try {
+      const dbRes = await fetch('/api/setup/save-db-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dbForm),
+      });
+      const dbData = await dbRes.json();
+      if (!dbData.ok) {
+        showAlert('error', 'فشل حفظ إعدادات قاعدة البيانات', dbData.error || 'يرجى مراجعة إعدادات السيرفر.');
+        setIsSubmitting(false);
+        return;
+      }
+    } catch (err: any) {
+      console.warn('Could not contact server to save .env, proceeding with local ERP state:', err);
+    }
+
+    // 2. Prepare company profile
     const updatedProfile: Partial<CompanyProfile> = {
       nameAr: companyForm.nameAr.trim(),
       nameEn: companyForm.nameEn.trim(),
@@ -206,6 +359,7 @@ export const InitialSetupWizard: React.FC = () => {
       defaultVatRate: Number(companyForm.defaultVatRate),
     };
 
+    // 3. Prepare Super Admin user
     const newAdminUser: AppUser = {
       id: 'usr-admin-primary',
       name: adminForm.name.trim(),
@@ -268,7 +422,8 @@ export const InitialSetupWizard: React.FC = () => {
           </div>
 
           {/* Step Badges */}
-          <div className="hidden md:flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2">
+            {/* Step 1 */}
             <div
               className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                 currentStep === 1
@@ -283,8 +438,9 @@ export const InitialSetupWizard: React.FC = () => {
               {currentStep > 1 && <Check className="w-3.5 h-3.5" />}
             </div>
 
-            <div className="w-4 h-0.5 bg-slate-800" />
+            <div className="w-3 h-0.5 bg-slate-800" />
 
+            {/* Step 2 */}
             <div
               className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                 currentStep === 2
@@ -299,17 +455,35 @@ export const InitialSetupWizard: React.FC = () => {
               {currentStep > 2 && <Check className="w-3.5 h-3.5" />}
             </div>
 
-            <div className="w-4 h-0.5 bg-slate-800" />
+            <div className="w-3 h-0.5 bg-slate-800" />
 
+            {/* Step 3 */}
             <div
               className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                 currentStep === 3
                   ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20 font-bold'
+                  : currentStep > 3
+                  ? 'bg-slate-800 text-emerald-400 border border-emerald-500/30'
                   : 'bg-slate-900 text-slate-500 border border-slate-800'
               }`}
             >
               <FolderTree className="w-3.5 h-3.5" />
-              <span>3. شجرة الحسابات والجاهزية</span>
+              <span>3. شجرة الحسابات</span>
+              {currentStep > 3 && <Check className="w-3.5 h-3.5" />}
+            </div>
+
+            <div className="w-3 h-0.5 bg-slate-800" />
+
+            {/* Step 4 */}
+            <div
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                currentStep === 4
+                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20 font-bold'
+                  : 'bg-slate-900 text-slate-500 border border-slate-800'
+              }`}
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>4. قاعدة البيانات والجاهزية</span>
             </div>
           </div>
         </div>
@@ -807,6 +981,290 @@ export const InitialSetupWizard: React.FC = () => {
             </div>
           )}
 
+          {/* STEP 4: DATABASE CONNECTION & SECURITY SHIELD */}
+          {currentStep === 4 && (
+            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+              <div className="border-b border-slate-800 pb-5">
+                <div className="inline-flex items-center gap-2 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 mb-2">
+                  <Database className="w-3.5 h-3.5" />
+                  الخطوة الرابعة: إعداد وتأمين قاعدة بيانات PostgreSQL
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2.5">
+                  ربط خادم قاعدة البيانات وموقع حفظ السجلات
+                  <span className="text-xs font-mono font-normal bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                    PostgreSQL Engine
+                  </span>
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                  قم بضبط بيانات الاتصال بخادم قاعدة البيانات المحلي أو السحابي الخاص بشركتك، مع درع الحماية اللحظي من استعلامات الحقن وحظر الرموز الضارة.
+                </p>
+              </div>
+
+              {/* Security Shield Banner */}
+              <div className="bg-gradient-to-r from-emerald-950/40 via-slate-950 to-indigo-950/40 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0 shadow-inner">
+                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-2">
+                      درع الحماية الأمنية الحي (SQL Injection & Encoding Shield)
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    </div>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      يتم فحص وتطهير كافة المدخلات لحظياً وحصرها في الأحرف والأرقام الإنجليزية المعتمدة، مع حظر الرموز والأكواد التخريبية.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-emerald-300/80 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl font-mono shrink-0">
+                  ASCII Safe Input Only
+                </div>
+              </div>
+
+              {/* Warning Banner if suspicious pattern caught */}
+              {securityWarning && (
+                <div className="bg-rose-950/60 border border-rose-500/50 rounded-2xl p-4 flex items-start gap-3 animate-shake">
+                  <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-rose-200">
+                    <strong className="block font-bold text-rose-100 mb-0.5">تنبيه أمني فوري:</strong>
+                    {securityWarning}
+                  </div>
+                </div>
+              )}
+
+              {/* Form Inputs Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {/* 1. Host */}
+                <div className="lg:col-span-2">
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Server className="w-3.5 h-3.5 text-emerald-400" />
+                      عنوان خادم قاعدة البيانات (Host / IP / Domain) <span className="text-rose-400">*</span>
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-mono">English letters, digits, dots, hyphens</span>
+                  </label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={dbForm.host}
+                    onChange={(e) => sanitizeDbInput('host', e.target.value)}
+                    placeholder="localhost or 127.0.0.1 or db.cloud.internal"
+                    className={`w-full bg-slate-950 border ${
+                      formErrors.dbHost ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-700'
+                    } rounded-xl px-3.5 py-2.5 text-sm text-emerald-300 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all`}
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                    <span>أمثلة: <code className="text-slate-300 bg-slate-800 px-1 rounded">localhost</code> أو <code className="text-slate-300 bg-slate-800 px-1 rounded">127.0.0.1</code> أو سيرفر LAN</span>
+                    {formErrors.dbHost && <span className="text-rose-400 font-semibold">{formErrors.dbHost}</span>}
+                  </div>
+                </div>
+
+                {/* 2. Port */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                    <span>منفذ الاتصال (Port) <span className="text-rose-400">*</span></span>
+                    <span className="text-[10px] text-emerald-400 font-mono">1 - 65535</span>
+                  </label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    maxLength={5}
+                    value={dbForm.port}
+                    onChange={(e) => sanitizeDbInput('port', e.target.value)}
+                    placeholder="5432"
+                    className={`w-full bg-slate-950 border ${
+                      formErrors.dbPort ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-700'
+                    } rounded-xl px-3.5 py-2.5 text-sm text-emerald-300 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all`}
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                    <span>الافتراضي لـ PostgreSQL هو <code className="text-slate-300 bg-slate-800 px-1 rounded">5432</code></span>
+                    {formErrors.dbPort && <span className="text-rose-400 font-semibold">{formErrors.dbPort}</span>}
+                  </div>
+                </div>
+
+                {/* 3. Database Name */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                    <span>اسم قاعدة البيانات (DB Name) <span className="text-rose-400">*</span></span>
+                    <span className="text-[10px] text-emerald-400 font-mono">a-z, 0-9, _</span>
+                  </label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={dbForm.database}
+                    onChange={(e) => sanitizeDbInput('database', e.target.value)}
+                    placeholder="orbix_erp"
+                    className={`w-full bg-slate-950 border ${
+                      formErrors.dbDatabase ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-700'
+                    } rounded-xl px-3.5 py-2.5 text-sm text-emerald-300 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all`}
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                    <span>مثال: <code className="text-slate-300 bg-slate-800 px-1 rounded">orbix_erp</code> أو <code className="text-slate-300 bg-slate-800 px-1 rounded">my_company_db</code></span>
+                    {formErrors.dbDatabase && <span className="text-rose-400 font-semibold">{formErrors.dbDatabase}</span>}
+                  </div>
+                </div>
+
+                {/* 4. Username */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                    <span>اسم المستخدم (Database User) <span className="text-rose-400">*</span></span>
+                    <span className="text-[10px] text-emerald-400 font-mono">a-z, 0-9, _</span>
+                  </label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={dbForm.user}
+                    onChange={(e) => sanitizeDbInput('user', e.target.value)}
+                    placeholder="postgres"
+                    className={`w-full bg-slate-950 border ${
+                      formErrors.dbUser ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-700'
+                    } rounded-xl px-3.5 py-2.5 text-sm text-emerald-300 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all`}
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                    <span>الافتراضي لمستخدم PostgreSQL هو <code className="text-slate-300 bg-slate-800 px-1 rounded">postgres</code></span>
+                    {formErrors.dbUser && <span className="text-rose-400 font-semibold">{formErrors.dbUser}</span>}
+                  </div>
+                </div>
+
+                {/* 5. Password */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                    <span>كلمة مرور قاعدة البيانات (Password)</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowDbPassword(!showDbPassword)}
+                      className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                    >
+                      {showDbPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      {showDbPassword ? 'إخفاء' : 'إظهار'}
+                    </button>
+                  </label>
+                  <input
+                    type={showDbPassword ? 'text' : 'password'}
+                    dir="ltr"
+                    value={dbForm.password}
+                    onChange={(e) => handleDbPasswordChange(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    كلمة المرور المشفرة للاتصال بخادم PostgreSQL
+                  </p>
+                </div>
+              </div>
+
+              {/* SSL Encryption Toggle & Test Connection Bar */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                {/* SSL Switch */}
+                <div className="flex items-center gap-3">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={dbForm.ssl}
+                      onChange={(e) => setDbForm({ ...dbForm, ssl: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                  <div>
+                    <span className="text-xs font-bold text-white block">
+                      تشفير الاتصال الآمن (SSL / TLS)
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      {dbForm.ssl
+                        ? 'مفعّل (مطلوب عند الربط مع السحابة مثل Supabase أو AWS أو Neon)'
+                        : 'معطل (موصى به للاتصال المحلي Localhost وسيرفرات الشبكة الداخلية LAN)'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Ping Button */}
+                <button
+                  type="button"
+                  onClick={handleTestDbConnection}
+                  disabled={isTestingDb}
+                  className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 text-xs font-bold px-5 py-2.5 rounded-xl border border-emerald-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isTestingDb ? 'animate-spin' : ''}`} />
+                  <span>{isTestingDb ? 'جاري اختبار الاتصال...' : 'اختبار الاتصال بقاعدة البيانات (Ping)'}</span>
+                </button>
+              </div>
+
+              {/* Live Test Result Box */}
+              {dbTestResult && (
+                <div
+                  className={`rounded-2xl p-4 border animate-in fade-in duration-200 ${
+                    dbTestResult.ok
+                      ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+                      : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {dbTestResult.ok ? (
+                      <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1 text-xs leading-relaxed">
+                      {dbTestResult.ok ? (
+                        <div>
+                          <strong className="text-white block font-bold text-sm mb-1">
+                            ✓ تم الاتصال بخادم قاعدة البيانات بنجاح تام!
+                          </strong>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 font-mono text-[11px] text-emerald-300">
+                            <div className="bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/20">
+                              <span className="text-slate-400 block text-[10px]">زمن الاستجابة:</span>
+                              <strong>{dbTestResult.latency} ms</strong>
+                            </div>
+                            <div className="bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/20">
+                              <span className="text-slate-400 block text-[10px]">اسم القاعدة:</span>
+                              <strong className="truncate block">{dbTestResult.database || dbForm.database}</strong>
+                            </div>
+                            <div className="bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/20 col-span-2 sm:col-span-1">
+                              <span className="text-slate-400 block text-[10px]">الجداول الموجودة:</span>
+                              <strong>{dbTestResult.tablesCount ?? 12} جداول</strong>
+                            </div>
+                          </div>
+                          {dbTestResult.version && (
+                            <p className="text-[10px] text-slate-400 font-mono mt-2 truncate">
+                              المحرك: {dbTestResult.version}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          <strong className="text-white block font-bold text-sm mb-1">
+                            ✕ تعذر الاتصال بخادم قاعدة البيانات
+                          </strong>
+                          <p className="text-rose-300 mt-1">{dbTestResult.error}</p>
+                          <div className="mt-2 text-[11px] text-slate-400 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800">
+                            <span className="text-slate-300 font-bold block mb-1">نصائح وإرشادات سريعة للحل:</span>
+                            <ul className="list-disc list-inside space-y-0.5">
+                              <li>تأكد من تشغيل خدمة PostgreSQL (من خلال Services أو الأمر: <code>net start postgresql-x64-18</code>).</li>
+                              <li>تأكد من صحة اسم المستخدم (<code className="text-white">postgres</code>) وكلمة المرور.</li>
+                              <li>إذا كانت قاعدة البيانات غير منشأة، سيقوم النظام بمحاولة تهيئتها أو يمكنك استخدام اسم قاعدة موجودة.</li>
+                              <li>إذا كنت تستخدم سيرفر سحابي، تأكد من تفعيل خيار تشفير SSL وقائمة الـ IP المسموحة.</li>
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* System Ready Launch Note */}
+              <div className="bg-gradient-to-r from-slate-950 via-emerald-950/30 to-slate-950 border border-slate-800 rounded-2xl p-4 flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-slate-300 leading-relaxed">
+                  <strong className="text-white block mb-0.5">الجاهزية التلقائية والتهيئة الفورية:</strong>
+                  عند الضغط على الزر أدناه، سيقوم النظام بحفظ إعداداتك تلقائياً في ملف التهيئة البيئية (<code className="text-emerald-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono">.env</code>)، وإنشاء وتأكيد الجداول الـ 12 الرسمية في قاعدة البيانات، ثم إطلاق المنظومة مباشرة بحساب المدير العام.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Navigation Controls */}
           <div className="border-t border-slate-800 pt-6 mt-8 flex items-center justify-between">
             {currentStep > 1 ? (
@@ -822,7 +1280,7 @@ export const InitialSetupWizard: React.FC = () => {
               <div />
             )}
 
-            {currentStep < 3 ? (
+            {currentStep < 4 ? (
               <button
                 type="button"
                 onClick={handleNextStep}
@@ -839,7 +1297,7 @@ export const InitialSetupWizard: React.FC = () => {
                 className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-xs sm:text-sm font-bold px-8 py-3 rounded-xl flex items-center gap-2.5 transition-all cursor-pointer shadow-xl shadow-emerald-500/25 disabled:opacity-50"
               >
                 <Sparkles className="w-4 h-4 text-slate-950" />
-                <span>{isSubmitting ? 'جاري حفظ وتفعيل النظام...' : 'حفظ وتفعيل النظام وبدء الاستخدام الفوري'}</span>
+                <span>{isSubmitting ? 'جاري حفظ الإعدادات وتشغيل النظام...' : 'حفظ الإعدادات وتشغيل النظام فوراً'}</span>
               </button>
             )}
           </div>

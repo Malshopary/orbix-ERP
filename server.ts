@@ -8,6 +8,8 @@ import { promisify } from 'util';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import pg from 'pg';
+import { resetPool } from './src/db/index.ts';
 
 const execFileAsync = promisify(execFile);
 import {
@@ -344,6 +346,197 @@ app.post('/api/tenant/test-connection', async (req, res) => {
     res.json(result);
   } catch (error: any) {
     res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Helper to safely update .env file and active process.env
+function updateEnvFile(updates: Record<string, string>) {
+  const envPath = path.resolve(process.cwd(), '.env');
+  let content = '';
+  if (fs.existsSync(envPath)) {
+    content = fs.readFileSync(envPath, 'utf8');
+  }
+
+  for (const [key, val] of Object.entries(updates)) {
+    process.env[key] = val;
+    const regex = new RegExp(`^${key}=.*$`, 'm');
+    if (regex.test(content)) {
+      content = content.replace(regex, `${key}=${val}`);
+    } else {
+      content = content.trimEnd() + `\n${key}=${val}\n`;
+    }
+  }
+
+  fs.writeFileSync(envPath, content, 'utf8');
+}
+
+// 1. Get current DB configuration for initial setup wizard
+app.get('/api/setup/db-config', (_req, res) => {
+  try {
+    res.json({
+      success: true,
+      config: {
+        host: process.env.SQL_HOST || 'localhost',
+        port: process.env.SQL_PORT || '5432',
+        database: process.env.SQL_DB_NAME || 'orbix_erp',
+        user: process.env.SQL_USER || 'postgres',
+        password: process.env.SQL_PASSWORD || '123',
+        ssl: process.env.SQL_SSL === 'true',
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 2. Test DB connection during initial setup with strict sanitization
+app.post('/api/setup/test-db', async (req, res) => {
+  try {
+    const { host, port, database, user, password, ssl } = req.body;
+
+    if (!host || !database || !user) {
+      return res.status(400).json({
+        ok: false,
+        error: 'يرجى إدخال عنوان المضيف واسم قاعدة البيانات واسم المستخدم بالكامل.',
+      });
+    }
+
+    const cleanHost = String(host).trim();
+    const cleanDb = String(database).trim();
+    const cleanUser = String(user).trim();
+    const cleanPass = String(password || '');
+
+    // Strict regex validation to block malicious characters, paths, quotes, and semicolons
+    if (!/^[a-zA-Z0-9.\-_]+$/.test(cleanHost)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'عنوان المضيف (Host) غير صالح. يُسمح فقط بالأحرف الإنجليزية، الأرقام، والنقاط والشرطات.',
+      });
+    }
+
+    const portNum = parseInt(String(port), 10);
+    if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+      return res.status(400).json({
+        ok: false,
+        error: 'منفذ الاتصال (Port) يجب أن يكون رقماً صحيحاً بين 1 و 65535.',
+      });
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(cleanDb)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'اسم قاعدة البيانات (DB Name) غير صالح. يُسمح فقط بالأحرف والأرقام الإنجليزية والشرطة السفلية (_).',
+      });
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(cleanUser)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'اسم المستخدم (User) غير صالح. يُسمح فقط بالأحرف والأرقام الإنجليزية والشرطة السفلية (_).',
+      });
+    }
+
+    if (cleanPass.includes('\0') || cleanPass.length > 512) {
+      return res.status(400).json({
+        ok: false,
+        error: 'كلمة المرور تحتوي على أحرف غير مسموح بها أو تتجاوز الطول الأقصى.',
+      });
+    }
+
+    const client = new pg.Client({
+      host: cleanHost,
+      port: portNum,
+      database: cleanDb,
+      user: cleanUser,
+      password: cleanPass,
+      ssl: ssl === true || ssl === 'true' ? { rejectUnauthorized: false } : undefined,
+      connectionTimeoutMillis: 7000,
+    });
+
+    const start = Date.now();
+    await client.connect();
+    const verRes = await client.query('SELECT version() as ver, current_database() as db;');
+    const tablesRes = await client.query("SELECT count(*) as count FROM information_schema.tables WHERE table_schema = 'public';");
+    const latency = Date.now() - start;
+    const tablesCount = parseInt(tablesRes.rows[0]?.count || '0', 10);
+    await client.end();
+
+    return res.json({
+      ok: true,
+      latency,
+      database: verRes.rows[0]?.db,
+      version: verRes.rows[0]?.ver?.split(',')[0],
+      tablesCount,
+      message: 'تم الاتصال بقاعدة البيانات بنجاح تام!',
+    });
+  } catch (err: any) {
+    console.error('Setup test-db error:', err?.message || err);
+    return res.status(400).json({
+      ok: false,
+      error: err?.message || 'فشل الاتصال بخادم قاعدة البيانات. يرجى التأكد من تشغيل السيرفر وصحة البيانات.',
+    });
+  }
+});
+
+// 3. Save DB configuration and auto-provision tables
+app.post('/api/setup/save-db-config', async (req, res) => {
+  try {
+    const { host, port, database, user, password, ssl } = req.body;
+
+    if (!host || !database || !user) {
+      return res.status(400).json({
+        ok: false,
+        error: 'يرجى إكمال كافة حقول الاتصال بقاعدة البيانات.',
+      });
+    }
+
+    const cleanHost = String(host).trim();
+    const cleanDb = String(database).trim();
+    const cleanUser = String(user).trim();
+    const cleanPass = String(password || '');
+
+    if (!/^[a-zA-Z0-9.\-_]+$/.test(cleanHost) || !/^[a-zA-Z0-9_]+$/.test(cleanDb) || !/^[a-zA-Z0-9_]+$/.test(cleanUser)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'المدخلات تحتوي على رموز غير مسموح بها لحماية أمان قاعدة البيانات.',
+      });
+    }
+
+    const portNum = parseInt(String(port), 10);
+    if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+      return res.status(400).json({
+        ok: false,
+        error: 'منفذ الاتصال (Port) غير صالح.',
+      });
+    }
+
+    // Save to .env and active runtime environment
+    updateEnvFile({
+      SQL_HOST: cleanHost,
+      SQL_PORT: String(portNum),
+      SQL_DB_NAME: cleanDb,
+      SQL_USER: cleanUser,
+      SQL_PASSWORD: cleanPass,
+      SQL_SSL: ssl === true || ssl === 'true' ? 'true' : 'false',
+    });
+
+    // Reinitialize pool
+    await resetPool();
+
+    // Auto-provision core 12 tables
+    const tableResult = await ensureCoreTablesExist();
+
+    return res.json({
+      ok: true,
+      message: 'تم حفظ إعدادات قاعدة البيانات وتهيئة الجداول بنجاح!',
+      tablesReady: tableResult.ok,
+    });
+  } catch (err: any) {
+    console.error('Setup save-db-config error:', err?.message || err);
+    return res.status(500).json({
+      ok: false,
+      error: err?.message || 'فشل حفظ إعدادات قاعدة البيانات.',
+    });
   }
 });
 
