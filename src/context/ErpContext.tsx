@@ -10047,7 +10047,19 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (parsed.currency) setCurrency(parsed.currency);
       if (parsed.currencies && Array.isArray(parsed.currencies)) setCurrencies(parsed.currencies);
       if (parsed.secondaryCurrency) setSecondaryCurrency(parsed.secondaryCurrency);
-      if (parsed.users && Array.isArray(parsed.users)) setUsers(parsed.users);
+      if (parsed.users && Array.isArray(parsed.users)) {
+        setUsers(parsed.users);
+        if (parsed.users.length > 0) {
+          setIsSetupCompleted(true);
+          localStorage.setItem(`${STORAGE_PREFIX}setup_completed`, 'true');
+          localStorage.setItem(`${STORAGE_PREFIX}users`, JSON.stringify(parsed.users));
+          const adminOrFirst = parsed.users.find((u: any) => u.role === 'admin' && u.isActive) || parsed.users[0];
+          if (adminOrFirst) {
+            setCurrentUser(adminOrFirst);
+            localStorage.setItem(`${STORAGE_PREFIX}current_user`, JSON.stringify(adminOrFirst));
+          }
+        }
+      }
       if (parsed.accounts && Array.isArray(parsed.accounts)) setAccounts(parsed.accounts);
       if (parsed.journalEntries && Array.isArray(parsed.journalEntries)) setJournalEntries(parsed.journalEntries);
       if (parsed.products && Array.isArray(parsed.products)) setProducts(parsed.products);
@@ -10081,6 +10093,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (parsed.auditLogs && Array.isArray(parsed.auditLogs)) setAuditLogs(parsed.auditLogs);
 
       logAuditEvent('استرجاع نسخة احتياطية', 'قاعدة البيانات والحماية', 'تم استرجاع قاعدة البيانات بالكامل من ملف خارجي بنجاح.');
+
+      setTimeout(() => {
+        pushCentralState().catch(() => {});
+      }, 600);
 
       return {
         success: true,

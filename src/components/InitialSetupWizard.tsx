@@ -23,7 +23,10 @@ import {
   Eye,
   EyeOff,
   FolderTree,
-  DollarSign
+  DollarSign,
+  Upload,
+  Database,
+  RefreshCw,
 } from 'lucide-react';
 import { AppUser, CompanyProfile } from '../types';
 
@@ -33,6 +36,8 @@ export const InitialSetupWizard: React.FC = () => {
     currencies,
     accounts,
     completeInitialSetup,
+    restoreBackupJSON,
+    showAlert,
   } = useErp();
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -71,6 +76,66 @@ export const InitialSetupWizard: React.FC = () => {
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isCheckingDb, setIsCheckingDb] = useState<boolean>(false);
+  const [isRestoringFile, setIsRestoringFile] = useState<boolean>(false);
+
+  // Restore backup JSON file directly from setup wizard
+  const handleRestoreFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsRestoringFile(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const res = restoreBackupJSON(content);
+        if (res.success) {
+          showAlert('success', 'تم استرجاع البيانات بنجاح', res.message);
+        } else {
+          showAlert('error', 'فشل استرجاع النسخة', res.message);
+        }
+      } catch (err: any) {
+        showAlert('error', 'خطأ في معالجة الملف', err?.message || 'الملف المختار غير صالح');
+      } finally {
+        setIsRestoringFile(false);
+        e.target.value = '';
+      }
+    };
+    reader.onerror = () => {
+      showAlert('error', 'فشل قراءة الملف', 'تعذر قراءة ملف النسخة الاحتياطية.');
+      setIsRestoringFile(false);
+      e.target.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  // Sync existing state from central PostgreSQL DB
+  const handleSyncFromDb = async () => {
+    setIsCheckingDb(true);
+    try {
+      const res = await fetch('/api/sync/state');
+      if (!res.ok) throw new Error('تعذر الاتصال بخادم قاعدة البيانات');
+      const data = await res.json();
+      if (data?.success && data?.state && Array.isArray(data.state.users) && data.state.users.length > 0) {
+        const stateStr = JSON.stringify(data.state);
+        const restoreRes = restoreBackupJSON(stateStr);
+        if (restoreRes.success) {
+          showAlert('success', 'تم جلب البيانات بنجاح!', 'تم العثور على قاعدة بيانات المنشأة السابقة واستيرادها بالكامل بنجاح.');
+          return;
+        }
+      }
+      showAlert(
+        'info',
+        'لم يتم العثور على بيانات سابقة',
+        'خادم قاعدة البيانات متصل ولكنه لا يحتوي على بيانات منشأة مسجلة مسبقاً. يرجى إكمال المعالج لتأسيس شركتك الأولى، أو استرجاع ملف نسخة احتياطية (.json).'
+      );
+    } catch (err: any) {
+      showAlert('error', 'خطأ في الاتصال بقاعدة البيانات', err?.message || 'تعذر جلب البيانات من الخادم.');
+    } finally {
+      setIsCheckingDb(false);
+    }
+  };
 
   // Validate Step 1
   const validateStep1 = (): boolean => {
@@ -272,6 +337,53 @@ export const InitialSetupWizard: React.FC = () => {
                 <p className="text-xs sm:text-sm text-slate-400 mt-1">
                   أدخل البيانات الرسمية للمؤسسة لطباعتها تلقائياً على الفواتير، عروض الأسعار، وسندات القبض والصرف.
                 </p>
+              </div>
+
+              {/* Quick Restore from Backup or Existing DB Banner */}
+              <div className="bg-gradient-to-r from-emerald-950/40 via-slate-900/90 to-indigo-950/40 border border-emerald-500/30 rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden">
+                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                      <Database className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                        لديك بيانات سابقة أو قمت بتثبيت النظام من جديد؟
+                        <span className="text-[10px] bg-emerald-500/25 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/40 font-bold">
+                          دخول فوري
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                        لست بحاجة لتسجيل بياناتك من الصفر مجدداً! يمكنك استرجاع ملف نسختك الاحتياطية السابقة، أو سحب بياناتك فوراً من خادم PostgreSQL.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto shrink-0">
+                    <label className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer shadow-md transition-all active:scale-98">
+                      <Upload className={`w-4 h-4 ${isRestoringFile ? 'animate-bounce' : ''}`} />
+                      <span>{isRestoringFile ? 'جاري الاسترجاع...' : 'استرجاع نسخة احتياطية (.json)'}</span>
+                      <input
+                        type="file"
+                        accept=".json"
+                        onChange={handleRestoreFile}
+                        disabled={isRestoringFile}
+                        className="hidden"
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={handleSyncFromDb}
+                      disabled={isCheckingDb}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-4 py-2.5 rounded-xl border border-slate-700 transition-all cursor-pointer disabled:opacity-50"
+                      title="فحص قاعدة بيانات PostgreSQL وجلب بيانات الشركة السابقة"
+                    >
+                      <RefreshCw className={`w-4 h-4 text-emerald-400 ${isCheckingDb ? 'animate-spin' : ''}`} />
+                      <span>{isCheckingDb ? 'جاري الفحص...' : 'فحص قاعدة البيانات (Sync)'}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
