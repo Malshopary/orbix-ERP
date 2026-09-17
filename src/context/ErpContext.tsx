@@ -1208,12 +1208,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}journal_entries`);
-    return saved ? JSON.parse(saved) : INITIAL_JOURNAL_ENTRIES;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}products`);
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>(() => {
@@ -1223,27 +1223,27 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [stockTransfers, setStockTransfers] = useState<StockTransfer[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}stock_transfers`);
-    return saved ? JSON.parse(saved) : INITIAL_STOCK_TRANSFERS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [stocktakingSessions, setStocktakingSessions] = useState<StocktakingSession[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}stocktaking_sessions`);
-    return saved ? JSON.parse(saved) : INITIAL_STOCKTAKING_SESSIONS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [stockAdjustments, setStockAdjustments] = useState<StockAdjustment[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}stock_adjustments`);
-    return saved ? JSON.parse(saved) : INITIAL_STOCK_ADJUSTMENTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [scrapVouchers, setScrapVouchers] = useState<ScrapVoucher[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}scrap_vouchers`);
-    return saved ? JSON.parse(saved) : INITIAL_SCRAP_VOUCHERS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [productBatches, setProductBatches] = useState<ProductBatch[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}product_batches`);
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCT_BATCHES;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
@@ -1253,99 +1253,99 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}customers`);
-    return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [vendors, setVendors] = useState<Vendor[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}vendors`);
-    return saved ? JSON.parse(saved) : INITIAL_VENDORS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [salesInvoices, setSalesInvoices] = useState<SalesInvoice[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}sales_invoices`);
-    return saved ? JSON.parse(saved) : INITIAL_INVOICES;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [quotations, setQuotations] = useState<Quotation[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}quotations`);
-    return saved ? JSON.parse(saved) : INITIAL_QUOTATIONS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}sales_orders`);
-    return saved ? JSON.parse(saved) : INITIAL_SALES_ORDERS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoice[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}purchase_invoices`);
-    return saved ? JSON.parse(saved) : INITIAL_PURCHASES;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [receipts, setReceipts] = useState<PaymentReceipt[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}receipts`);
-    return saved ? JSON.parse(saved) : INITIAL_RECEIPTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [cheques, setCheques] = useState<ChequeItem[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}cheques`);
-    return saved ? JSON.parse(saved) : INITIAL_CHEQUES;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [bankReconciliations, setBankReconciliations] = useState<BankReconciliationStatement[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}bank_reconciliations`);
-    return saved ? JSON.parse(saved) : INITIAL_BANK_RECONCILIATIONS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [costCenters, setCostCenters] = useState<CostCenter[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}cost_centers`);
-    return saved ? JSON.parse(saved) : INITIAL_COST_CENTERS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [fixedAssets, setFixedAssets] = useState<FixedAsset[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}fixed_assets`);
-    return saved ? JSON.parse(saved) : INITIAL_FIXED_ASSETS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [assetDepreciationRuns, setAssetDepreciationRuns] = useState<AssetDepreciationRun[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}asset_depreciation_runs`);
-    return saved ? JSON.parse(saved) : INITIAL_ASSET_DEPRECIATION_RUNS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   // Item 4: Purchasing & AP states
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}purchase_orders`);
-    return saved ? JSON.parse(saved) : INITIAL_PURCHASE_ORDERS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [goodsReceipts, setGoodsReceipts] = useState<GoodsReceiptNote[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}goods_receipts`);
-    return saved ? JSON.parse(saved) : INITIAL_GOODS_RECEIPTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [landedCosts, setLandedCosts] = useState<LandedCostAllocation[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}landed_costs`);
-    return saved ? JSON.parse(saved) : INITIAL_LANDED_COSTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [purchaseReturns, setPurchaseReturns] = useState<PurchaseReturn[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}purchase_returns`);
-    return saved ? JSON.parse(saved) : INITIAL_PURCHASE_RETURNS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   // Item 5: CRM & Collection Plans states
   const [collectionPlans, setCollectionPlans] = useState<CollectionPlan[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}collection_plans`);
-    return saved ? JSON.parse(saved) : INITIAL_COLLECTION_PLANS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [collectionReminders, setCollectionReminders] = useState<CollectionReminderLog[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}collection_reminders`);
-    return saved ? JSON.parse(saved) : INITIAL_COLLECTION_REMINDER_LOGS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [employees, setEmployees] = useState<Employee[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}employees`);
-    return saved ? JSON.parse(saved) : INITIAL_EMPLOYEES;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>(() => {
@@ -1355,72 +1355,72 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [attendances, setAttendances] = useState<EmployeeAttendance[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}attendances`);
-    return saved ? JSON.parse(saved) : INITIAL_ATTENDANCE;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}leave_requests`);
-    return saved ? JSON.parse(saved) : INITIAL_LEAVE_REQUESTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [employeeLoans, setEmployeeLoans] = useState<EmployeeLoan[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}employee_loans`);
-    return saved ? JSON.parse(saved) : INITIAL_EMPLOYEE_LOANS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [employeeAdjustments, setEmployeeAdjustments] = useState<EmployeeAdjustment[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}employee_adjustments`);
-    return saved ? JSON.parse(saved) : INITIAL_EMPLOYEE_ADJUSTMENTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [employeeCustodies, setEmployeeCustodies] = useState<EmployeeCustody[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}employee_custodies`);
-    return saved ? JSON.parse(saved) : INITIAL_EMPLOYEE_CUSTODIES;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [employeeDocuments, setEmployeeDocuments] = useState<EmployeeDocument[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}employee_documents`);
-    return saved ? JSON.parse(saved) : INITIAL_EMPLOYEE_DOCUMENTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [priceLists, setPriceLists] = useState<PriceList[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}price_lists`);
-    return saved ? JSON.parse(saved) : INITIAL_PRICE_LISTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [salesReturns, setSalesReturns] = useState<SalesReturn[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}sales_returns`);
-    return saved ? JSON.parse(saved) : INITIAL_SALES_RETURNS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [salesReps, setSalesReps] = useState<SalesRep[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}sales_reps`);
-    return saved ? JSON.parse(saved) : INITIAL_SALES_REPS;
+    return saved ? JSON.parse(saved) : [];
   });
 
-  const [crmLeads, setCrmLeads] = useState<CRMLead[]>(() => {
+  const [crmLeads, setCRMLeads] = useState<CRMLead[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}crm_leads`);
-    return saved ? JSON.parse(saved) : INITIAL_CRM_LEADS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [crmInteractions, setCrmInteractions] = useState<CRMInteraction[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}crm_interactions`);
-    return saved ? JSON.parse(saved) : INITIAL_CRM_INTERACTIONS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [crmTickets, setCrmTickets] = useState<CRMTicket[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}crm_tickets`);
-    return saved ? JSON.parse(saved) : INITIAL_CRM_TICKETS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [loyaltyTransactions, setLoyaltyTransactions] = useState<LoyaltyTransaction[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}loyalty_transactions`);
-    return saved ? JSON.parse(saved) : INITIAL_LOYALTY_TRANSACTIONS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [commissionPayments, setCommissionPayments] = useState<CommissionPayment[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}commission_payments`);
-    return saved ? JSON.parse(saved) : INITIAL_COMMISSION_PAYMENTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>(() => {
@@ -9927,6 +9927,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSalesReps([]);
         setSalesReturns([]);
         setPayrollRuns([]);
+        setCollectionPlans([]);
+        setCollectionReminders([]);
         setCrmLeads([]);
         setCrmInteractions([]);
         setCrmTickets([]);

@@ -25,6 +25,7 @@ import {
   insertDbChatMessage,
   ensureCoreTablesExist,
   purgeAllDbData,
+  syncSnapshotToRelationalTables,
 } from './src/db/erp.ts';
 import { getOrCreateUser } from './src/db/users.ts';
 import {
@@ -247,6 +248,8 @@ app.post('/api/sync/state', async (req, res) => {
       return res.status(400).json({ error: 'State payload is required' });
     }
     await setSyncPayload('orbix_erp_cloud_snapshot', state);
+    // Simultaneously sync all records into their dedicated relational PostgreSQL tables
+    syncSnapshotToRelationalTables(state).catch((e) => console.warn('Relational sync error:', e));
     res.json({ success: true, message: 'Cloud database updated successfully' });
   } catch (error: any) {
     console.error('Error saving cloud state:', error);

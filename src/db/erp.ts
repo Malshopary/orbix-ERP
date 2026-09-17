@@ -394,6 +394,103 @@ export async function ensureCoreTablesExist() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS receipts (
+        id TEXT PRIMARY KEY,
+        receipt_number TEXT NOT NULL,
+        type TEXT NOT NULL,
+        party_id TEXT,
+        party_name TEXT NOT NULL,
+        sales_rep_id TEXT,
+        sales_rep_name TEXT,
+        invoice_id TEXT,
+        amount DOUBLE PRECISION DEFAULT 0 NOT NULL,
+        payment_method TEXT DEFAULT 'cash' NOT NULL,
+        date TEXT NOT NULL,
+        reference_number TEXT,
+        account_id TEXT NOT NULL,
+        account_name TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS collection_plans (
+        id TEXT PRIMARY KEY,
+        plan_number TEXT NOT NULL,
+        customer_id TEXT NOT NULL,
+        customer_name TEXT NOT NULL,
+        total_debt DOUBLE PRECISION DEFAULT 0 NOT NULL,
+        total_amount DOUBLE PRECISION DEFAULT 0,
+        collected_amount DOUBLE PRECISION DEFAULT 0,
+        agreement_date TEXT,
+        start_date TEXT,
+        sales_invoice_id TEXT,
+        invoice_number TEXT,
+        installments JSONB DEFAULT '[]'::jsonb NOT NULL,
+        status TEXT DEFAULT 'active' NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS collection_reminders (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL,
+        customer_name TEXT NOT NULL,
+        phone TEXT,
+        plan_id TEXT,
+        channel TEXT DEFAULT 'whatsapp' NOT NULL,
+        scheduled_date TEXT,
+        date TEXT,
+        due_amount DOUBLE PRECISION DEFAULT 0,
+        status TEXT DEFAULT 'scheduled' NOT NULL,
+        promised_date TEXT,
+        collector_name TEXT,
+        notes TEXT,
+        message_text TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS employees (
+        id TEXT PRIMARY KEY,
+        employee_code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        national_id TEXT,
+        phone TEXT,
+        email TEXT,
+        department TEXT,
+        job_title TEXT,
+        basic_salary DOUBLE PRECISION DEFAULT 0,
+        status TEXT DEFAULT 'active' NOT NULL,
+        hire_date TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS cheques (
+        id TEXT PRIMARY KEY,
+        cheque_number TEXT NOT NULL,
+        type TEXT NOT NULL,
+        bank_name TEXT NOT NULL,
+        amount DOUBLE PRECISION DEFAULT 0 NOT NULL,
+        due_date TEXT NOT NULL,
+        issue_date TEXT,
+        party_id TEXT,
+        party_name TEXT NOT NULL,
+        status TEXT DEFAULT 'pending' NOT NULL,
+        account_id TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS price_lists (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        code TEXT,
+        currency TEXT DEFAULT 'EGP',
+        is_default BOOLEAN DEFAULT FALSE,
+        is_active BOOLEAN DEFAULT TRUE,
+        items JSONB DEFAULT '[]'::jsonb NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS app_sync_store (
         key TEXT PRIMARY KEY,
         payload JSONB NOT NULL,
@@ -403,11 +500,391 @@ export async function ensureCoreTablesExist() {
     `;
 
     await pool.query(ddl);
-    console.log('✓ All 12 core PostgreSQL tables verified & ready.');
+    console.log('✓ All 18 core PostgreSQL tables verified & ready.');
     return { ok: true };
   } catch (error: any) {
     console.error('Warning during ensureCoreTablesExist:', error.message);
     return { ok: false, error: error.message };
+  }
+}
+
+// Synchronize frontend snapshot entities directly into relational tables
+export async function syncSnapshotToRelationalTables(state: any) {
+  if (!state || typeof state !== 'object') return;
+  const pool = createPool();
+
+  try {
+    // 1. Sync Customers
+    if (Array.isArray(state.customers)) {
+      for (const c of state.customers) {
+        if (!c?.id) continue;
+        await pool.query(
+          `INSERT INTO customers (id, name, code, phone, email, tax_number, credit_limit, balance, address, category, payment_terms, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+           ON CONFLICT (id) DO UPDATE SET
+             name = EXCLUDED.name,
+             code = EXCLUDED.code,
+             phone = EXCLUDED.phone,
+             email = EXCLUDED.email,
+             tax_number = EXCLUDED.tax_number,
+             credit_limit = EXCLUDED.credit_limit,
+             balance = EXCLUDED.balance,
+             address = EXCLUDED.address,
+             category = EXCLUDED.category,
+             payment_terms = EXCLUDED.payment_terms,
+             status = EXCLUDED.status;`,
+          [
+            String(c.id),
+            String(c.name || 'عميل'),
+            c.code || null,
+            c.phone || null,
+            c.email || null,
+            c.taxNumber || null,
+            Number(c.creditLimit) || 0,
+            Number(c.balance) || 0,
+            c.address || null,
+            c.category || null,
+            c.paymentTerms || null,
+            c.status || 'active',
+          ]
+        );
+      }
+      if (state.customers.length === 0) {
+        await pool.query('DELETE FROM customers;');
+      } else {
+        const ids = state.customers.map((c: any) => c.id).filter(Boolean);
+        if (ids.length > 0) {
+          await pool.query('DELETE FROM customers WHERE id NOT IN (' + ids.map((_: any, idx: number) => `$${idx + 1}`).join(',') + ');', ids);
+        }
+      }
+    }
+
+    // 2. Sync Vendors
+    if (Array.isArray(state.vendors)) {
+      for (const v of state.vendors) {
+        if (!v?.id) continue;
+        await pool.query(
+          `INSERT INTO vendors (id, name, code, phone, email, tax_number, balance, address, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           ON CONFLICT (id) DO UPDATE SET
+             name = EXCLUDED.name,
+             code = EXCLUDED.code,
+             phone = EXCLUDED.phone,
+             email = EXCLUDED.email,
+             tax_number = EXCLUDED.tax_number,
+             balance = EXCLUDED.balance,
+             address = EXCLUDED.address,
+             status = EXCLUDED.status;`,
+          [
+            String(v.id),
+            String(v.name || 'مورد'),
+            v.code || null,
+            v.phone || null,
+            v.email || null,
+            v.taxNumber || null,
+            Number(v.balance) || 0,
+            v.address || null,
+            v.status || 'active',
+          ]
+        );
+      }
+      if (state.vendors.length === 0) {
+        await pool.query('DELETE FROM vendors;');
+      } else {
+        const ids = state.vendors.map((v: any) => v.id).filter(Boolean);
+        if (ids.length > 0) {
+          await pool.query('DELETE FROM vendors WHERE id NOT IN (' + ids.map((_: any, idx: number) => `$${idx + 1}`).join(',') + ');', ids);
+        }
+      }
+    }
+
+    // 3. Sync Products
+    if (Array.isArray(state.products)) {
+      for (const p of state.products) {
+        if (!p?.id) continue;
+        await pool.query(
+          `INSERT INTO products (id, name, sku, barcode, category, unit, cost_price, selling_price, min_stock_alert, total_stock, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+           ON CONFLICT (id) DO UPDATE SET
+             name = EXCLUDED.name,
+             sku = EXCLUDED.sku,
+             barcode = EXCLUDED.barcode,
+             category = EXCLUDED.category,
+             unit = EXCLUDED.unit,
+             cost_price = EXCLUDED.cost_price,
+             selling_price = EXCLUDED.selling_price,
+             min_stock_alert = EXCLUDED.min_stock_alert,
+             total_stock = EXCLUDED.total_stock,
+             is_active = EXCLUDED.is_active;`,
+          [
+            String(p.id),
+            String(p.name || 'منتج'),
+            p.sku || null,
+            p.barcode || null,
+            p.category || null,
+            p.unit || 'قطعة',
+            Number(p.costPrice) || 0,
+            Number(p.sellingPrice) || 0,
+            Number(p.minStockAlert) || 5,
+            Number(p.totalStock) || 0,
+            p.isActive !== false,
+          ]
+        );
+      }
+      if (state.products.length === 0) {
+        await pool.query('DELETE FROM products;');
+      } else {
+        const ids = state.products.map((p: any) => p.id).filter(Boolean);
+        if (ids.length > 0) {
+          await pool.query('DELETE FROM products WHERE id NOT IN (' + ids.map((_: any, idx: number) => `$${idx + 1}`).join(',') + ');', ids);
+        }
+      }
+    }
+
+    // 4. Sync Sales Invoices
+    if (Array.isArray(state.salesInvoices)) {
+      for (const inv of state.salesInvoices) {
+        if (!inv?.id) continue;
+        await pool.query(
+          `INSERT INTO sales_invoices (id, invoice_number, customer_id, customer_name, date, due_date, subtotal, tax_total, discount_total, total, paid_amount, balance_due, payment_method, status, items_json)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+           ON CONFLICT (id) DO UPDATE SET
+             invoice_number = EXCLUDED.invoice_number,
+             customer_id = EXCLUDED.customer_id,
+             customer_name = EXCLUDED.customer_name,
+             date = EXCLUDED.date,
+             due_date = EXCLUDED.due_date,
+             subtotal = EXCLUDED.subtotal,
+             tax_total = EXCLUDED.tax_total,
+             discount_total = EXCLUDED.discount_total,
+             total = EXCLUDED.total,
+             paid_amount = EXCLUDED.paid_amount,
+             balance_due = EXCLUDED.balance_due,
+             payment_method = EXCLUDED.payment_method,
+             status = EXCLUDED.status,
+             items_json = EXCLUDED.items_json;`,
+          [
+            String(inv.id),
+            String(inv.invoiceNumber || inv.id),
+            inv.customerId || null,
+            String(inv.customerName || 'عميل نقدي'),
+            inv.date || new Date().toISOString().split('T')[0],
+            inv.dueDate || null,
+            Number(inv.subtotal) || 0,
+            Number(inv.taxTotal || inv.tax) || 0,
+            Number(inv.discountTotal || inv.discount) || 0,
+            Number(inv.total) || 0,
+            Number(inv.paidAmount) || 0,
+            Number(inv.balanceDue || (Number(inv.total) || 0) - (Number(inv.paidAmount) || 0)),
+            inv.paymentMethod || 'cash',
+            inv.status || 'paid',
+            JSON.stringify(inv.items || []),
+          ]
+        );
+      }
+      if (state.salesInvoices.length === 0) {
+        await pool.query('DELETE FROM sales_invoices;');
+      } else {
+        const ids = state.salesInvoices.map((i: any) => i.id).filter(Boolean);
+        if (ids.length > 0) {
+          await pool.query('DELETE FROM sales_invoices WHERE id NOT IN (' + ids.map((_: any, idx: number) => `$${idx + 1}`).join(',') + ');', ids);
+        }
+      }
+    }
+
+    // 5. Sync Receipts (سندات القبض والصرف)
+    if (Array.isArray(state.receipts)) {
+      for (const r of state.receipts) {
+        if (!r?.id) continue;
+        await pool.query(
+          `INSERT INTO receipts (id, receipt_number, type, party_id, party_name, sales_rep_id, sales_rep_name, invoice_id, amount, payment_method, date, reference_number, account_id, account_name, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+           ON CONFLICT (id) DO UPDATE SET
+             receipt_number = EXCLUDED.receipt_number,
+             type = EXCLUDED.type,
+             party_id = EXCLUDED.party_id,
+             party_name = EXCLUDED.party_name,
+             sales_rep_id = EXCLUDED.sales_rep_id,
+             sales_rep_name = EXCLUDED.sales_rep_name,
+             invoice_id = EXCLUDED.invoice_id,
+             amount = EXCLUDED.amount,
+             payment_method = EXCLUDED.payment_method,
+             date = EXCLUDED.date,
+             reference_number = EXCLUDED.reference_number,
+             account_id = EXCLUDED.account_id,
+             account_name = EXCLUDED.account_name,
+             notes = EXCLUDED.notes;`,
+          [
+            String(r.id),
+            String(r.receiptNumber || r.id),
+            String(r.type || 'collection'),
+            r.partyId || null,
+            String(r.partyName || ''),
+            r.salesRepId || null,
+            r.salesRepName || null,
+            r.invoiceId || null,
+            Number(r.amount) || 0,
+            String(r.paymentMethod || 'cash'),
+            String(r.date || new Date().toISOString().split('T')[0]),
+            r.referenceNumber || null,
+            String(r.accountId || 'acc-cash'),
+            r.accountName || null,
+            r.notes || null,
+          ]
+        );
+      }
+      if (state.receipts.length === 0) {
+        await pool.query('DELETE FROM receipts;');
+      } else {
+        const ids = state.receipts.map((r: any) => r.id).filter(Boolean);
+        if (ids.length > 0) {
+          await pool.query('DELETE FROM receipts WHERE id NOT IN (' + ids.map((_: any, idx: number) => `$${idx + 1}`).join(',') + ');', ids);
+        }
+      }
+    }
+
+    // 6. Sync Collection Plans (خطط وجدولة التحصيل)
+    if (Array.isArray(state.collectionPlans)) {
+      for (const cp of state.collectionPlans) {
+        if (!cp?.id) continue;
+        await pool.query(
+          `INSERT INTO collection_plans (id, plan_number, customer_id, customer_name, total_debt, total_amount, collected_amount, agreement_date, start_date, sales_invoice_id, invoice_number, installments, status, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+           ON CONFLICT (id) DO UPDATE SET
+             plan_number = EXCLUDED.plan_number,
+             customer_id = EXCLUDED.customer_id,
+             customer_name = EXCLUDED.customer_name,
+             total_debt = EXCLUDED.total_debt,
+             total_amount = EXCLUDED.total_amount,
+             collected_amount = EXCLUDED.collected_amount,
+             agreement_date = EXCLUDED.agreement_date,
+             start_date = EXCLUDED.start_date,
+             sales_invoice_id = EXCLUDED.sales_invoice_id,
+             invoice_number = EXCLUDED.invoice_number,
+             installments = EXCLUDED.installments,
+             status = EXCLUDED.status,
+             notes = EXCLUDED.notes;`,
+          [
+            String(cp.id),
+            String(cp.planNumber || cp.id),
+            String(cp.customerId || ''),
+            String(cp.customerName || ''),
+            Number(cp.totalDebt) || 0,
+            Number(cp.totalAmount || cp.totalDebt) || 0,
+            Number(cp.collectedAmount) || 0,
+            cp.agreementDate || null,
+            cp.startDate || null,
+            cp.salesInvoiceId || null,
+            cp.invoiceNumber || null,
+            JSON.stringify(cp.installments || []),
+            cp.status || 'active',
+            cp.notes || null,
+          ]
+        );
+      }
+      if (state.collectionPlans.length === 0) {
+        await pool.query('DELETE FROM collection_plans;');
+      } else {
+        const ids = state.collectionPlans.map((cp: any) => cp.id).filter(Boolean);
+        if (ids.length > 0) {
+          await pool.query('DELETE FROM collection_plans WHERE id NOT IN (' + ids.map((_: any, idx: number) => `$${idx + 1}`).join(',') + ');', ids);
+        }
+      }
+    }
+
+    // 7. Sync Collection Reminders (تذكيرات التحصيل)
+    if (Array.isArray(state.collectionReminders)) {
+      for (const cr of state.collectionReminders) {
+        if (!cr?.id) continue;
+        await pool.query(
+          `INSERT INTO collection_reminders (id, customer_id, customer_name, phone, plan_id, channel, scheduled_date, date, due_amount, status, promised_date, collector_name, notes, message_text)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+           ON CONFLICT (id) DO UPDATE SET
+             customer_id = EXCLUDED.customer_id,
+             customer_name = EXCLUDED.customer_name,
+             phone = EXCLUDED.phone,
+             plan_id = EXCLUDED.plan_id,
+             channel = EXCLUDED.channel,
+             scheduled_date = EXCLUDED.scheduled_date,
+             date = EXCLUDED.date,
+             due_amount = EXCLUDED.due_amount,
+             status = EXCLUDED.status,
+             promised_date = EXCLUDED.promised_date,
+             collector_name = EXCLUDED.collector_name,
+             notes = EXCLUDED.notes,
+             message_text = EXCLUDED.message_text;`,
+          [
+            String(cr.id),
+            String(cr.customerId || ''),
+            String(cr.customerName || ''),
+            cr.phone || null,
+            cr.planId || null,
+            cr.channel || 'whatsapp',
+            cr.scheduledDate || null,
+            cr.date || null,
+            Number(cr.dueAmount || cr.amountDue) || 0,
+            cr.status || 'scheduled',
+            cr.promisedDate || null,
+            cr.collectorName || cr.agentName || null,
+            cr.notes || null,
+            cr.messageText || null,
+          ]
+        );
+      }
+      if (state.collectionReminders.length === 0) {
+        await pool.query('DELETE FROM collection_reminders;');
+      } else {
+        const ids = state.collectionReminders.map((cr: any) => cr.id).filter(Boolean);
+        if (ids.length > 0) {
+          await pool.query('DELETE FROM collection_reminders WHERE id NOT IN (' + ids.map((_: any, idx: number) => `$${idx + 1}`).join(',') + ');', ids);
+        }
+      }
+    }
+
+    // 8. Sync Employees (الموظفين)
+    if (Array.isArray(state.employees)) {
+      for (const emp of state.employees) {
+        if (!emp?.id) continue;
+        await pool.query(
+          `INSERT INTO employees (id, employee_code, name, national_id, phone, email, department, job_title, basic_salary, status, hire_date)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+           ON CONFLICT (id) DO UPDATE SET
+             employee_code = EXCLUDED.employee_code,
+             name = EXCLUDED.name,
+             national_id = EXCLUDED.national_id,
+             phone = EXCLUDED.phone,
+             email = EXCLUDED.email,
+             department = EXCLUDED.department,
+             job_title = EXCLUDED.job_title,
+             basic_salary = EXCLUDED.basic_salary,
+             status = EXCLUDED.status,
+             hire_date = EXCLUDED.hire_date;`,
+          [
+            String(emp.id),
+            String(emp.employeeCode || emp.code || emp.id),
+            String(emp.name || ''),
+            emp.nationalId || null,
+            emp.phone || null,
+            emp.email || null,
+            emp.department || null,
+            emp.jobTitle || null,
+            Number(emp.basicSalary) || 0,
+            emp.status || 'active',
+            emp.hireDate || null,
+          ]
+        );
+      }
+      if (state.employees.length === 0) {
+        await pool.query('DELETE FROM employees;');
+      } else {
+        const ids = state.employees.map((e: any) => e.id).filter(Boolean);
+        if (ids.length > 0) {
+          await pool.query('DELETE FROM employees WHERE id NOT IN (' + ids.map((_: any, idx: number) => `$${idx + 1}`).join(',') + ');', ids);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Sync Relational Tables Warning]:', err?.message || err);
   }
 }
 
@@ -432,10 +909,19 @@ export async function purgeAllDbData() {
       'customers',
       'vendors',
       'products',
+      'receipts',
+      'collection_plans',
+      'collection_reminders',
+      'employees',
+      'cheques',
+      'price_lists',
       'employee_tasks',
       'chat_messages',
-      'app_sync_store',
+      'journal_entries',
+      'accounts',
+      'warehouses',
       'users',
+      'app_sync_store',
     ];
     for (const table of tables) {
       try {
@@ -446,7 +932,7 @@ export async function purgeAllDbData() {
         } catch {}
       }
     }
-    console.log('✓ All database tables completely purged and reset for new client.');
+    console.log('✓ All 18 database tables completely purged and reset for new client.');
     return { ok: true };
   } catch (error: any) {
     console.error('Error in purgeAllDbData:', error);

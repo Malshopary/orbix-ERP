@@ -183,3 +183,106 @@ export const chatMessages = pgTable('chat_messages', {
   taskId: text('task_id'),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+// Receipts table (سندات القبض والصرف)
+export const receipts = pgTable('receipts', {
+  id: text('id').primaryKey(),
+  receiptNumber: text('receipt_number').notNull(),
+  type: text('type').notNull(),
+  partyId: text('party_id'),
+  partyName: text('party_name').notNull(),
+  salesRepId: text('sales_rep_id'),
+  salesRepName: text('sales_rep_name'),
+  invoiceId: text('invoice_id'),
+  amount: doublePrecision('amount').default(0).notNull(),
+  paymentMethod: text('payment_method').default('cash').notNull(),
+  date: text('date').notNull(),
+  referenceNumber: text('reference_number'),
+  accountId: text('account_id').notNull(),
+  accountName: text('account_name'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Collection Plans table (خطط وجدولة التحصيل)
+export const collectionPlans = pgTable('collection_plans', {
+  id: text('id').primaryKey(),
+  planNumber: text('plan_number').notNull(),
+  customerId: text('customer_id').notNull(),
+  customerName: text('customer_name').notNull(),
+  totalDebt: doublePrecision('total_debt').default(0).notNull(),
+  totalAmount: doublePrecision('total_amount').default(0),
+  collectedAmount: doublePrecision('collected_amount').default(0),
+  agreementDate: text('agreement_date'),
+  startDate: text('start_date'),
+  salesInvoiceId: text('sales_invoice_id'),
+  invoiceNumber: text('invoice_number'),
+  installments: jsonb('installments').notNull(),
+  status: text('status').default('active').notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Collection Reminders table (تذكيرات التحصيل)
+export const collectionReminders = pgTable('collection_reminders', {
+  id: text('id').primaryKey(),
+  customerId: text('customer_id').notNull(),
+  customerName: text('customer_name').notNull(),
+  phone: text('phone'),
+  planId: text('plan_id'),
+  channel: text('channel').default('whatsapp').notNull(),
+  scheduledDate: text('scheduled_date'),
+  date: text('date'),
+  dueAmount: doublePrecision('due_amount').default(0),
+  status: text('status').default('scheduled').notNull(),
+  promisedDate: text('promised_date'),
+  collectorName: text('collector_name'),
+  notes: text('notes'),
+  messageText: text('message_text'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Employees table (الموظفين)
+export const employees = pgTable('employees', {
+  id: text('id').primaryKey(),
+  employeeCode: text('employee_code').notNull(),
+  name: text('name').notNull(),
+  nationalId: text('national_id'),
+  phone: text('phone'),
+  email: text('email'),
+  department: text('department'),
+  jobTitle: text('job_title'),
+  basicSalary: doublePrecision('basic_salary').default(0),
+  status: text('status').default('active').notNull(),
+  hireDate: text('hire_date'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Cheques table (الشيكات)
+export const cheques = pgTable('cheques', {
+  id: text('id').primaryKey(),
+  chequeNumber: text('cheque_number').notNull(),
+  type: text('type').notNull(),
+  bankName: text('bank_name').notNull(),
+  amount: doublePrecision('amount').default(0).notNull(),
+  dueDate: text('due_date').notNull(),
+  issueDate: text('issue_date'),
+  partyId: text('party_id'),
+  partyName: text('party_name').notNull(),
+  status: text('status').default('pending').notNull(),
+  accountId: text('account_id'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Price Lists table (قوائم الأسعار)
+export const priceLists = pgTable('price_lists', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  code: text('code'),
+  currency: text('currency').default('EGP'),
+  isDefault: boolean('is_default').default(false),
+  isActive: boolean('is_active').default(true),
+  items: jsonb('items').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});

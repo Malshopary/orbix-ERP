@@ -40,47 +40,22 @@ export function createPgClient(config: TenantConnectionConfig) {
 export async function autoProvisionLocalTenant(config: TenantConnectionConfig): Promise<{ ok: boolean; error?: string }> {
   if (!config.user || !config.database) return { ok: false, error: 'User and database are required' };
 
-  const masterUser = process.env.MASTER_SQL_USER || 'postgres';
+  const masterUser = process.env.MASTER_SQL_USER || process.env.SQL_USER || 'postgres';
+  const masterPassword = process.env.MASTER_SQL_PASSWORD || process.env.SQL_PASSWORD || '123';
   const masterPort = config.port ? Number(config.port) : 5432;
-  const candidatePasswords = [
-    process.env.MASTER_SQL_PASSWORD,
-    '123',
-    '1234',
-    'postgres',
-    'admin',
-    'root',
-    '',
-    process.env.SQL_PASSWORD,
-  ].filter((p): p is string => typeof p === 'string');
 
-  let masterClient: pg.Client | null = null;
-  let connected = false;
-
-  for (const pass of candidatePasswords) {
-    const client = new pg.Client({
-      host: 'localhost',
-      port: masterPort,
-      database: 'postgres',
-      user: masterUser,
-      password: pass,
-      connectionTimeoutMillis: 3000,
-    });
-    try {
-      await client.connect();
-      masterClient = client;
-      connected = true;
-      break;
-    } catch {
-      try { await client.end(); } catch {}
-    }
-  }
-
-  if (!connected || !masterClient) {
-    console.error('[Auto-Provision Error]: Could not connect as PostgreSQL superuser (tried standard local credentials)');
-    return { ok: false, error: 'Could not connect to PostgreSQL superuser to provision new tenant.' };
-  }
+  const masterClient = new pg.Client({
+    host: 'localhost',
+    port: masterPort,
+    database: 'postgres',
+    user: masterUser,
+    password: String(masterPassword),
+    connectionTimeoutMillis: 5000,
+  });
 
   try {
+    await masterClient.connect();
+
     const safeUser = config.user.replace(/[^a-zA-Z0-9_]/g, '');
     const safeDb = config.database.replace(/[^a-zA-Z0-9_]/g, '');
     const safePass = (config.password || '').replace(/'/g, "''");
@@ -354,6 +329,103 @@ export async function initCustomTenantDatabase(config: TenantConnectionConfig): 
       timestamp VARCHAR(64) NOT NULL,
       is_system_notification BOOLEAN DEFAULT FALSE NOT NULL,
       task_id VARCHAR(64),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS receipts (
+      id VARCHAR(64) PRIMARY KEY,
+      receipt_number VARCHAR(64) NOT NULL,
+      type VARCHAR(64) NOT NULL,
+      party_id VARCHAR(64),
+      party_name VARCHAR(255) NOT NULL,
+      sales_rep_id VARCHAR(64),
+      sales_rep_name VARCHAR(255),
+      invoice_id VARCHAR(64),
+      amount NUMERIC(15, 2) DEFAULT 0.00 NOT NULL,
+      payment_method VARCHAR(64) DEFAULT 'cash' NOT NULL,
+      date DATE NOT NULL,
+      reference_number VARCHAR(128),
+      account_id VARCHAR(64) NOT NULL,
+      account_name VARCHAR(255),
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS collection_plans (
+      id VARCHAR(64) PRIMARY KEY,
+      plan_number VARCHAR(64) NOT NULL,
+      customer_id VARCHAR(64) NOT NULL,
+      customer_name VARCHAR(255) NOT NULL,
+      total_debt NUMERIC(15, 2) DEFAULT 0.00 NOT NULL,
+      total_amount NUMERIC(15, 2) DEFAULT 0.00,
+      collected_amount NUMERIC(15, 2) DEFAULT 0.00,
+      agreement_date DATE,
+      start_date DATE,
+      sales_invoice_id VARCHAR(64),
+      invoice_number VARCHAR(64),
+      installments JSONB NOT NULL,
+      status VARCHAR(32) DEFAULT 'active' NOT NULL,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS collection_reminders (
+      id VARCHAR(64) PRIMARY KEY,
+      customer_id VARCHAR(64) NOT NULL,
+      customer_name VARCHAR(255) NOT NULL,
+      phone VARCHAR(64),
+      plan_id VARCHAR(64),
+      channel VARCHAR(64) DEFAULT 'whatsapp' NOT NULL,
+      scheduled_date DATE,
+      date DATE,
+      due_amount NUMERIC(15, 2) DEFAULT 0.00,
+      status VARCHAR(32) DEFAULT 'scheduled' NOT NULL,
+      promised_date DATE,
+      collector_name VARCHAR(255),
+      notes TEXT,
+      message_text TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS employees (
+      id VARCHAR(64) PRIMARY KEY,
+      employee_code VARCHAR(64) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      national_id VARCHAR(64),
+      phone VARCHAR(64),
+      email VARCHAR(255),
+      department VARCHAR(128),
+      job_title VARCHAR(128),
+      basic_salary NUMERIC(15, 2) DEFAULT 0.00 NOT NULL,
+      status VARCHAR(32) DEFAULT 'active' NOT NULL,
+      hire_date DATE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS cheques (
+      id VARCHAR(64) PRIMARY KEY,
+      cheque_number VARCHAR(64) NOT NULL,
+      type VARCHAR(64) NOT NULL,
+      bank_name VARCHAR(255) NOT NULL,
+      amount NUMERIC(15, 2) DEFAULT 0.00 NOT NULL,
+      due_date DATE NOT NULL,
+      issue_date DATE,
+      party_id VARCHAR(64),
+      party_name VARCHAR(255) NOT NULL,
+      status VARCHAR(32) DEFAULT 'pending' NOT NULL,
+      account_id VARCHAR(64),
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS price_lists (
+      id VARCHAR(64) PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      code VARCHAR(64),
+      currency VARCHAR(16) DEFAULT 'EGP',
+      is_default BOOLEAN DEFAULT FALSE NOT NULL,
+      is_active BOOLEAN DEFAULT TRUE NOT NULL,
+      items JSONB NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
     );
 
