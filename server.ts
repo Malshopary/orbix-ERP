@@ -9,7 +9,7 @@ import dotenv from 'dotenv';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import pg from 'pg';
-import { resetPool } from './src/db/index.ts';
+import { resetPool, createPool } from './src/db/index.ts';
 
 const execFileAsync = promisify(execFile);
 import {
@@ -204,11 +204,23 @@ app.get('/api/health/db', async (_req, res) => {
 app.get('/api/database/status', async (_req, res) => {
   try {
     const health = await testDbConnection();
+    let tablesCount = 0;
+    try {
+      const pool = createPool();
+      const countRes = await pool.query(
+        "SELECT count(*) as count FROM information_schema.tables WHERE table_schema = 'public';"
+      );
+      tablesCount = parseInt(countRes.rows[0]?.count || '0', 10);
+    } catch (err: any) {
+      console.warn('Could not query tables count:', err?.message || err);
+    }
+
     res.json({
       engine: 'PostgreSQL (Google Cloud SQL)',
       status: health.ok ? 'online' : 'unreachable',
-      host: process.env.SQL_HOST ? 'Configured (Unix Socket Proxy)' : 'Missing',
+      host: process.env.SQL_HOST ? (process.env.SQL_HOST === 'localhost' || process.env.SQL_HOST === '127.0.0.1' ? 'Localhost (محلي)' : process.env.SQL_HOST) : 'Missing',
       database: process.env.SQL_DB_NAME || 'Default',
+      tablesCount,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Database error' });

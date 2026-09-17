@@ -1223,7 +1223,7 @@ export const InitialSetupWizard: React.FC = () => {
                             </div>
                             <div className="bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/20 col-span-2 sm:col-span-1">
                               <span className="text-slate-400 block text-[10px]">الجداول الموجودة:</span>
-                              <strong>{dbTestResult.tablesCount ?? 12} جداول</strong>
+                              <strong>{typeof dbTestResult.tablesCount === 'number' ? `${dbTestResult.tablesCount} جداول` : 'جداول مهيأة'}</strong>
                             </div>
                           </div>
                           {dbTestResult.version && (
@@ -1259,7 +1259,7 @@ export const InitialSetupWizard: React.FC = () => {
                 <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                 <div className="text-xs text-slate-300 leading-relaxed">
                   <strong className="text-white block mb-0.5">الجاهزية التلقائية والتهيئة الفورية:</strong>
-                  عند الضغط على الزر أدناه، سيقوم النظام بحفظ إعداداتك تلقائياً في ملف التهيئة البيئية (<code className="text-emerald-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono">.env</code>)، وإنشاء وتأكيد الجداول الـ 12 الرسمية في قاعدة البيانات، ثم إطلاق المنظومة مباشرة بحساب المدير العام.
+                  عند الضغط على الزر أدناه، سيقوم النظام بحفظ إعداداتك تلقائياً في ملف التهيئة البيئية (<code className="text-emerald-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono">.env</code>)، وإنشاء وتأكيد جداول المنظومة الرسمية في قاعدة البيانات، ثم إطلاق المنظومة مباشرة بحساب المدير العام.
                 </div>
               </div>
             </div>
