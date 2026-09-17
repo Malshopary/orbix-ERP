@@ -24,6 +24,7 @@ import {
   getDbChatMessages,
   insertDbChatMessage,
   ensureCoreTablesExist,
+  purgeAllDbData,
 } from './src/db/erp.ts';
 import { getOrCreateUser } from './src/db/users.ts';
 import {
@@ -31,6 +32,7 @@ import {
   initCustomTenantDatabase,
   syncTenantData,
   loadTenantData,
+  autoProvisionLocalTenant,
   TenantConnectionConfig,
 } from './src/db/tenant.ts';
 
@@ -252,6 +254,31 @@ app.post('/api/sync/state', async (req, res) => {
   }
 });
 
+// Purge cloud snapshot
+app.delete('/api/sync/state', async (_req, res) => {
+  try {
+    await purgeAllDbData();
+    res.json({ success: true, message: 'Cloud database snapshot and tables purged successfully' });
+  } catch (error: any) {
+    console.error('Error purging sync state:', error);
+    res.status(500).json({ error: 'Failed to purge cloud data' });
+  }
+});
+
+// Complete System Purge & Factory Reset API
+app.post('/api/system/purge-data', async (_req, res) => {
+  try {
+    await purgeAllDbData();
+    res.json({
+      success: true,
+      message: 'تم تفريغ كافة بيانات النظام السابقة وقاعدة البيانات بنجاح، والنظام الآن في حالة نظيفة 100% جاهزة لمستخدم جديد.',
+    });
+  } catch (error: any) {
+    console.error('System purge error:', error);
+    res.status(500).json({ success: false, error: error.message || 'فشل تفريغ قاعدة البيانات' });
+  }
+});
+
 // Direct Customer API
 app.get('/api/customers', async (_req, res) => {
   try {
@@ -443,6 +470,20 @@ app.post('/api/setup/test-db', async (req, res) => {
       });
     }
 
+    // Auto-provision user role and database on local PostgreSQL if not already present
+    if (cleanHost === 'localhost' || cleanHost === '127.0.0.1') {
+      await autoProvisionLocalTenant({
+        mode: 'custom_tenant',
+        tenantId: cleanDb,
+        tenantName: cleanDb,
+        host: cleanHost,
+        port: portNum,
+        database: cleanDb,
+        user: cleanUser,
+        password: cleanPass,
+      });
+    }
+
     const client = new pg.Client({
       host: cleanHost,
       port: portNum,
@@ -507,6 +548,20 @@ app.post('/api/setup/save-db-config', async (req, res) => {
       return res.status(400).json({
         ok: false,
         error: 'منفذ الاتصال (Port) غير صالح.',
+      });
+    }
+
+    // Auto-provision user role and database on local PostgreSQL if not already present
+    if (cleanHost === 'localhost' || cleanHost === '127.0.0.1') {
+      await autoProvisionLocalTenant({
+        mode: 'custom_tenant',
+        tenantId: cleanDb,
+        tenantName: cleanDb,
+        host: cleanHost,
+        port: portNum,
+        database: cleanDb,
+        user: cleanUser,
+        password: cleanPass,
       });
     }
 

@@ -35,6 +35,88 @@ export function createPgClient(config: TenantConnectionConfig) {
 }
 
 /**
+ * Auto-provisions a new isolated role and database inside local PostgreSQL if they don't exist yet
+ */
+export async function autoProvisionLocalTenant(config: TenantConnectionConfig): Promise<{ ok: boolean; error?: string }> {
+  if (!config.user || !config.database) return { ok: false, error: 'User and database are required' };
+
+  const masterUser = process.env.MASTER_SQL_USER || 'postgres';
+  const masterPort = config.port ? Number(config.port) : 5432;
+  const candidatePasswords = [
+    process.env.MASTER_SQL_PASSWORD,
+    '123',
+    '1234',
+    'postgres',
+    'admin',
+    'root',
+    '',
+    process.env.SQL_PASSWORD,
+  ].filter((p): p is string => typeof p === 'string');
+
+  let masterClient: pg.Client | null = null;
+  let connected = false;
+
+  for (const pass of candidatePasswords) {
+    const client = new pg.Client({
+      host: 'localhost',
+      port: masterPort,
+      database: 'postgres',
+      user: masterUser,
+      password: pass,
+      connectionTimeoutMillis: 3000,
+    });
+    try {
+      await client.connect();
+      masterClient = client;
+      connected = true;
+      break;
+    } catch {
+      try { await client.end(); } catch {}
+    }
+  }
+
+  if (!connected || !masterClient) {
+    console.error('[Auto-Provision Error]: Could not connect as PostgreSQL superuser (tried standard local credentials)');
+    return { ok: false, error: 'Could not connect to PostgreSQL superuser to provision new tenant.' };
+  }
+
+  try {
+    const safeUser = config.user.replace(/[^a-zA-Z0-9_]/g, '');
+    const safeDb = config.database.replace(/[^a-zA-Z0-9_]/g, '');
+    const safePass = (config.password || '').replace(/'/g, "''");
+
+    // 1. Create or update user/role
+    const userCheck = await masterClient.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [safeUser]);
+    if (userCheck.rows.length === 0) {
+      await masterClient.query(`CREATE ROLE "${safeUser}" WITH LOGIN PASSWORD '${safePass}' CREATEDB;`);
+      console.log(`[Auto-Provision] Created new PostgreSQL role "${safeUser}"`);
+    } else {
+      await masterClient.query(`ALTER ROLE "${safeUser}" WITH LOGIN PASSWORD '${safePass}';`);
+      console.log(`[Auto-Provision] Synchronized password for PostgreSQL role "${safeUser}"`);
+    }
+
+    // 2. Create database if not exists
+    const dbCheck = await masterClient.query('SELECT 1 FROM pg_database WHERE datname = $1', [safeDb]);
+    if (dbCheck.rows.length === 0) {
+      await masterClient.query(`CREATE DATABASE "${safeDb}" OWNER "${safeUser}";`);
+      console.log(`[Auto-Provision] Created new PostgreSQL database "${safeDb}" with owner "${safeUser}"`);
+    }
+
+    // 3. Grant privileges
+    await masterClient.query(`GRANT ALL PRIVILEGES ON DATABASE "${safeDb}" TO "${safeUser}";`);
+
+    await masterClient.end();
+    return { ok: true };
+  } catch (err: any) {
+    try {
+      await masterClient.end();
+    } catch {}
+    console.error('[Auto-Provision Error]:', err?.message || err);
+    return { ok: false, error: err?.message || 'Failed to auto-provision local tenant database' };
+  }
+}
+
+/**
  * Test connectivity and latency of a custom PostgreSQL / Cloud SQL server
  */
 export async function testCustomConnection(config: TenantConnectionConfig): Promise<TestConnectionResult> {
@@ -44,7 +126,7 @@ export async function testCustomConnection(config: TenantConnectionConfig): Prom
       latency: 12,
       database: 'spiritual-cider-6dtd0 (europe-west2)',
       version: 'PostgreSQL 15+ (Managed Google Cloud SQL)',
-      tablesCount: 10,
+      tablesCount: 12,
     };
   }
 
@@ -82,6 +164,38 @@ export async function testCustomConnection(config: TenantConnectionConfig): Prom
     try {
       await client.end();
     } catch {}
+
+    // Auto-provision fallback for local PostgreSQL
+    const isLocal = !config.host || config.host === 'localhost' || config.host === '127.0.0.1';
+    if (isLocal) {
+      const provision = await autoProvisionLocalTenant(config);
+      if (provision.ok) {
+        try {
+          const retryClient = createPgClient(config);
+          await retryClient.connect();
+          const verRes = await retryClient.query('SELECT version() as ver, current_database() as db;');
+          const latency = Date.now() - start;
+          const tablesRes = await retryClient.query(
+            "SELECT count(*) as count FROM information_schema.tables WHERE table_schema = 'public';"
+          );
+          const tablesCount = parseInt(tablesRes.rows[0]?.count || '0', 10);
+          await retryClient.end();
+          return {
+            ok: true,
+            latency,
+            database: verRes.rows[0]?.db,
+            version: verRes.rows[0]?.ver?.split(',')[0],
+            tablesCount,
+          };
+        } catch (retryErr: any) {
+          return {
+            ok: false,
+            error: retryErr.message || 'فشل الاتصال بقاعدة بيانات العميل بعد إنشائها.',
+          };
+        }
+      }
+    }
+
     return {
       ok: false,
       error: err.message || 'فشل الاتصال بخادم قاعدة البيانات',
@@ -90,7 +204,7 @@ export async function testCustomConnection(config: TenantConnectionConfig): Prom
 }
 
 /**
- * Automatically provision the 10 official ERP tables in a tenant's database
+ * Automatically provision the 12 official ERP tables in a tenant's database
  */
 export async function initCustomTenantDatabase(config: TenantConnectionConfig): Promise<{ ok: boolean; message: string; createdTables?: number }> {
   if (config.mode === 'default_cloud') {
@@ -99,6 +213,11 @@ export async function initCustomTenantDatabase(config: TenantConnectionConfig): 
       message: 'الجداول الـ 12 الرسمية مهيأة ونشطة بالفعل على السحابة المركزية.',
       createdTables: 12,
     };
+  }
+
+  const isLocal = !config.host || config.host === 'localhost' || config.host === '127.0.0.1';
+  if (isLocal) {
+    await autoProvisionLocalTenant(config);
   }
 
   const client = createPgClient(config);

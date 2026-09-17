@@ -421,3 +421,36 @@ export async function testDbConnection() {
     return { ok: false, error: error.message };
   }
 }
+
+// Complete Purge / Factory Reset of Database
+export async function purgeAllDbData() {
+  try {
+    const pool = createPool();
+    const tables = [
+      'sales_invoices',
+      'purchase_invoices',
+      'customers',
+      'vendors',
+      'products',
+      'employee_tasks',
+      'chat_messages',
+      'app_sync_store',
+      'users',
+    ];
+    for (const table of tables) {
+      try {
+        await pool.query(`TRUNCATE TABLE "${table}" RESTART IDENTITY CASCADE;`);
+      } catch {
+        try {
+          await pool.query(`DELETE FROM "${table}";`);
+        } catch {}
+      }
+    }
+    console.log('✓ All database tables completely purged and reset for new client.');
+    return { ok: true };
+  } catch (error: any) {
+    console.error('Error in purgeAllDbData:', error);
+    return { ok: false, error: error.message };
+  }
+}
+

@@ -9855,18 +9855,43 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const resetToCleanNewCompany = () => {
     showConfirm(
-      'هل أنت متأكد من رغبتك في تفريغ كافة الحركات والعمليات والبدء كشركة جديدة؟ سيتم الإبقاء على دليل الحسابات القياسي وتفريغ الفواتير والسندات والعملاء والموردين وفتح معالج تسجيل المدير.',
-      () => {
-        // Clear storage
-        Object.keys(localStorage).forEach((k) => {
-          if (k.startsWith(STORAGE_PREFIX)) {
-            localStorage.removeItem(k);
-          }
-        });
+      'هل أنت متأكد من رغبتك في تفريغ كافة الحركات والعمليات والبدء كشركة جديدة؟ سيتم مسح كافة البيانات السابقة من السيرفر والمحلي وتفريغ الفواتير والسندات والعملاء والموردين لفتح معالج التأسيس لشركة جديدة.',
+      async () => {
+        // 1. Call backend to purge all PostgreSQL tables and central sync snapshot
+        try {
+          await fetch('/api/system/purge-data', { method: 'POST' });
+        } catch (e) {
+          console.warn('Backend purge-data error:', e);
+        }
+        try {
+          await fetch('/api/sync/state', { method: 'DELETE' });
+        } catch (e) {
+          console.warn('Backend sync state delete error:', e);
+        }
+
+        // 2. Wipe all local storage & session storage completely
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+        } catch (e) {
+          console.warn('Storage clear error:', e);
+        }
+
+        // 3. Reset setup flag and users
         setIsSetupCompleted(false);
         setUsers([]);
         setCurrentUser(null);
+
+        // 4. Reset company profile and chart of accounts
+        setCompanyProfile(INITIAL_COMPANY_PROFILE);
         setAccounts(INITIAL_ACCOUNTS);
+        setSequenceConfig(DEFAULT_SEQUENCE_CONFIG);
+        setGoogleSheetConfig(INITIAL_GOOGLE_SHEET_CONFIG);
+        setCurrency('EGP');
+        setCurrencies(INITIAL_CURRENCIES);
+        setSecondaryCurrency('USD');
+
+        // 5. Empty all operational and transaction data
         setSalesInvoices([]);
         setPurchaseInvoices([]);
         setReceipts([]);
@@ -9874,12 +9899,24 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setProducts([]);
         setWarehouses(INITIAL_WAREHOUSES);
         setStockTransfers([]);
+        setStockAdjustments([]);
         setStocktakingSessions([]);
         setScrapVouchers([]);
         setProductBatches([]);
         setStockMovements([]);
-        setCustomers(INITIAL_CUSTOMERS);
+        setCustomers([]); // Clear customers (completely empty for new company)
         setVendors([]);
+        setQuotations([]);
+        setSalesOrders([]);
+        setPurchaseOrders([]);
+        setGoodsReceipts([]);
+        setLandedCosts([]);
+        setPurchaseReturns([]);
+        setCheques([]);
+        setBankReconciliations([]);
+        setCostCenters([]);
+        setFixedAssets([]);
+        setAssetDepreciationRuns([]);
         setEmployees([]);
         setAttendances([]);
         setLeaveRequests([]);
@@ -9895,9 +9932,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCrmTickets([]);
         setLoyaltyTransactions([]);
         setCommissionPayments([]);
-        setSequenceConfig(DEFAULT_SEQUENCE_CONFIG);
-        setGoogleSheetConfig(INITIAL_GOOGLE_SHEET_CONFIG);
-        setCompanyProfile(INITIAL_COMPANY_PROFILE);
+        setPriceLists([]);
+        setEmployeeTasks([]);
+        setChatMessages([]);
         setAuditLogs([
           {
             id: `log-init-${Date.now()}`,
@@ -9909,6 +9946,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             timestamp: new Date().toISOString(),
           },
         ]);
+
+        // 6. Reload page smoothly after a brief pause so wizard opens with 100% clean state
+        setTimeout(() => {
+          window.location.reload();
+        }, 350);
       },
       'تأكيد تفريغ النظام وبدء شركة جديدة',
       { confirmText: 'تفريغ وبدء من جديد', type: 'warning' }
