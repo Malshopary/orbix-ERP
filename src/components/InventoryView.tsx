@@ -286,7 +286,7 @@ export const InventoryView: React.FC = () => {
     setEditProductionDate(p.productionDate || '');
     setEditExpiryDate(p.expiryDate || '');
     setEditBatchNumber(p.batchNumber || '');
-    setEditImageBase64(p.imageBase64);
+    setEditImageBase64(p.imageBase64 || p.imageUrl);
     setSelectedBatchFocusId('');
     setEditUnits(p.units ? JSON.parse(JSON.stringify(p.units)) : []);
 
@@ -684,9 +684,9 @@ export const InventoryView: React.FC = () => {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
-                        {p.imageBase64 ? (
+                        {(p.imageBase64 || p.imageUrl) ? (
                           <img
-                            src={p.imageBase64}
+                            src={p.imageBase64 || p.imageUrl}
                             alt={p.name}
                             className="w-9 h-9 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0"
                           />
@@ -889,6 +889,7 @@ export const InventoryView: React.FC = () => {
                   expiryDate: editHasExpiry ? (primaryBatch?.expiryDate || editExpiryDate) : undefined,
                   batchNumber: editHasExpiry ? (primaryBatch?.batchNumber?.trim() || editBatchNumber.trim() || undefined) : undefined,
                   imageBase64: editImageBase64,
+                  imageUrl: editImageBase64,
                   units: editUnits.length > 0 ? editUnits : undefined,
                 });
 

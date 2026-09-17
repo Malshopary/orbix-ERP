@@ -102,9 +102,9 @@ export const ProductSelectSearch: React.FC<ProductSelectSearchProps> = ({
         className="w-full flex items-center justify-between p-2 rounded-xl border border-slate-300 bg-white hover:border-slate-400 transition-all text-xs cursor-pointer shadow-2xs gap-2 min-h-[38px]"
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          {selectedProduct?.imageBase64 ? (
+          {(selectedProduct?.imageBase64 || selectedProduct?.imageUrl) ? (
             <img
-              src={selectedProduct.imageBase64}
+              src={selectedProduct.imageBase64 || selectedProduct.imageUrl}
               alt={selectedProduct.name}
               className="w-6 h-6 rounded-md object-cover border border-slate-200 shrink-0"
             />
@@ -184,9 +184,9 @@ export const ProductSelectSearch: React.FC<ProductSelectSearchProps> = ({
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      {p.imageBase64 ? (
+                      {(p.imageBase64 || p.imageUrl) ? (
                         <img
-                          src={p.imageBase64}
+                          src={p.imageBase64 || p.imageUrl}
                           alt={p.name}
                           className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0"
                         />

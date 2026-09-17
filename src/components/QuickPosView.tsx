@@ -933,9 +933,9 @@ export const QuickPosView: React.FC = () => {
                 >
                   {/* Product Image Thumbnail */}
                   <div className="relative w-full h-32 bg-slate-100 overflow-hidden">
-                    {prod.imageUrl ? (
+                    {(prod.imageUrl || prod.imageBase64) ? (
                       <img
-                        src={prod.imageUrl}
+                        src={prod.imageUrl || prod.imageBase64}
                         alt={prod.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         loading="lazy"
@@ -1339,8 +1339,8 @@ export const QuickPosView: React.FC = () => {
                   {/* Thumbnail & Name */}
                   <div className="sm:col-span-4 flex items-center gap-2 min-w-0">
                     <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
-                      {item.product.imageUrl ? (
-                        <img src={item.product.imageUrl} alt={item.product.name} className="w-full h-full object-cover" />
+                      {(item.product.imageUrl || item.product.imageBase64) ? (
+                        <img src={item.product.imageUrl || item.product.imageBase64} alt={item.product.name} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-400">
                           صنف

@@ -451,6 +451,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
         expiryDate: prodHasExpiry ? (primaryBatch?.expiryDate || prodExpiryDate || undefined) : undefined,
         batchNumber: prodHasExpiry ? (primaryBatch?.batchNumber?.trim() || prodBatchNumber.trim() || undefined) : undefined,
         imageBase64: prodImageBase64 || undefined,
+        imageUrl: prodImageBase64 || undefined,
       };
 
       const createdProduct = addProduct(newProd);
