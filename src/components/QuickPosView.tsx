@@ -931,19 +931,19 @@ export const QuickPosView: React.FC = () => {
                       : 'border-slate-200 hover:border-slate-400 hover:shadow-md'
                   }`}
                 >
-                  {/* Product Image Thumbnail */}
-                  <div className="relative w-full h-32 bg-slate-100 overflow-hidden">
+                  {/* Product Image Thumbnail - Square Box */}
+                  <div className="relative w-full aspect-square bg-slate-50 overflow-hidden flex items-center justify-center p-2 border-b border-slate-100">
                     {(prod.imageUrl || prod.imageBase64) ? (
                       <img
                         src={prod.imageUrl || prod.imageBase64}
                         alt={prod.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                         loading="lazy"
                       />
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400">
-                        <PackageCheck className="w-8 h-8 mb-1 opacity-60" />
-                        <span className="text-[10px] font-medium">{prod.category}</span>
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 rounded-xl">
+                        <PackageCheck className="w-10 h-10 mb-1 opacity-60" />
+                        <span className="text-[11px] font-medium">{prod.category}</span>
                       </div>
                     )}
 
@@ -1338,9 +1338,9 @@ export const QuickPosView: React.FC = () => {
                 >
                   {/* Thumbnail & Name */}
                   <div className="sm:col-span-4 flex items-center gap-2 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center p-0.5">
                       {(item.product.imageUrl || item.product.imageBase64) ? (
-                        <img src={item.product.imageUrl || item.product.imageBase64} alt={item.product.name} className="w-full h-full object-cover" />
+                        <img src={item.product.imageUrl || item.product.imageBase64} alt={item.product.name} className="w-full h-full object-contain" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-400">
                           صنف
