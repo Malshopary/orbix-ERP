@@ -151,6 +151,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [empHousing, setEmpHousing] = useState(1000);
   const [empTransport, setEmpTransport] = useState(500);
   const [empOtherAllowances, setEmpOtherAllowances] = useState(0);
+  const [empSocialInsuranceRate, setEmpSocialInsuranceRate] = useState<number>(0);
+  const [empTaxDeductionRate, setEmpTaxDeductionRate] = useState<number>(0);
   const [empBankName, setEmpBankName] = useState('البنك التجاري الدولي (CIB)');
   const [empBankIban, setEmpBankIban] = useState('');
   const [empSalaryPaymentMethod, setEmpSalaryPaymentMethod] = useState<'bank_transfer' | 'cash'>('bank_transfer');
@@ -376,9 +378,9 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
         housingAllowance: Number(empHousing) || 0,
         transportAllowance: Number(empTransport) || 0,
         otherAllowances: Number(empOtherAllowances) || 0,
-        socialInsuranceEmployeeRate: 11,
-        socialInsuranceCompanyRate: 18.75,
-        taxDeductionRate: 5,
+        socialInsuranceEmployeeRate: Number(empSocialInsuranceRate) || 0,
+        socialInsuranceCompanyRate: Number(empSocialInsuranceRate) > 0 ? 18.75 : 0,
+        taxDeductionRate: Number(empTaxDeductionRate) || 0,
         status: 'active',
         bankName: empBankName.trim(),
         bankIban: empBankIban.trim(),
@@ -1279,7 +1281,56 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                     />
                   </div>
 
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">بدلات أخرى</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={empOtherAllowances}
+                      onChange={(e) => setEmpOtherAllowances(Number(e.target.value))}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                    />
                   </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-rose-700 flex items-center justify-between">
+                      <span>تأمينات اجتماعية (%)</span>
+                      <span className="text-[10px] text-slate-400 font-normal">(0% = بدون خصم)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={empSocialInsuranceRate}
+                      onChange={(e) => setEmpSocialInsuranceRate(Number(e.target.value))}
+                      className="w-full bg-slate-50 border border-rose-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-rose-800 focus:bg-white focus:border-rose-500 focus:outline-hidden"
+                      placeholder="0%"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-rose-700 flex items-center justify-between">
+                      <span>ضريبة كسب عمل (%)</span>
+                      <span className="text-[10px] text-slate-400 font-normal">(0% = بدون خصم)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={empTaxDeductionRate}
+                      onChange={(e) => setEmpTaxDeductionRate(Number(e.target.value))}
+                      className="w-full bg-slate-50 border border-rose-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-rose-800 focus:bg-white focus:border-rose-500 focus:outline-hidden"
+                      placeholder="0%"
+                    />
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex items-center gap-2">
+                  <span className="text-emerald-600 font-bold">💡 ملاحظة:</span>
+                  <span>النسب الافتراضية للتأمينات والضرائب هي 0%، ولن يتم خصم أي استقطاعات تلقائياً من راتب الموظف إلا إذا قمت بتحديد نسبة هنا.</span>
+                </div>
 
                   {/* Salary Payment Method & Disbursement Account */}
                   <div className="sm:col-span-2 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">

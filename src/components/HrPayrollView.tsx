@@ -73,6 +73,8 @@ export const HrPayrollView: React.FC = () => {
     deleteEmployee,
     generateMonthlyPayroll,
     approvePayrollRun,
+    deletePayrollRun,
+    updatePayslip,
     updatePayslipPaymentMethod,
     hasPermission,
     activeSubTab,
@@ -116,6 +118,19 @@ export const HrPayrollView: React.FC = () => {
   const [showEditEmployeeModal, setShowEditEmployeeModal] = useState(false);
   const [showPayslipModal, setShowPayslipModal] = useState(false);
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
+  const [showEditPayslipModal, setShowEditPayslipModal] = useState(false);
+  const [editingPayslip, setEditingPayslip] = useState<Payslip | null>(null);
+
+  // Edit Payslip Form State
+  const [slipBasicSalary, setSlipBasicSalary] = useState(0);
+  const [slipHousingAllowance, setSlipHousingAllowance] = useState(0);
+  const [slipTransportAllowance, setSlipTransportAllowance] = useState(0);
+  const [slipOtherAllowances, setSlipOtherAllowances] = useState(0);
+  const [slipBonus, setSlipBonus] = useState(0);
+  const [slipOvertimeAmount, setSlipOvertimeAmount] = useState(0);
+  const [slipSocialInsurance, setSlipSocialInsurance] = useState(0);
+  const [slipTaxDeduction, setSlipTaxDeduction] = useState(0);
+  const [slipOtherDeductions, setSlipOtherDeductions] = useState(0);
 
   // Edit Employee Form State
   const [editEmpId, setEditEmpId] = useState('');
@@ -257,7 +272,70 @@ export const HrPayrollView: React.FC = () => {
     payrollRuns.find((r) => r.month === selectedMonth && r.year === selectedYear) || null;
 
   const handleGeneratePayroll = () => {
-    generateMonthlyPayroll(selectedMonth, selectedYear);
+    generateMonthlyPayroll(selectedMonth, selectedYear, true);
+    showAlert({
+      title: 'تم احتساب مسير الرواتب',
+      message: `تم احتساب وتحديث مسير شهر ${selectedMonth}/${selectedYear} بنجاح وفقاً لأحدث بيانات الموظفين والبدلات والاستقطاعات.`,
+      type: 'success',
+    });
+  };
+
+  const handleDeletePayrollRun = (runId: string) => {
+    showConfirm(
+      `هل تريد بالتأكيد حذف مسودة مسير رواتب شهر ${selectedMonth}/${selectedYear}؟\nسيتم إلغاء المسودة بالكامل وإتاحة إعادة توليدها في أي وقت.`,
+      () => {
+        deletePayrollRun(runId);
+        showAlert({
+          title: 'تم حذف المسير بنجاح',
+          message: `تم حذف مسودة مسير رواتب شهر ${selectedMonth}/${selectedYear}.`,
+          type: 'success',
+        });
+      },
+      'تأكيد حذف مسير الرواتب',
+      'حذف المسودة'
+    );
+  };
+
+  const handleOpenEditPayslip = (slip: Payslip) => {
+    setEditingPayslip(slip);
+    setSlipBasicSalary(slip.basicSalary);
+    setSlipHousingAllowance(slip.housingAllowance);
+    setSlipTransportAllowance(slip.transportAllowance);
+    setSlipOtherAllowances(slip.otherAllowances);
+    setSlipBonus(slip.bonus || 0);
+    setSlipOvertimeAmount(slip.overtimeAmount || 0);
+    setSlipSocialInsurance(slip.socialInsuranceDeduction || 0);
+    setSlipTaxDeduction(slip.taxDeduction || 0);
+    setSlipOtherDeductions(slip.deductions || 0);
+    setShowEditPayslipModal(true);
+  };
+
+  const handleSavePayslip = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentRun || !editingPayslip) return;
+    updatePayslip(currentRun.id, editingPayslip.id, {
+      basicSalary: Number(slipBasicSalary) || 0,
+      housingAllowance: Number(slipHousingAllowance) || 0,
+      transportAllowance: Number(slipTransportAllowance) || 0,
+      otherAllowances: Number(slipOtherAllowances) || 0,
+      bonus: Number(slipBonus) || 0,
+      overtimeAmount: Number(slipOvertimeAmount) || 0,
+      socialInsuranceDeduction: Number(slipSocialInsurance) || 0,
+      taxDeduction: Number(slipTaxDeduction) || 0,
+      deductions: Number(slipOtherDeductions) || 0,
+    });
+    setShowEditPayslipModal(false);
+    showAlert({
+      title: 'تم تحديث قسيمة الراتب',
+      message: `تم تحديث مستحقات واستقطاعات الموظف "${editingPayslip.employeeName}" بنجاح وتحديث إجماليات المسير.`,
+      type: 'success',
+    });
+  };
+
+  const handleZeroOutDeductions = () => {
+    setSlipSocialInsurance(0);
+    setSlipTaxDeduction(0);
+    setSlipOtherDeductions(0);
   };
 
   const handleApprovePayroll = (runId: string) => {
@@ -389,23 +467,35 @@ export const HrPayrollView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={handleGeneratePayroll}
-                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs"
+                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Calendar className="w-3.5 h-3.5" />
-                توليد / تحديث مسير شهر {selectedMonth}/{selectedYear}
+                {currentRun ? `إعادة احتساب وتحديث شهر ${selectedMonth}/${selectedYear}` : `توليد مسير شهر ${selectedMonth}/${selectedYear}`}
               </button>
 
               {currentRun && currentRun.status !== 'posted_to_accounts' && (
-                <button
-                  onClick={() => handleApprovePayroll(currentRun.id)}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs"
-                >
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  اعتماد المسير وصرف الرواتب
-                </button>
+                <>
+                  <button
+                    onClick={() => handleApprovePayroll(currentRun.id)}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    اعتماد المسير وصرف الرواتب
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePayrollRun(currentRun.id)}
+                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold px-3 py-2 rounded-xl inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    title="حذف مسودة مسير الرواتب بالكامل"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    حذف المسير
+                  </button>
+                </>
               )}
 
               {currentRun && currentRun.status === 'posted_to_accounts' && (
@@ -507,11 +597,11 @@ export const HrPayrollView: React.FC = () => {
                         <th className="py-3 px-4">الراتب الأساسي</th>
                         <th className="py-3 px-4">إجمالي البدلات</th>
                         <th className="py-3 px-4 font-bold text-slate-800">إجمالي الراتب (Gross)</th>
-                        <th className="py-3 px-4 text-rose-700">تأمينات GOSI (9%)</th>
+                        <th className="py-3 px-4 text-rose-700">تأمينات اجتماعية</th>
                         <th className="py-3 px-4 text-rose-700">إجمالي الاستقطاعات</th>
                         <th className="py-3 px-4 font-extrabold text-emerald-700 text-sm">صافي الراتب المستحق (Net)</th>
                         <th className="py-3 px-4">طريقة وحساب الصرف</th>
-                        <th className="py-3 px-4">قسيمة الراتب</th>
+                        <th className="py-3 px-4 text-center">الإجراءات والقسيمة</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -589,17 +679,31 @@ export const HrPayrollView: React.FC = () => {
                               </span>
                             )}
                           </td>
-                          <td className="py-3 px-4">
-                            <button
-                              onClick={() => {
-                                setSelectedPayslip(slip);
-                                setShowPayslipModal(true);
-                              }}
-                              className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
-                            >
-                              <Printer className="w-3 h-3 text-slate-600" />
-                              قسيمة الراتب
-                            </button>
+                          <td className="py-3 px-4 text-center">
+                            <div className="inline-flex items-center gap-1.5">
+                              {currentRun.status !== 'posted_to_accounts' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditPayslip(slip)}
+                                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                  title="تعديل مفردات واستقطاعات القسيمة للموظف"
+                                >
+                                  <Edit3 className="w-3 h-3 text-indigo-600" />
+                                  تعديل
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPayslip(slip);
+                                  setShowPayslipModal(true);
+                                }}
+                                className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                              >
+                                <Printer className="w-3 h-3 text-slate-600" />
+                                قسيمة الراتب
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -956,6 +1060,56 @@ export const HrPayrollView: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">بدلات أخرى</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editEmpOtherAllowances}
+                    onChange={(e) => setEditEmpOtherAllowances(Number(e.target.value))}
+                    className="w-full p-2 rounded-xl border border-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-rose-700 mb-1">
+                    تأمينات اجتماعية (%)
+                    <span className="text-[10px] text-slate-400 font-normal mr-1">(0% = بدون)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    value={editEmpSocialInsuranceRate}
+                    onChange={(e) => setEditEmpSocialInsuranceRate(Number(e.target.value))}
+                    className="w-full p-2 rounded-xl border border-rose-200 text-rose-800 font-bold font-mono"
+                    placeholder="0%"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-rose-700 mb-1">
+                    ضريبة كسب عمل (%)
+                    <span className="text-[10px] text-slate-400 font-normal mr-1">(0% = بدون)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    value={editEmpTaxRate}
+                    onChange={(e) => setEditEmpTaxRate(Number(e.target.value))}
+                    className="w-full p-2 rounded-xl border border-rose-200 text-rose-800 font-bold font-mono"
+                    placeholder="0%"
+                  />
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-500 bg-amber-50/70 border border-amber-200 rounded-xl p-2.5 flex items-center gap-2">
+                <span className="text-amber-700 font-bold">💡 تنبيه الاستقطاعات:</span>
+                <span>إذا كانت نسبة التأمينات أو الضريبة 0%، فلن يقوم النظام بخصم أي مبالغ تلقائياً من راتب الموظف عند توليد المسير الشهري.</span>
+              </div>
+
               {/* Salary Payment Channel & Method */}
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                 <label className="block font-bold text-slate-800 text-xs">
@@ -1155,6 +1309,213 @@ export const HrPayrollView: React.FC = () => {
         </div>
       )}
 
+      {/* Modal 1.8: Edit Payslip Deductions & Allowances */}
+      {showEditPayslipModal && editingPayslip && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <Edit3 className="w-5 h-5 text-indigo-400" />
+                  تعديل مستحقات واستقطاعات قسيمة الموظف
+                </h3>
+                <p className="text-xs text-slate-300 mt-1">
+                  الموظف: <strong className="text-white">{editingPayslip.employeeName}</strong> ({editingPayslip.jobTitle}) • مسير شهر {editingPayslip.month}/{editingPayslip.year}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditPayslipModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <form onSubmit={handleSavePayslip} className="p-5 overflow-y-auto space-y-4 flex-1">
+              {/* Quick Action Bar */}
+              <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                <div className="text-xs text-indigo-900">
+                  <span className="font-bold block">إجراء سريع للاستقطاعات:</span>
+                  <span className="text-[11px] text-indigo-700">تصفير كافة الخصومات والتأمينات بضغطة زر ليحصل الموظف على راتبه كاملاً.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleZeroOutDeductions}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs shrink-0 cursor-pointer transition-colors inline-flex items-center gap-1"
+                >
+                  ⚡ تصفير جميع الاستقطاعات (0 ج.م)
+                </button>
+              </div>
+
+              {/* Section 1: Earnings & Allowances */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                  <DollarSign className="w-4 h-4 text-emerald-600" />
+                  الاستحقاقات والبدلات والمكافآت (Earnings)
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">الراتب الأساسي</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={slipBasicSalary}
+                      onChange={(e) => setSlipBasicSalary(Number(e.target.value))}
+                      className="w-full p-2 text-xs rounded-xl border border-slate-200 font-bold font-mono text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">بدل السكن</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={slipHousingAllowance}
+                      onChange={(e) => setSlipHousingAllowance(Number(e.target.value))}
+                      className="w-full p-2 text-xs rounded-xl border border-slate-200 font-mono text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">بدل الانتقال</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={slipTransportAllowance}
+                      onChange={(e) => setSlipTransportAllowance(Number(e.target.value))}
+                      className="w-full p-2 text-xs rounded-xl border border-slate-200 font-mono text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">بدلات أخرى</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={slipOtherAllowances}
+                      onChange={(e) => setSlipOtherAllowances(Number(e.target.value))}
+                      className="w-full p-2 text-xs rounded-xl border border-slate-200 font-mono text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">مكافآت وحوافز</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={slipBonus}
+                      onChange={(e) => setSlipBonus(Number(e.target.value))}
+                      className="w-full p-2 text-xs rounded-xl border border-slate-200 font-mono text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">ساعات إضافية (مبلغ)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={slipOvertimeAmount}
+                      onChange={(e) => setSlipOvertimeAmount(Number(e.target.value))}
+                      className="w-full p-2 text-xs rounded-xl border border-slate-200 font-mono text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Deductions */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-rose-800 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                  <X className="w-4 h-4 text-rose-600" />
+                  الاستقطاعات والخصومات (Deductions)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-rose-700 mb-1">تأمينات اجتماعية GOSI</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={slipSocialInsurance}
+                      onChange={(e) => setSlipSocialInsurance(Number(e.target.value))}
+                      className="w-full p-2 text-xs rounded-xl border border-rose-200 bg-rose-50/50 font-bold font-mono text-rose-800 focus:outline-hidden focus:border-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-rose-700 mb-1">ضريبة كسب العمل</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={slipTaxDeduction}
+                      onChange={(e) => setSlipTaxDeduction(Number(e.target.value))}
+                      className="w-full p-2 text-xs rounded-xl border border-rose-200 bg-rose-50/50 font-bold font-mono text-rose-800 focus:outline-hidden focus:border-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-rose-700 mb-1">غيابات / جزاءات / سلف</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={slipOtherDeductions}
+                      onChange={(e) => setSlipOtherDeductions(Number(e.target.value))}
+                      className="w-full p-2 text-xs rounded-xl border border-rose-200 bg-rose-50/50 font-bold font-mono text-rose-800 focus:outline-hidden focus:border-rose-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Calculation Live Summary */}
+              {(() => {
+                const previewGross =
+                  (Number(slipBasicSalary) || 0) +
+                  (Number(slipHousingAllowance) || 0) +
+                  (Number(slipTransportAllowance) || 0) +
+                  (Number(slipOtherAllowances) || 0) +
+                  (Number(slipBonus) || 0) +
+                  (Number(slipOvertimeAmount) || 0);
+
+                const previewDeductions =
+                  (Number(slipSocialInsurance) || 0) +
+                  (Number(slipTaxDeduction) || 0) +
+                  (Number(slipOtherDeductions) || 0);
+
+                const previewNet = Math.max(0, previewGross - previewDeductions);
+
+                return (
+                  <div className="bg-slate-900 text-white p-4 rounded-2xl space-y-2">
+                    <div className="flex justify-between text-xs text-slate-300">
+                      <span>إجمالي المستحقات (Gross):</span>
+                      <span className="font-mono font-bold">{formatMoney(previewGross)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-rose-300">
+                      <span>إجمالي الاستقطاعات (Deductions):</span>
+                      <span className="font-mono font-bold">-{formatMoney(previewDeductions)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm font-extrabold border-t border-slate-700 pt-2 text-emerald-400">
+                      <span>صافي الراتب المستحق للصرف (Net):</span>
+                      <span className="font-mono font-black text-base">{formatMoney(previewNet)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowEditPayslipModal(false)}
+                  className="px-4 py-2 text-xs text-slate-600 hover:text-slate-800 font-bold rounded-xl cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-xs cursor-pointer transition-colors"
+                >
+                  حفظ التعديلات في المسير
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal 2: Official Payslip Preview */}
       {showPayslipModal && selectedPayslip && (
         <PrintPreviewModal
@@ -1245,10 +1606,24 @@ export const HrPayrollView: React.FC = () => {
                     <span>تأمينات اجتماعية GOSI:</span>
                     <span className="font-mono font-bold text-rose-700">{formatMoney(selectedPayslip.socialInsuranceDeduction)}</span>
                   </div>
-                  <div className="flex justify-between text-slate-700">
-                    <span>خصومات / غيابات / ضرائب:</span>
-                    <span className="font-mono font-bold text-rose-700">{formatMoney(selectedPayslip.taxDeduction + selectedPayslip.deductions)}</span>
-                  </div>
+                  {selectedPayslip.taxDeduction > 0 && (
+                    <div className="flex justify-between text-slate-700">
+                      <span>ضريبة كسب العمل:</span>
+                      <span className="font-mono font-bold text-rose-700">{formatMoney(selectedPayslip.taxDeduction)}</span>
+                    </div>
+                  )}
+                  {selectedPayslip.deductions > 0 && (
+                    <div className="flex justify-between text-slate-700">
+                      <span>خصومات وغيابات وسلف:</span>
+                      <span className="font-mono font-bold text-rose-700">{formatMoney(selectedPayslip.deductions)}</span>
+                    </div>
+                  )}
+                  {selectedPayslip.socialInsuranceDeduction === 0 && selectedPayslip.taxDeduction === 0 && selectedPayslip.deductions === 0 && (
+                    <div className="flex justify-between text-emerald-700 font-medium text-[11px]">
+                      <span>لا توجد أي استقطاعات:</span>
+                      <span className="font-mono font-bold">0.00 {currency}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-extrabold border-t border-slate-200 pt-2 text-rose-800">
                     <span>إجمالي الاستقطاع:</span>
                     <span className="font-mono">-{formatMoney(selectedPayslip.totalDeductions)}</span>

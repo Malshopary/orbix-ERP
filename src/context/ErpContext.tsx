@@ -487,9 +487,14 @@ interface ErpContextType {
   updateEmployee: (id: string, data: Partial<Employee>) => void;
   editEmployee: (id: string, data: Partial<Employee>) => void;
   deleteEmployee: (id: string) => void;
-  generateMonthlyPayroll: (month: number, year: number) => PayrollRun;
+  generateMonthlyPayroll: (month: number, year: number, forceRegenerate?: boolean) => PayrollRun;
   approvePayrollRun: (runId: string, paymentAccountId?: string) => void;
   deletePayrollRun: (runId: string) => void;
+  updatePayslip: (
+    runId: string,
+    payslipId: string,
+    updates: Partial<Payslip>
+  ) => void;
   updatePayslipPaymentMethod: (
     runId: string,
     payslipId: string,
@@ -8835,9 +8840,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAuditEvent('حذف مسير رواتب', 'الموارد البشرية والرواتب', `تم حذف مسير الرواتب لشهر ${target?.month}/${target?.year}`);
   };
 
-  const generateMonthlyPayroll = (month: number, year: number): PayrollRun => {
+  const generateMonthlyPayroll = (month: number, year: number, forceRegenerate?: boolean): PayrollRun => {
     const existing = payrollRuns.find((r) => r.month === month && r.year === year);
-    if (existing) return existing;
+    if (existing && !forceRegenerate) return existing;
+    if (existing && existing.status === 'posted_to_accounts') return existing;
 
     const payslips: Payslip[] = employees
       .filter((e) => e.status === 'active')
@@ -8885,8 +8891,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const grossSalary = baseGross + overtimeAmount + bonusAmount;
 
         // 5. Taxes & Social Insurance
-        const employeeSocialInsurance = Math.round((emp.basicSalary + emp.housingAllowance) * (emp.socialInsuranceEmployeeRate / 100));
-        const incomeTax = Math.round(grossSalary * (emp.taxDeductionRate / 100));
+        const employeeSocialInsurance = Math.round((emp.basicSalary + emp.housingAllowance) * ((emp.socialInsuranceEmployeeRate || 0) / 100));
+        const incomeTax = Math.round(grossSalary * ((emp.taxDeductionRate || 0) / 100));
 
         // 6. Other Deductions & Net
         const penaltyDeduction = penaltyAmount + absenceDeduction + lateDeduction;
@@ -8933,11 +8939,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const totalGross = payslips.reduce((sum, p) => sum + p.grossSalary, 0);
     const totalNet = payslips.reduce((sum, p) => sum + p.netSalary, 0);
     const totalDeductions = payslips.reduce((sum, p) => sum + p.totalDeductions, 0);
-    const totalCashDisbursement = payslips.filter((p) => p.paymentMethod === 'cash').reduce((sum, p) => sum + p.netSalary, 0);
-    const totalBankDisbursement = payslips.filter((p) => p.paymentMethod !== 'cash').reduce((sum, p) => sum + p.netSalary, 0);
+    const totalCashDisbursement = payslips.filter((p) => p.paymentMethod === 'cash' || p.disbursementAccountId === '1110').reduce((sum, p) => sum + p.netSalary, 0);
+    const totalBankDisbursement = payslips.filter((p) => p.paymentMethod !== 'cash' && p.disbursementAccountId !== '1110').reduce((sum, p) => sum + p.netSalary, 0);
 
     const newRun: PayrollRun = {
-      id: `pr-${year}-${String(month).padStart(2, '0')}`,
+      id: existing?.id || `pr-${year}-${String(month).padStart(2, '0')}`,
       month,
       year,
       date: new Date().toISOString().split('T')[0],
@@ -8951,8 +8957,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payslips,
     };
 
-    setPayrollRuns((prev) => [newRun, ...prev]);
-    logAuditEvent('مسير رواتب شهري', 'الموارد البشرية والرواتب', `تم إنشاء مسير رواتب شهر ${month}/${year} بإجمالي ${totalNet} ${currency}`);
+    if (existing) {
+      setPayrollRuns((prev) => prev.map((r) => (r.id === existing.id ? newRun : r)));
+      logAuditEvent('تحديث مسير رواتب شهري', 'الموارد البشرية والرواتب', `تمت إعادة احتساب وتحديث مسير رواتب شهر ${month}/${year}`);
+    } else {
+      setPayrollRuns((prev) => [newRun, ...prev]);
+      logAuditEvent('مسير رواتب شهري', 'الموارد البشرية والرواتب', `تم إنشاء مسير رواتب شهر ${month}/${year} بإجمالي ${totalNet} ${currency}`);
+    }
     return newRun;
   };
 
@@ -9162,6 +9173,66 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           payslips: updatedPayslips,
           totalCashDisbursement,
           totalBankDisbursement,
+        };
+      })
+    );
+  };
+
+  const updatePayslip = (
+    runId: string,
+    payslipId: string,
+    updates: Partial<Payslip>
+  ) => {
+    setPayrollRuns((prev) =>
+      prev.map((run) => {
+        if (run.id !== runId || run.status === 'approved' || run.status === 'posted_to_accounts') return run;
+        const updatedPayslips = run.payslips.map((ps) => {
+          if (ps.id === payslipId) {
+            const merged = { ...ps, ...updates };
+
+            const grossSalary =
+              Number(merged.basicSalary || 0) +
+              Number(merged.housingAllowance || 0) +
+              Number(merged.transportAllowance || 0) +
+              Number(merged.otherAllowances || 0) +
+              Number(merged.overtimeAmount || 0) +
+              Number(merged.bonus || 0);
+
+            const totalDeductions =
+              Number(merged.socialInsuranceDeduction || 0) +
+              Number(merged.taxDeduction || 0) +
+              Number(merged.deductions || 0);
+
+            const netSalary = Math.max(0, grossSalary - totalDeductions);
+
+            return {
+              ...merged,
+              grossSalary,
+              totalDeductions,
+              netSalary,
+            };
+          }
+          return ps;
+        });
+
+        const totalGross = updatedPayslips.reduce((s, p) => s + p.grossSalary, 0);
+        const totalNet = updatedPayslips.reduce((s, p) => s + p.netSalary, 0);
+        const totalDeductions = updatedPayslips.reduce((s, p) => s + p.totalDeductions, 0);
+        const totalCashDisbursement = updatedPayslips
+          .filter((p) => p.paymentMethod === 'cash' || p.disbursementAccountId === '1110')
+          .reduce((s, p) => s + p.netSalary, 0);
+        const totalBankDisbursement = updatedPayslips
+          .filter((p) => p.paymentMethod !== 'cash' && p.disbursementAccountId !== '1110')
+          .reduce((s, p) => s + p.netSalary, 0);
+
+        return {
+          ...run,
+          totalGross,
+          totalNet,
+          totalDeductions,
+          totalCashDisbursement,
+          totalBankDisbursement,
+          payslips: updatedPayslips,
         };
       })
     );
@@ -10384,6 +10455,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         generateMonthlyPayroll,
         approvePayrollRun,
         deletePayrollRun,
+        updatePayslip,
         updatePayslipPaymentMethod,
         attendances,
         addAttendance,
