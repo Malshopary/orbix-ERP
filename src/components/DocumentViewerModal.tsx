@@ -6,6 +6,11 @@ import {
   SalesReturn,
   PurchaseInvoice,
   JournalEntry,
+  GoodsReceiptNote,
+  PurchaseReturn,
+  StockAdjustment,
+  StockTransfer,
+  ScrapVoucher,
 } from '../types';
 import { printDocumentElement } from '../utils/printUtils';
 import { PrintHeader } from './PrintHeader';
@@ -29,6 +34,10 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  ArrowUpDown,
+  ArrowRightLeft,
+  Package,
+  Trash2,
 } from 'lucide-react';
 
 export type DocumentType =
@@ -37,7 +46,14 @@ export type DocumentType =
   | 'payment_voucher'
   | 'return'
   | 'purchase'
-  | 'journal';
+  | 'journal'
+  | 'goods_receipt'
+  | 'purchase_return'
+  | 'stock_adjustment'
+  | 'scrap_voucher'
+  | 'stock_transfer'
+  | 'stock_movement'
+  | 'initial_balance';
 
 export interface DocumentViewerTarget {
   type: DocumentType;
@@ -65,6 +81,11 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     salesReturns,
     purchaseInvoices,
     journalEntries,
+    goodsReceipts = [],
+    purchaseReturns = [],
+    stockAdjustments = [],
+    scrapVouchers = [],
+    stockTransfers = [],
     accounts,
     customers,
     vendors,
@@ -130,11 +151,66 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
         (documentTarget.data as JournalEntry)
       : undefined;
 
+  const resolvedGrn: GoodsReceiptNote | undefined =
+    documentTarget.type === 'goods_receipt'
+      ? goodsReceipts.find(
+          (g) =>
+            g.id === documentTarget.id ||
+            g.grnNumber === documentTarget.reference ||
+            (documentTarget.data && g.id === documentTarget.data.id)
+        ) || (documentTarget.data as GoodsReceiptNote)
+      : undefined;
+
+  const resolvedPurchaseReturn: PurchaseReturn | undefined =
+    documentTarget.type === 'purchase_return'
+      ? purchaseReturns.find(
+          (pr) =>
+            pr.id === documentTarget.id ||
+            pr.returnNumber === documentTarget.reference ||
+            (documentTarget.data && pr.id === documentTarget.data.id)
+        ) || (documentTarget.data as PurchaseReturn)
+      : undefined;
+
+  const resolvedAdjustment: StockAdjustment | undefined =
+    documentTarget.type === 'stock_adjustment'
+      ? stockAdjustments.find(
+          (adj) =>
+            adj.id === documentTarget.id ||
+            adj.adjustmentNumber === documentTarget.reference ||
+            (documentTarget.data && adj.id === documentTarget.data.id)
+        ) || (documentTarget.data as StockAdjustment)
+      : undefined;
+
+  const resolvedScrap: ScrapVoucher | undefined =
+    documentTarget.type === 'scrap_voucher'
+      ? scrapVouchers.find(
+          (sc) =>
+            sc.id === documentTarget.id ||
+            sc.voucherNumber === documentTarget.reference ||
+            (documentTarget.data && sc.id === documentTarget.data.id)
+        ) || (documentTarget.data as ScrapVoucher)
+      : undefined;
+
+  const resolvedTransfer: StockTransfer | undefined =
+    documentTarget.type === 'stock_transfer'
+      ? stockTransfers.find(
+          (tr) =>
+            tr.id === documentTarget.id ||
+            tr.transferNumber === documentTarget.reference ||
+            (documentTarget.data && tr.id === documentTarget.data.id)
+        ) || (documentTarget.data as StockTransfer)
+      : undefined;
+
+  const resolvedMovement =
+    documentTarget.type === 'stock_movement' || documentTarget.type === 'initial_balance'
+      ? documentTarget.data
+      : undefined;
+
   // Document metadata title & color
   let docTitle = 'مستند مالي';
   let docNumber = documentTarget.reference || documentTarget.id || '';
   let badgeColor = 'bg-blue-50 text-blue-800 border-blue-200';
-  let IconComponent = FileText;
+  let IconComponent: React.ComponentType<{ className?: string }> = FileText;
 
   if (documentTarget.type === 'invoice') {
     const isTaxFree =
@@ -173,6 +249,42 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     docNumber = resolvedJournal?.entryNumber || documentTarget.reference || '';
     badgeColor = 'bg-indigo-50 text-indigo-800 border-indigo-200';
     IconComponent = BookOpen;
+  } else if (documentTarget.type === 'goods_receipt') {
+    docTitle = 'إذن استلام مخزني وفحص بضائع (GRN)';
+    docNumber = resolvedGrn?.grnNumber || documentTarget.reference || '';
+    badgeColor = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+    IconComponent = CheckCircle2;
+  } else if (documentTarget.type === 'purchase_return') {
+    docTitle = 'إشعار مدين - مردودات مشتريات للمورد';
+    docNumber = resolvedPurchaseReturn?.returnNumber || documentTarget.reference || '';
+    badgeColor = 'bg-amber-50 text-amber-800 border-amber-200';
+    IconComponent = RotateCcw;
+  } else if (documentTarget.type === 'stock_adjustment') {
+    docTitle = 'محضر تسوية جردية مخزنية';
+    docNumber = resolvedAdjustment?.adjustmentNumber || documentTarget.reference || '';
+    badgeColor = 'bg-blue-50 text-blue-800 border-blue-200';
+    IconComponent = ArrowUpDown;
+  } else if (documentTarget.type === 'scrap_voucher') {
+    docTitle = 'محضر إتلاف وتوالف مخزنية';
+    docNumber = resolvedScrap?.voucherNumber || documentTarget.reference || '';
+    badgeColor = 'bg-rose-50 text-rose-800 border-rose-200';
+    IconComponent = Trash2;
+  } else if (documentTarget.type === 'stock_transfer') {
+    docTitle = 'إذن تحويل بضائع بين المستودعات';
+    docNumber = resolvedTransfer?.transferNumber || documentTarget.reference || '';
+    badgeColor = 'bg-indigo-50 text-indigo-800 border-indigo-200';
+    IconComponent = ArrowRightLeft;
+  } else if (documentTarget.type === 'stock_movement' || documentTarget.type === 'initial_balance') {
+    const isInit =
+      documentTarget.reference?.includes('افتتاحي') ||
+      documentTarget.type === 'initial_balance' ||
+      resolvedMovement?.type?.includes('افتتاحي');
+    docTitle = isInit
+      ? 'سند إثبات رصيد افتتاحي (أول المدة)'
+      : 'سند قيد حركة مخزنية ومطابقة لحظية';
+    docNumber = documentTarget.reference || 'INIT-001';
+    badgeColor = 'bg-teal-50 text-teal-800 border-teal-200';
+    IconComponent = Tag;
   }
 
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
@@ -759,12 +871,372 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
               </div>
             )}
 
+            {/* 6. GOODS RECEIPT NOTE (GRN) VIEW */}
+            {documentTarget.type === 'goods_receipt' && resolvedGrn && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-emerald-50/40 p-4 rounded-xl border border-emerald-200 text-xs">
+                  <div className="space-y-1">
+                    <span className="text-slate-500 font-semibold block text-[11px]">بيانات المورد والتوريد:</span>
+                    <div className="font-extrabold text-slate-900 text-sm">{resolvedGrn.vendorName}</div>
+                    {resolvedGrn.poNumber && (
+                      <div className="text-slate-700">
+                        أمر الشراء المرتبط: <span className="font-mono font-bold text-slate-900">{resolvedGrn.poNumber}</span>
+                      </div>
+                    )}
+                    {resolvedGrn.deliveryNoteNumber && (
+                      <div className="text-slate-600">
+                        رقم بوليصة / إذن التسليم: <span className="font-mono font-semibold">{resolvedGrn.deliveryNoteNumber}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="sm:text-left space-y-1 border-t sm:border-t-0 sm:border-r sm:pr-4 border-emerald-200 pt-2 sm:pt-0">
+                    <div>تاريخ الاستلام: <span className="font-mono font-bold">{resolvedGrn.date}</span></div>
+                    <div>المستودع المستلم: <span className="font-bold text-slate-900">{resolvedGrn.warehouseName || 'المستودع الرئيسي'}</span></div>
+                    {resolvedGrn.receivedBy && (
+                      <div>المستلم / الفاحص الفني: <span className="font-semibold text-slate-800">{resolvedGrn.receivedBy}</span></div>
+                    )}
+                    <div className="mt-1">
+                      <span className="inline-block px-2.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        استلام وفحص فني معتمد
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs border border-slate-200">
+                    <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+                      <tr>
+                        <th className="p-2.5">#</th>
+                        <th className="p-2.5">اسم الصنف</th>
+                        <th className="p-2.5 text-center">الكمية المطلوبة</th>
+                        <th className="p-2.5 text-center">المستلم الفعلي</th>
+                        <th className="p-2.5 text-center text-emerald-700 font-bold">المقبول (+ وارد)</th>
+                        <th className="p-2.5 text-center text-rose-700">المرفوض</th>
+                        <th className="p-2.5">بيانات الدفعة / التشغيلة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {resolvedGrn.items.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2.5 font-mono text-slate-500">{idx + 1}</td>
+                          <td className="p-2.5 font-bold text-slate-900">{item.productName}</td>
+                          <td className="p-2.5 text-center font-mono">{item.orderedQuantity} {item.unit || ''}</td>
+                          <td className="p-2.5 text-center font-mono font-bold">{item.receivedQuantity} {item.unit || ''}</td>
+                          <td className="p-2.5 text-center font-mono font-bold text-emerald-700">+{item.acceptedQuantity} {item.unit || ''}</td>
+                          <td className="p-2.5 text-center font-mono font-bold text-rose-600">{item.rejectedQuantity || 0}</td>
+                          <td className="p-2.5 text-slate-600 font-mono text-[11px]">
+                            {item.batchNumber ? `تشغيلة: ${item.batchNumber}` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {resolvedGrn.notes && (
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                    <span className="font-bold text-slate-700 block mb-1">ملاحظات وتقرير الفحص الفني:</span>
+                    <p className="text-slate-600">{resolvedGrn.notes}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 7. PURCHASE RETURN VIEW */}
+            {documentTarget.type === 'purchase_return' && resolvedPurchaseReturn && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-amber-50/40 p-4 rounded-xl border border-amber-200 text-xs">
+                  <div className="space-y-1">
+                    <span className="text-slate-500 font-semibold block text-[11px]">بيانات المورد والمردود:</span>
+                    <div className="font-extrabold text-slate-900 text-sm">{resolvedPurchaseReturn.vendorName}</div>
+                    {resolvedPurchaseReturn.invoiceNumber && (
+                      <div className="text-slate-700">
+                        مردود من الفاتورة رقم: <span className="font-mono font-bold text-slate-900">{resolvedPurchaseReturn.invoiceNumber}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="sm:text-left space-y-1 border-t sm:border-t-0 sm:border-r sm:pr-4 border-amber-200 pt-2 sm:pt-0">
+                    <div>تاريخ المردود: <span className="font-mono font-bold">{resolvedPurchaseReturn.date}</span></div>
+                    <div>المستودع المصدر: <span className="font-bold text-slate-800">{resolvedPurchaseReturn.warehouseName}</span></div>
+                    <div className="mt-1">
+                      <span className="inline-block px-2.5 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                        إشعار مدين / مردودات معتمدة
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs border border-slate-200">
+                    <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+                      <tr>
+                        <th className="p-2.5">#</th>
+                        <th className="p-2.5">الصنف</th>
+                        <th className="p-2.5 text-center text-rose-700 font-bold">الكمية المعادة (- منصرف)</th>
+                        <th className="p-2.5 text-left">سعر الوحدة</th>
+                        <th className="p-2.5 text-left">إجمالي القيمة</th>
+                        <th className="p-2.5">سبب الإرجاع</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {resolvedPurchaseReturn.items.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2.5 font-mono text-slate-500">{idx + 1}</td>
+                          <td className="p-2.5 font-bold text-slate-900">{item.productName}</td>
+                          <td className="p-2.5 text-center font-mono font-bold text-rose-700">-{item.quantity}</td>
+                          <td className="p-2.5 text-left font-mono">{formatMoney(item.unitPrice)}</td>
+                          <td className="p-2.5 text-left font-mono font-bold text-amber-900">{formatMoney(item.total)}</td>
+                          <td className="p-2.5 text-slate-600">{item.reason || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-100 font-extrabold border-t-2 border-slate-300">
+                      <tr>
+                        <td colSpan={4} className="p-2.5 text-slate-800">إجمالي قيمة الإشعار الدائن المسترد:</td>
+                        <td colSpan={2} className="p-2.5 text-left text-amber-800 font-mono text-sm">
+                          {formatMoney(resolvedPurchaseReturn.totalAmount || resolvedPurchaseReturn.subtotal)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 8. STOCK ADJUSTMENT VIEW */}
+            {documentTarget.type === 'stock_adjustment' && resolvedAdjustment && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-blue-50/40 p-4 rounded-xl border border-blue-200 text-xs">
+                  <div className="space-y-1">
+                    <span className="text-slate-500 font-semibold block text-[11px]">بيانات جلسة التسوية المخزنية:</span>
+                    <div className="font-extrabold text-slate-900 text-sm">
+                      السبب: {resolvedAdjustment.reasonLabel || resolvedAdjustment.reason || 'تسوية فروقات جرد'}
+                    </div>
+                    <div>المستودع: <span className="font-bold text-slate-800">{resolvedAdjustment.warehouseName}</span></div>
+                  </div>
+                  <div className="sm:text-left space-y-1 border-t sm:border-t-0 sm:border-r sm:pr-4 border-blue-200 pt-2 sm:pt-0">
+                    <div>تاريخ التسوية: <span className="font-mono font-bold">{resolvedAdjustment.date}</span></div>
+                    {resolvedAdjustment.responsiblePerson && (
+                      <div>المسؤول عن التسوية: <span className="font-bold">{resolvedAdjustment.responsiblePerson}</span></div>
+                    )}
+                    {resolvedAdjustment.approvedBy && (
+                      <div>المعتمد: <span className="font-bold text-emerald-700">{resolvedAdjustment.approvedBy}</span></div>
+                    )}
+                    <div className="mt-1">
+                      <span className="inline-block px-2.5 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                        تسوية جردية معتمدة ومرحلة
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs border border-slate-200">
+                    <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+                      <tr>
+                        <th className="p-2.5">#</th>
+                        <th className="p-2.5">الصنف</th>
+                        <th className="p-2.5 text-center">الرصيد الدفتري</th>
+                        <th className="p-2.5 text-center">الرصيد الفعلي</th>
+                        <th className="p-2.5 text-center font-bold">فارق الكمية</th>
+                        <th className="p-2.5 text-left">التكلفة</th>
+                        <th className="p-2.5 text-left">الأثر المالي</th>
+                        <th className="p-2.5">السبب والبيان</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {resolvedAdjustment.items.map((item, idx) => {
+                        const isInc = item.type === 'increase' || item.deltaQuantity > 0;
+                        return (
+                          <tr key={idx}>
+                            <td className="p-2.5 font-mono text-slate-500">{idx + 1}</td>
+                            <td className="p-2.5 font-bold text-slate-900">{item.productName}</td>
+                            <td className="p-2.5 text-center font-mono text-slate-600">{item.currentQuantity}</td>
+                            <td className="p-2.5 text-center font-mono font-bold text-slate-900">{item.adjustedQuantity}</td>
+                            <td className={`p-2.5 text-center font-mono font-bold ${isInc ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              {isInc ? `+${Math.abs(item.deltaQuantity)}` : `-${Math.abs(item.deltaQuantity)}`}
+                            </td>
+                            <td className="p-2.5 text-left font-mono">{formatMoney(item.costPrice)}</td>
+                            <td className={`p-2.5 text-left font-mono font-bold ${isInc ? 'text-emerald-800' : 'text-rose-800'}`}>
+                              {isInc ? `+${formatMoney(Math.abs(item.totalCostImpact))}` : `-${formatMoney(Math.abs(item.totalCostImpact))}`}
+                            </td>
+                            <td className="p-2.5 text-slate-600">{item.reason || item.notes || '—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-100 font-extrabold border-t-2 border-slate-300">
+                      <tr>
+                        <td colSpan={6} className="p-2.5 text-slate-800">صافي الأثر المالي لجلسة التسوية:</td>
+                        <td colSpan={2} className={`p-2.5 text-left font-mono text-sm ${resolvedAdjustment.totalCostImpact >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                          {formatMoney(resolvedAdjustment.totalCostImpact)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 9. SCRAP VOUCHER VIEW */}
+            {documentTarget.type === 'scrap_voucher' && resolvedScrap && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-rose-50/40 p-4 rounded-xl border border-rose-200 text-xs">
+                  <div className="space-y-1">
+                    <span className="text-slate-500 font-semibold block text-[11px]">بيانات محضر التوالف والهوالك:</span>
+                    <div className="font-extrabold text-rose-900 text-sm">
+                      سبب الإتلاف: {resolvedScrap.reason || 'هالك مخزني وتوالف منتهية الصلاحية'}
+                    </div>
+                    <div>المستودع: <span className="font-bold text-slate-800">{resolvedScrap.warehouseName}</span></div>
+                  </div>
+                  <div className="sm:text-left space-y-1 border-t sm:border-t-0 sm:border-r sm:pr-4 border-rose-200 pt-2 sm:pt-0">
+                    <div>تاريخ المحضر: <span className="font-mono font-bold">{resolvedScrap.date}</span></div>
+                    {resolvedScrap.responsiblePerson && <div>المسؤول: <span className="font-bold">{resolvedScrap.responsiblePerson}</span></div>}
+                    {resolvedScrap.approvedBy && <div>المعتمد: <span className="font-bold text-rose-800">{resolvedScrap.approvedBy}</span></div>}
+                    <div className="mt-1">
+                      <span className="inline-block px-2.5 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                        محضر إتلاف رسمي معتمد
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs border border-slate-200">
+                    <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+                      <tr>
+                        <th className="p-2.5">#</th>
+                        <th className="p-2.5">الصنف</th>
+                        <th className="p-2.5 text-center text-rose-700 font-bold">الكمية المتلفة (- هالك)</th>
+                        <th className="p-2.5 text-left">التكلفة للوحدة</th>
+                        <th className="p-2.5 text-left">إجمالي الخسارة</th>
+                        <th className="p-2.5">سبب التلف وملاحظات</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {resolvedScrap.items.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2.5 font-mono text-slate-500">{idx + 1}</td>
+                          <td className="p-2.5 font-bold text-slate-900">{item.productName}</td>
+                          <td className="p-2.5 text-center font-mono font-bold text-rose-700">-{item.quantity}</td>
+                          <td className="p-2.5 text-left font-mono">{formatMoney(item.costPrice)}</td>
+                          <td className="p-2.5 text-left font-mono font-bold text-rose-900">{formatMoney(item.totalLoss)}</td>
+                          <td className="p-2.5 text-slate-600">{item.reason || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-100 font-extrabold border-t-2 border-slate-300">
+                      <tr>
+                        <td colSpan={4} className="p-2.5 text-slate-800">إجمالي الخسارة المالية للتوالف:</td>
+                        <td colSpan={2} className="p-2.5 text-left text-rose-800 font-mono text-sm">
+                          {formatMoney(resolvedScrap.totalLossValuation)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 10. STOCK TRANSFER VIEW */}
+            {documentTarget.type === 'stock_transfer' && resolvedTransfer && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-indigo-50/40 p-4 rounded-xl border border-indigo-200 text-xs">
+                  <div className="space-y-1">
+                    <span className="text-slate-500 font-semibold block text-[11px]">مسار التحويل الداخلي:</span>
+                    <div className="font-extrabold text-slate-900 text-sm">
+                      من: <span className="text-rose-700">{resolvedTransfer.fromWarehouseName}</span> ➔ إلى: <span className="text-emerald-700">{resolvedTransfer.toWarehouseName}</span>
+                    </div>
+                  </div>
+                  <div className="sm:text-left space-y-1 border-t sm:border-t-0 sm:border-r sm:pr-4 border-indigo-200 pt-2 sm:pt-0">
+                    <div>تاريخ التحويل: <span className="font-mono font-bold">{resolvedTransfer.date}</span></div>
+                    {resolvedTransfer.responsiblePerson && (
+                      <div>المسؤول / السائق: <span className="font-bold">{resolvedTransfer.responsiblePerson}</span></div>
+                    )}
+                    <div className="mt-1">
+                      <span className="inline-block px-2.5 py-0.5 rounded text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300">
+                        تحويل مخزني معتمد
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs border border-slate-200">
+                    <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+                      <tr>
+                        <th className="p-2.5">#</th>
+                        <th className="p-2.5">الصنف المحول</th>
+                        <th className="p-2.5 text-center font-bold">الكمية المحولة</th>
+                        <th className="p-2.5 text-center">الوحدة</th>
+                        <th className="p-2.5">ملاحظات التحويل</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {resolvedTransfer.items.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2.5 font-mono text-slate-500">{idx + 1}</td>
+                          <td className="p-2.5 font-bold text-slate-900">{item.productName}</td>
+                          <td className="p-2.5 text-center font-mono font-bold text-indigo-700">{item.quantity}</td>
+                          <td className="p-2.5 text-center text-slate-600">{item.unit || 'قطعة'}</td>
+                          <td className="p-2.5 text-slate-600">{item.notes || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 11. STOCK MOVEMENT / INITIAL BALANCE VIEW */}
+            {(documentTarget.type === 'stock_movement' || documentTarget.type === 'initial_balance') && resolvedMovement && (
+              <div className="space-y-6">
+                <div className="bg-teal-50/50 p-6 rounded-2xl border border-teal-200 text-center space-y-2">
+                  <span className="text-xs font-bold text-teal-900 block">
+                    {resolvedMovement.type || 'سند رصيد افتتاحي ومطابقة رصيد المخزون'}
+                  </span>
+                  <div className="text-3xl font-black text-teal-800 font-mono">
+                    {resolvedMovement.qtyIn > 0 ? `+${resolvedMovement.qtyIn}` : `-${resolvedMovement.qtyOut}`}
+                  </div>
+                  <div className="text-xs font-semibold text-slate-600">
+                    الرصيد التراكمي المقيد: <span className="font-bold text-slate-900 font-mono">{resolvedMovement.balance}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                  <div className="space-y-1">
+                    <span className="text-slate-500 font-semibold block text-[11px]">بيانات القيد المخزني:</span>
+                    <div className="font-bold text-slate-900">المرجع: <span className="font-mono">{resolvedMovement.reference}</span></div>
+                    <div>المستودع: <span className="font-bold text-slate-800">{resolvedMovement.warehouseName || 'المستودع الرئيسي'}</span></div>
+                  </div>
+                  <div className="sm:text-left space-y-1 border-t sm:border-t-0 sm:border-r sm:pr-4 border-slate-200 pt-2 sm:pt-0">
+                    <div>التاريخ: <span className="font-mono font-bold">{resolvedMovement.date}</span></div>
+                    <div>نوع الحركة: <span className="font-bold text-teal-800">{resolvedMovement.type}</span></div>
+                  </div>
+                </div>
+
+                {resolvedMovement.notes && (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                    <span className="font-bold text-slate-700 block mb-1">البيان والشرح الإيضاحي:</span>
+                    <p className="text-slate-600 leading-relaxed">{resolvedMovement.notes}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Fallback if document details are from direct generic row */}
             {!resolvedInvoice &&
               !resolvedReceipt &&
               !resolvedReturn &&
               !resolvedPurchase &&
-              !resolvedJournal && (
+              !resolvedJournal &&
+              !resolvedGrn &&
+              !resolvedPurchaseReturn &&
+              !resolvedAdjustment &&
+              !resolvedScrap &&
+              !resolvedTransfer &&
+              !resolvedMovement && (
                 <div className="p-6 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                   <div className="flex items-center gap-2 text-slate-800 font-bold">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600" />
@@ -794,7 +1266,12 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                 resolvedInvoice?.notes ||
                 resolvedPurchase?.notes ||
                 resolvedReceipt?.notes ||
-                resolvedReturn?.notes
+                resolvedReturn?.notes ||
+                resolvedGrn?.notes ||
+                resolvedAdjustment?.notes ||
+                resolvedScrap?.notes ||
+                resolvedTransfer?.notes ||
+                resolvedMovement?.notes
               }
             />
           </div>

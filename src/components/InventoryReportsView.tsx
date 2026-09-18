@@ -31,6 +31,7 @@ import { useErp } from '../context/ErpContext';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
 import { PrintPreviewModal } from './PrintPreviewModal';
+import { DocumentViewerModal, DocumentViewerTarget, DocumentType } from './DocumentViewerModal';
 import { Product, Warehouse, StockAdjustment, StockTransfer, ScrapVoucher, ProductBatch } from '../types';
 
 export type InventoryReportType =
@@ -148,6 +149,7 @@ export const InventoryReportsView: React.FC = () => {
     }
   });
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [viewerTarget, setViewerTarget] = useState<DocumentViewerTarget | null>(null);
 
   // Available Categories
   const categories = useMemo(() => {
@@ -335,6 +337,8 @@ export const InventoryReportsView: React.FC = () => {
       balance?: number;
       notes?: string;
       sortKey: number;
+      docType?: DocumentType;
+      rawDoc?: any;
     }[] = [];
 
     // Helper for timestamp sorting
@@ -383,6 +387,8 @@ export const InventoryReportsView: React.FC = () => {
           qtyOut: isOut ? m.quantity : 0,
           notes: m.notes || (isInitial ? 'رصيد افتتاحي مقيد بالنظام' : 'حركة مخزنية مسجلة'),
           sortKey: isInitial ? 0 : getTimestamp(dateVal, idx + 1),
+          docType: isInitial ? 'initial_balance' : 'stock_movement',
+          rawDoc: m,
         });
       });
 
@@ -415,6 +421,8 @@ export const InventoryReportsView: React.FC = () => {
           qtyOut: 0,
           notes: `توريد بموجب فاتورة مشتريات من المورد: ${inv.vendorName || 'المورد'}${match.batchNumber ? ` [تشغيلة: ${match.batchNumber}]` : ''}`,
           sortKey: getTimestamp(dateVal, 1000 + invIdx * 10 + itemIdx),
+          docType: 'purchase',
+          rawDoc: inv,
         });
       });
     });
@@ -451,6 +459,8 @@ export const InventoryReportsView: React.FC = () => {
           qtyOut: 0,
           notes: `استلام وفحص فني من المورد: ${grn.vendorName}${grn.poNumber ? ` (أمر شراء: ${grn.poNumber})` : ''}`,
           sortKey: getTimestamp(dateVal, 2000 + grnIdx * 10 + itemIdx),
+          docType: 'goods_receipt',
+          rawDoc: grn,
         });
       });
     });
@@ -477,6 +487,8 @@ export const InventoryReportsView: React.FC = () => {
           qtyOut: match.quantity || 0,
           notes: `بيع للعميل: ${inv.customerName || 'عميل نقدي'}`,
           sortKey: getTimestamp(dateVal, 3000 + invIdx * 10 + itemIdx),
+          docType: 'invoice',
+          rawDoc: inv,
         });
       });
     });
@@ -502,6 +514,8 @@ export const InventoryReportsView: React.FC = () => {
           qtyOut: 0,
           notes: `مرتجع مبيعات من العميل: ${ret.customerName || 'عميل'}${ret.reason ? ` - ${ret.reason}` : ''}`,
           sortKey: getTimestamp(dateVal, 4000 + retIdx * 10 + itemIdx),
+          docType: 'return',
+          rawDoc: ret,
         });
       });
     });
@@ -527,6 +541,8 @@ export const InventoryReportsView: React.FC = () => {
           qtyOut: match.quantity || 0,
           notes: `مردودات مشتريات إلى المورد: ${pret.vendorName || 'مورد'}${pret.reason ? ` - ${pret.reason}` : ''}`,
           sortKey: getTimestamp(dateVal, 5000 + pretIdx * 10 + itemIdx),
+          docType: 'purchase_return',
+          rawDoc: pret,
         });
       });
     });
@@ -557,6 +573,8 @@ export const InventoryReportsView: React.FC = () => {
           qtyOut: isIncrease ? 0 : qty,
           notes: `تسوية جردية: ${match.reason || adj.reasonLabel || adj.notes || 'تسوية رصيد جردي'}`,
           sortKey: getTimestamp(dateVal, 6000 + adjIdx * 10 + itemIdx),
+          docType: 'stock_adjustment',
+          rawDoc: adj,
         });
       });
     });
@@ -582,6 +600,8 @@ export const InventoryReportsView: React.FC = () => {
           qtyOut: match.quantity,
           notes: `محضر إتلاف مخزني: ${match.reason || sc.reason || 'هالك مخزني'}`,
           sortKey: getTimestamp(dateVal, 7000 + scIdx * 10 + itemIdx),
+          docType: 'scrap_voucher',
+          rawDoc: sc,
         });
       });
     });
@@ -603,6 +623,8 @@ export const InventoryReportsView: React.FC = () => {
             qtyOut: 0,
             notes: `تحويل داخلي (${match.quantity} ${match.unit || selectedProduct.unit}) من ${tr.fromWarehouseName} إلى ${tr.toWarehouseName}`,
             sortKey: getTimestamp(dateVal, 8000 + trIdx * 10 + itemIdx),
+            docType: 'stock_transfer',
+            rawDoc: tr,
           });
         } else if (selectedWarehouseId === tr.fromWarehouseId) {
           ledger.push({
@@ -616,6 +638,8 @@ export const InventoryReportsView: React.FC = () => {
             qtyOut: match.quantity,
             notes: `تحويل صادر إلى: ${tr.toWarehouseName}`,
             sortKey: getTimestamp(dateVal, 8000 + trIdx * 10 + itemIdx),
+            docType: 'stock_transfer',
+            rawDoc: tr,
           });
         } else if (selectedWarehouseId === tr.toWarehouseId) {
           ledger.push({
@@ -629,6 +653,8 @@ export const InventoryReportsView: React.FC = () => {
             qtyOut: 0,
             notes: `تحويل وارد من: ${tr.fromWarehouseName}`,
             sortKey: getTimestamp(dateVal, 8000 + trIdx * 10 + itemIdx),
+            docType: 'stock_transfer',
+            rawDoc: tr,
           });
         }
       });
@@ -661,13 +687,26 @@ export const InventoryReportsView: React.FC = () => {
         id: `init-opening-${targetProductId}`,
         date: (selectedProduct as any).createdAt ? (selectedProduct as any).createdAt.split('T')[0] : '2026-01-01',
         type: 'رصيد أول المدة (افتتاحي)',
-        reference: 'رصيد سابق',
+        reference: 'رصيد افتتاحي',
         warehouseName: warehouses.find((w) => w.id === selectedProduct.warehouseId)?.name || 'المستودع الرئيسي',
         warehouseId: selectedProduct.warehouseId,
         qtyIn: targetWhQuantity,
         qtyOut: 0,
         notes: 'الرصيد الافتتاحي المسجل عند تعريف بطاقة الصنف',
         sortKey: 0,
+        docType: 'initial_balance',
+        rawDoc: {
+          id: `init-${selectedProduct.id}`,
+          reference: 'رصيد افتتاحي',
+          type: 'initial',
+          productName: selectedProduct.name,
+          productId: selectedProduct.id,
+          sku: selectedProduct.sku,
+          quantity: targetWhQuantity,
+          date: (selectedProduct as any).createdAt ? (selectedProduct as any).createdAt.split('T')[0] : '2026-01-01',
+          warehouseName: warehouses.find((w) => w.id === selectedProduct.warehouseId)?.name || 'المستودع الرئيسي',
+          notes: 'الرصيد الافتتاحي المسجل عند تعريف بطاقة الصنف',
+        },
       });
     } else if (!hasInitialEntry && targetWhQuantity !== netTransactions) {
       const openingDiff = targetWhQuantity - netTransactions;
@@ -676,13 +715,26 @@ export const InventoryReportsView: React.FC = () => {
           id: `init-opening-${targetProductId}`,
           date: unique[0]?.date || '2026-01-01',
           type: 'رصيد أول المدة (افتتاحي)',
-          reference: 'رصيد سابق',
+          reference: 'رصيد افتتاحي',
           warehouseName: warehouses.find((w) => w.id === selectedProduct.warehouseId)?.name || 'المستودع الرئيسي',
           warehouseId: selectedProduct.warehouseId,
           qtyIn: Math.max(0, openingDiff),
           qtyOut: openingDiff < 0 ? Math.abs(openingDiff) : 0,
           notes: 'الرصيد الافتتاحي الأولي لتطابق بطاقة الصنف',
           sortKey: 0,
+          docType: 'initial_balance',
+          rawDoc: {
+            id: `init-diff-${selectedProduct.id}`,
+            reference: 'رصيد افتتاحي',
+            type: 'initial',
+            productName: selectedProduct.name,
+            productId: selectedProduct.id,
+            sku: selectedProduct.sku,
+            quantity: Math.abs(openingDiff),
+            date: unique[0]?.date || '2026-01-01',
+            warehouseName: warehouses.find((w) => w.id === selectedProduct.warehouseId)?.name || 'المستودع الرئيسي',
+            notes: 'الرصيد الافتتاحي الأولي لتطابق بطاقة الصنف',
+          },
         });
       }
     }
@@ -713,6 +765,19 @@ export const InventoryReportsView: React.FC = () => {
         balance: finalBal,
         notes: 'تسوية لتطابق كارت الصنف مع الرصيد اللحظي الفعلي بالمستودعات',
         sortKey: Date.now(),
+        docType: 'initial_balance',
+        rawDoc: {
+          id: `manual-sync-${targetProductId}`,
+          reference: 'تسوية تطابق لحظي',
+          type: 'sync',
+          productName: selectedProduct.name,
+          productId: selectedProduct.id,
+          sku: selectedProduct.sku,
+          quantity: Math.abs(directAdjustment),
+          date: new Date().toISOString().split('T')[0],
+          warehouseName: 'المستودع الرئيسي',
+          notes: 'تسوية لتطابق كارت الصنف مع الرصيد اللحظي الفعلي بالمستودعات',
+        },
       });
     }
 
@@ -1395,7 +1460,24 @@ export const InventoryReportsView: React.FC = () => {
                               {m.type}
                             </span>
                           </td>
-                          <td className="p-3 font-mono font-bold text-slate-800">{m.reference}</td>
+                          <td className="p-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViewerTarget({
+                                  type: (m.docType as any) || 'stock_movement',
+                                  reference: m.reference,
+                                  id: m.rawDoc?.id || m.id,
+                                  data: m.rawDoc || m,
+                                });
+                              }}
+                              className="group inline-flex items-center gap-1.5 font-mono font-bold text-slate-800 hover:text-emerald-700 transition-colors cursor-pointer text-right underline decoration-dotted decoration-slate-300 hover:decoration-emerald-500 underline-offset-4"
+                              title="انقر لعرض تفاصيل السند والوثيقة بالكامل"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors shrink-0" />
+                              <span>{m.reference}</span>
+                            </button>
+                          </td>
                           <td className="p-3 text-slate-600">{m.warehouseName}</td>
                           <td className="p-3 font-bold text-emerald-600 font-mono">
                             {m.qtyIn > 0 ? `+${m.qtyIn}` : <span className="text-slate-300 font-normal">-</span>}
@@ -1958,6 +2040,14 @@ export const InventoryReportsView: React.FC = () => {
             <PrintFooter />
           </div>
         </PrintPreviewModal>
+      )}
+
+      {/* Universal Document Details Viewer Modal */}
+      {viewerTarget && (
+        <DocumentViewerModal
+          documentTarget={viewerTarget}
+          onClose={() => setViewerTarget(null)}
+        />
       )}
     </div>
   );
