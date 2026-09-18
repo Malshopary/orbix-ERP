@@ -93,7 +93,7 @@ export const PurchasesView: React.FC = () => {
     | 'purchases_price_variance'
     | 'purchases_returns_analysis';
 
-  const [activeSubTab, setActiveSubTabLocal] = useState<PurchasesSubTab>('bills');
+  const [activeSubTab, setActiveSubTabLocal] = useState<PurchasesSubTab>('purchase_orders');
   const [selectedPoForGrn, setSelectedPoForGrn] = useState<PurchaseOrder | null>(null);
 
   React.useEffect(() => {
@@ -850,12 +850,6 @@ export const PurchasesView: React.FC = () => {
         <div className="flex items-center gap-1 overflow-x-auto pb-1 border-t border-slate-100 pt-3 text-xs">
           {[
             {
-              id: 'bills' as const,
-              label: 'فواتير المشتريات',
-              icon: FileSpreadsheet,
-              count: purchaseInvoices.length,
-            },
-            {
               id: 'purchase_orders' as const,
               label: 'أوامر الشراء (PO)',
               icon: FileCheck2,
@@ -866,6 +860,12 @@ export const PurchasesView: React.FC = () => {
               label: 'أذونات الاستلام (GRN)',
               icon: PackageCheck,
               count: goodsReceipts.length,
+            },
+            {
+              id: 'bills' as const,
+              label: 'فواتير الشراء',
+              icon: FileSpreadsheet,
+              count: purchaseInvoices.length,
             },
             {
               id: 'landed_costs' as const,

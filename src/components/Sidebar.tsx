@@ -538,12 +538,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: ShoppingCart,
       subItems: [
         {
-          id: 'bills',
-          label: 'الفواتير',
-          icon: FileSpreadsheet,
-          badge: purchaseInvoices.length,
-        },
-        {
           id: 'purchase_orders',
           label: 'أوامر الشراء',
           icon: FileCheck2,
@@ -557,6 +551,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             (goodsReceiptNotes?.length || goodsReceipts?.length || 0) > 0
               ? goodsReceiptNotes?.length || goodsReceipts?.length
               : undefined,
+        },
+        {
+          id: 'bills',
+          label: 'فواتير الشراء',
+          icon: FileSpreadsheet,
+          badge: purchaseInvoices.length,
         },
         {
           id: 'landed_costs',
