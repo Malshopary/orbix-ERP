@@ -104,7 +104,8 @@ export const InventoryReportsView: React.FC = () => {
     scrapVouchers = [],
     productBatches = [],
     salesInvoices = [],
-    purchases = [],
+    purchaseInvoices = [],
+    goodsReceipts = [],
     salesReturns = [],
     purchaseReturns = [],
     currency,
@@ -139,7 +140,13 @@ export const InventoryReportsView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [selectedProductId, setSelectedProductId] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem('orbix_selected_product_id') || '';
+    } catch {
+      return '';
+    }
+  });
   const [showPrintModal, setShowPrintModal] = useState(false);
 
   // Available Categories
@@ -153,10 +160,19 @@ export const InventoryReportsView: React.FC = () => {
 
   // Initialize selected product for movement card
   React.useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('orbix_selected_product_id');
+      if (saved && products.some((p) => p.id === saved)) {
+        setSelectedProductId(saved);
+        return;
+      }
+    } catch {
+      // ignore
+    }
     if (!selectedProductId && products.length > 0) {
       setSelectedProductId(products[0].id);
     }
-  }, [products, selectedProductId]);
+  }, [products, activeSubTab]);
 
   // Filtered Products List
   const filteredProducts = useMemo(() => {
@@ -233,9 +249,17 @@ export const InventoryReportsView: React.FC = () => {
 
       // Look in sales invoices
       salesInvoices.forEach((inv) => {
-        if (inv.items && inv.items.some((item) => item.productId === p.id)) {
+        if (inv.status !== 'cancelled' && inv.items && inv.items.some((item) => item.productId === p.id)) {
           const invDate = new Date(inv.date || inv.issueDate || '').getTime();
           if (!isNaN(invDate) && invDate > latestDate) latestDate = invDate;
+        }
+      });
+
+      // Look in purchase invoices
+      purchaseInvoices.forEach((pinv) => {
+        if (pinv.status !== 'cancelled' && pinv.items && pinv.items.some((item: any) => item.productId === p.id)) {
+          const pDate = new Date(pinv.date || (pinv as any).issueDate || (pinv.createdAt ? pinv.createdAt.split('T')[0] : '')).getTime();
+          if (!isNaN(pDate) && pDate > latestDate) latestDate = pDate;
         }
       });
 
@@ -283,7 +307,7 @@ export const InventoryReportsView: React.FC = () => {
       stagnantCapital,
       stagnantPercent,
     };
-  }, [filteredProducts, salesInvoices, stockMovements]);
+  }, [filteredProducts, salesInvoices, purchaseInvoices, stockMovements]);
 
   // 4. Item Movement / Stock Ledger for Selected Product
   const selectedProduct = useMemo(() => {
@@ -293,102 +317,324 @@ export const InventoryReportsView: React.FC = () => {
   const movementLedger = useMemo(() => {
     if (!selectedProduct) return [];
 
+    const targetProductId = selectedProduct.id;
+    const isWhMatch = (whId?: string) => {
+      if (selectedWarehouseId === 'all') return true;
+      return whId === selectedWarehouseId;
+    };
+
     const ledger: {
       id: string;
       date: string;
       type: string;
       reference: string;
       warehouseName: string;
+      warehouseId?: string;
       qtyIn: number;
       qtyOut: number;
+      balance?: number;
       notes?: string;
+      sortKey: number;
     }[] = [];
 
-    // From stockMovements
+    // Helper for timestamp sorting
+    const getTimestamp = (dateStr?: string, defaultIdx: number = 0) => {
+      if (!dateStr) return defaultIdx;
+      const ts = new Date(dateStr).getTime();
+      return isNaN(ts) ? defaultIdx : ts;
+    };
+
+    // A) From stockMovements (Initial balance, direct movements)
     stockMovements
-      .filter((m) => m.productId === selectedProduct.id)
-      .forEach((m) => {
-        const isOut = ['OUT', 'SCRAP', 'transfer_out', 'adjustment_out'].includes(m.type);
+      .filter((m) => m.productId === targetProductId && isWhMatch(m.warehouseId))
+      .forEach((m, idx) => {
+        const typeLower = (m.type || '').toLowerCase();
+        const isInitial =
+          m.reference === 'رصيد افتتاحي' ||
+          m.referenceType === 'initial_stock' ||
+          (m.notes && m.notes.includes('رصيد أول المدة'));
+
+        const isOut =
+          ['out', 'scrap', 'transfer_out', 'adjustment_out'].includes(typeLower) ||
+          (typeLower === 'adjustment' && m.notes && (m.notes.includes('خصم') || m.notes.includes('عجز')));
+
+        let typeLabel = m.type;
+        if (isInitial) {
+          typeLabel = 'رصيد أول المدة (افتتاحي)';
+        } else if (typeLower === 'in') {
+          typeLabel = 'وارد مخزني';
+        } else if (typeLower === 'out') {
+          typeLabel = 'منصرف مخزني';
+        } else if (typeLower === 'scrap') {
+          typeLabel = 'إتلاف وتوالف مخزنية';
+        } else if (typeLower === 'adjustment') {
+          typeLabel = isOut ? 'تسوية جردية (خصم)' : 'تسوية جردية (إضافة)';
+        }
+
+        const dateVal = m.date || (m.createdAt ? m.createdAt.split('T')[0] : '');
         ledger.push({
-          id: m.id,
-          date: m.date || new Date().toISOString().split('T')[0],
-          type: m.type,
-          reference: m.reference || `TRX-${m.id.substring(0, 5)}`,
-          warehouseName: m.warehouseName || 'المستودع الرئيسي',
+          id: `sm-${m.id}`,
+          date: dateVal || '2026-01-01',
+          type: typeLabel,
+          reference: m.reference || m.referenceNumber || `TRX-${m.id.substring(0, 5)}`,
+          warehouseName: m.warehouseName || warehouses.find((w) => w.id === m.warehouseId)?.name || 'المستودع الرئيسي',
+          warehouseId: m.warehouseId,
           qtyIn: isOut ? 0 : m.quantity,
           qtyOut: isOut ? m.quantity : 0,
-          notes: 'حركة مخزنية مسجلة',
+          notes: m.notes || (isInitial ? 'رصيد افتتاحي مقيد بالنظام' : 'حركة مخزنية مسجلة'),
+          sortKey: isInitial ? 0 : getTimestamp(dateVal, idx + 1),
         });
       });
 
-    // From salesInvoices
-    salesInvoices.forEach((inv) => {
-      const match = inv.items?.find((i) => i.productId === selectedProduct.id);
-      if (match) {
-        ledger.push({
-          id: `sale-${inv.id}`,
-          date: inv.date || inv.issueDate || '',
-          type: 'فاتورة بيع',
-          reference: inv.invoiceNumber || inv.id,
-          warehouseName: inv.warehouseName || 'المستودع الرئيسي',
-          qtyIn: 0,
-          qtyOut: match.quantity || 1,
-          notes: `بيع للعميل: ${inv.customerName || 'عميل نقدي'}`,
-        });
-      }
-    });
+    // Handled references to prevent duplicate entries with stockMovements
+    const handledRefs = new Set(
+      stockMovements
+        .filter((m) => m.productId === targetProductId)
+        .map((m) => m.referenceNumber || m.reference)
+        .filter(Boolean)
+    );
 
-    // From purchases
-    purchases.forEach((po) => {
-      const match = po.items?.find((i: any) => i.productId === selectedProduct.id);
-      if (match) {
+    // B) From purchaseInvoices (فواتير المشتريات والتوريدات)
+    purchaseInvoices.forEach((inv, invIdx) => {
+      if (inv.status === 'cancelled') return;
+      const matchingItems = inv.items?.filter((i: any) => i.productId === targetProductId) || [];
+      matchingItems.forEach((match: any, itemIdx: number) => {
+        const itemWhId = match.warehouseId || inv.warehouseId;
+        if (!isWhMatch(itemWhId)) return;
+
+        const dateVal = inv.date || (inv as any).issueDate || (inv.createdAt ? inv.createdAt.split('T')[0] : '');
+        const whName = warehouses.find((w) => w.id === itemWhId)?.name || inv.warehouseName || 'المستودع الرئيسي';
         ledger.push({
-          id: `purch-${po.id}`,
-          date: po.date || po.issueDate || '',
+          id: `purch-${inv.id}-${itemIdx}`,
+          date: dateVal || '2026-01-01',
           type: 'فاتورة شراء',
-          reference: po.invoiceNumber || po.billNumber || po.id,
-          warehouseName: po.warehouseName || 'المستودع الرئيسي',
-          qtyIn: match.quantity || 1,
+          reference: inv.invoiceNumber || inv.id,
+          warehouseName: whName,
+          warehouseId: itemWhId,
+          qtyIn: match.quantity || 0,
           qtyOut: 0,
-          notes: `توريد من المورد: ${po.vendorName || po.supplierName || 'مورد'}`,
+          notes: `توريد بموجب فاتورة مشتريات من المورد: ${inv.vendorName || 'المورد'}${match.batchNumber ? ` [تشغيلة: ${match.batchNumber}]` : ''}`,
+          sortKey: getTimestamp(dateVal, 1000 + invIdx * 10 + itemIdx),
         });
-      }
+      });
     });
 
-    // From stockAdjustments
-    stockAdjustments
-      .filter((adj) => adj.productId === selectedProduct.id)
-      .forEach((adj) => {
-        const isOut = adj.type === 'OUT';
+    // C) From goodsReceipts (أذونات الاستلام المخزني GRN - غير المفوترة)
+    const billedGrnNumbers = new Set(
+      purchaseInvoices
+        .filter((inv) => inv.notes && inv.notes.includes('GRN-'))
+        .map((inv) => {
+          const match = inv.notes?.match(/GRN-[\w-]+/);
+          return match ? match[0] : '';
+        })
+        .filter(Boolean)
+    );
+
+    goodsReceipts.forEach((grn, grnIdx) => {
+      // Avoid double-counting physical receipt if already billed under purchase invoice
+      if (billedGrnNumbers.has(grn.grnNumber)) return;
+
+      const matchingItems = grn.items?.filter((i: any) => i.productId === targetProductId && (i.acceptedQuantity || 0) > 0) || [];
+      matchingItems.forEach((match: any, itemIdx: number) => {
+        if (!isWhMatch(grn.warehouseId)) return;
+
+        const dateVal = grn.date || (grn.createdAt ? grn.createdAt.split('T')[0] : '');
+        const whName = grn.warehouseName || warehouses.find((w) => w.id === grn.warehouseId)?.name || 'المستودع الرئيسي';
         ledger.push({
-          id: `adj-${adj.id}`,
-          date: adj.date || '',
-          type: 'تسوية مخزنية',
-          reference: `ADJ-${adj.id.substring(0, 6)}`,
-          warehouseName: adj.warehouseName || 'المستودع',
-          qtyIn: isOut ? 0 : adj.quantity,
-          qtyOut: isOut ? adj.quantity : 0,
-          notes: adj.notes || adj.reason,
+          id: `grn-${grn.id}-${itemIdx}`,
+          date: dateVal || '2026-01-01',
+          type: 'إذن استلام مخزني (GRN)',
+          reference: grn.grnNumber,
+          warehouseName: whName,
+          warehouseId: grn.warehouseId,
+          qtyIn: match.acceptedQuantity,
+          qtyOut: 0,
+          notes: `استلام وفحص فني من المورد: ${grn.vendorName}${grn.poNumber ? ` (أمر شراء: ${grn.poNumber})` : ''}`,
+          sortKey: getTimestamp(dateVal, 2000 + grnIdx * 10 + itemIdx),
         });
       });
+    });
 
-    // From scrapVouchers
-    scrapVouchers
-      .filter((sc) => sc.productId === selectedProduct.id)
-      .forEach((sc) => {
+    // D) From salesInvoices (فواتير المبيعات ونقاط البيع POS)
+    salesInvoices.forEach((inv, invIdx) => {
+      if (inv.status === 'cancelled') return;
+      const matchingItems = inv.items?.filter((i) => i.productId === targetProductId) || [];
+      matchingItems.forEach((match, itemIdx) => {
+        const itemWhId = inv.warehouseId;
+        if (!isWhMatch(itemWhId)) return;
+
+        const dateVal = inv.date || inv.issueDate || (inv.createdAt ? inv.createdAt.split('T')[0] : '');
+        const whName = inv.warehouseName || warehouses.find((w) => w.id === itemWhId)?.name || 'المستودع الرئيسي';
+        const isPos = inv.invoiceNumber?.startsWith('POS-');
         ledger.push({
-          id: `scrap-${sc.id}`,
-          date: sc.date || '',
-          type: 'إتلاف بضاعة',
-          reference: sc.voucherNumber || `SCR-${sc.id.substring(0, 5)}`,
-          warehouseName: sc.warehouseName || 'المستودع',
+          id: `sale-${inv.id}-${itemIdx}`,
+          date: dateVal || '2026-01-01',
+          type: isPos ? 'فاتورة بيع (POS)' : 'فاتورة بيع',
+          reference: inv.invoiceNumber || inv.id,
+          warehouseName: whName,
+          warehouseId: itemWhId,
           qtyIn: 0,
-          qtyOut: sc.quantity,
-          notes: sc.reason || 'إتلاف مخزني',
+          qtyOut: match.quantity || 0,
+          notes: `بيع للعميل: ${inv.customerName || 'عميل نقدي'}`,
+          sortKey: getTimestamp(dateVal, 3000 + invIdx * 10 + itemIdx),
         });
       });
+    });
 
-    // Deduplicate by ID
+    // E) From salesReturns (مردودات المبيعات - وارد للمخزن)
+    salesReturns.forEach((ret, retIdx) => {
+      if (ret.status === 'cancelled') return;
+      const matchingItems = ret.items?.filter((i: any) => i.productId === targetProductId) || [];
+      matchingItems.forEach((match: any, itemIdx: number) => {
+        const itemWhId = ret.warehouseId;
+        if (!isWhMatch(itemWhId)) return;
+
+        const dateVal = ret.date || (ret.createdAt ? ret.createdAt.split('T')[0] : '');
+        const whName = ret.warehouseName || warehouses.find((w) => w.id === itemWhId)?.name || 'المستودع الرئيسي';
+        ledger.push({
+          id: `saleret-${ret.id}-${itemIdx}`,
+          date: dateVal || '2026-01-01',
+          type: 'مرتجع مبيعات',
+          reference: ret.returnNumber || ret.id,
+          warehouseName: whName,
+          warehouseId: itemWhId,
+          qtyIn: match.quantity || 0,
+          qtyOut: 0,
+          notes: `مرتجع مبيعات من العميل: ${ret.customerName || 'عميل'}${ret.reason ? ` - ${ret.reason}` : ''}`,
+          sortKey: getTimestamp(dateVal, 4000 + retIdx * 10 + itemIdx),
+        });
+      });
+    });
+
+    // F) From purchaseReturns (مردودات المشتريات - منصرف من المخزن)
+    purchaseReturns.forEach((pret, pretIdx) => {
+      if (pret.status === 'cancelled') return;
+      const matchingItems = pret.items?.filter((i: any) => i.productId === targetProductId) || [];
+      matchingItems.forEach((match: any, itemIdx: number) => {
+        const itemWhId = pret.warehouseId;
+        if (!isWhMatch(itemWhId)) return;
+
+        const dateVal = pret.date || (pret.createdAt ? pret.createdAt.split('T')[0] : '');
+        const whName = pret.warehouseName || warehouses.find((w) => w.id === itemWhId)?.name || 'المستودع الرئيسي';
+        ledger.push({
+          id: `purchret-${pret.id}-${itemIdx}`,
+          date: dateVal || '2026-01-01',
+          type: 'مردودات مشتريات',
+          reference: pret.returnNumber || pret.id,
+          warehouseName: whName,
+          warehouseId: itemWhId,
+          qtyIn: 0,
+          qtyOut: match.quantity || 0,
+          notes: `مردودات مشتريات إلى المورد: ${pret.vendorName || 'مورد'}${pret.reason ? ` - ${pret.reason}` : ''}`,
+          sortKey: getTimestamp(dateVal, 5000 + pretIdx * 10 + itemIdx),
+        });
+      });
+    });
+
+    // G) From stockAdjustments (تسويات الجرد المخزني - إذا لم تسجل في stockMovements)
+    stockAdjustments.forEach((adj, adjIdx) => {
+      if (adj.status === 'cancelled') return;
+      if (handledRefs.has(adj.adjustmentNumber) || handledRefs.has(`ADJ-${adj.id.substring(0, 6)}`)) return;
+
+      const matchingItems = adj.items?.filter((i) => i.productId === targetProductId) || [];
+      matchingItems.forEach((match, itemIdx) => {
+        if (!isWhMatch(adj.warehouseId)) return;
+
+        const isIncrease = match.deltaQuantity > 0 || match.type === 'increase';
+        const qty = Math.abs(match.deltaQuantity || 0);
+        if (qty === 0) return;
+
+        const dateVal = adj.date || '';
+        const whName = adj.warehouseName || warehouses.find((w) => w.id === adj.warehouseId)?.name || 'المستودع الرئيسي';
+        ledger.push({
+          id: `adj-${adj.id}-${itemIdx}`,
+          date: dateVal || '2026-01-01',
+          type: isIncrease ? 'تسوية جردية (زيادة)' : 'تسوية جردية (عجز)',
+          reference: adj.adjustmentNumber || `ADJ-${adj.id.substring(0, 6)}`,
+          warehouseName: whName,
+          warehouseId: adj.warehouseId,
+          qtyIn: isIncrease ? qty : 0,
+          qtyOut: isIncrease ? 0 : qty,
+          notes: `تسوية جردية: ${match.reason || adj.reasonLabel || adj.notes || 'تسوية رصيد جردي'}`,
+          sortKey: getTimestamp(dateVal, 6000 + adjIdx * 10 + itemIdx),
+        });
+      });
+    });
+
+    // H) From scrapVouchers (محاضر الإتلاف والهوالك - إذا لم تسجل في stockMovements)
+    scrapVouchers.forEach((sc, scIdx) => {
+      if (handledRefs.has(sc.voucherNumber) || handledRefs.has(`SCR-${sc.id.substring(0, 5)}`)) return;
+
+      const matchingItems = sc.items?.filter((i) => i.productId === targetProductId) || [];
+      matchingItems.forEach((match, itemIdx) => {
+        if (!isWhMatch(sc.warehouseId)) return;
+
+        const dateVal = sc.date || '';
+        const whName = sc.warehouseName || warehouses.find((w) => w.id === sc.warehouseId)?.name || 'المستودع الرئيسي';
+        ledger.push({
+          id: `scrap-${sc.id}-${itemIdx}`,
+          date: dateVal || '2026-01-01',
+          type: 'إتلاف وتوالف مخزنية',
+          reference: sc.voucherNumber || `SCR-${sc.id.substring(0, 5)}`,
+          warehouseName: whName,
+          warehouseId: sc.warehouseId,
+          qtyIn: 0,
+          qtyOut: match.quantity,
+          notes: `محضر إتلاف مخزني: ${match.reason || sc.reason || 'هالك مخزني'}`,
+          sortKey: getTimestamp(dateVal, 7000 + scIdx * 10 + itemIdx),
+        });
+      });
+    });
+
+    // I) From stockTransfers (التحويلات بين المستودعات)
+    stockTransfers.forEach((tr, trIdx) => {
+      if (tr.status === 'cancelled') return;
+      const matchingItems = tr.items?.filter((i) => i.productId === targetProductId) || [];
+      matchingItems.forEach((match, itemIdx) => {
+        const dateVal = tr.date || '';
+        if (selectedWarehouseId === 'all') {
+          ledger.push({
+            id: `trans-${tr.id}-${itemIdx}`,
+            date: dateVal || '2026-01-01',
+            type: 'تحويل بين المستودعات',
+            reference: tr.transferNumber,
+            warehouseName: `${tr.fromWarehouseName || 'مستودع'} ➔ ${tr.toWarehouseName || 'مستودع'}`,
+            qtyIn: 0,
+            qtyOut: 0,
+            notes: `تحويل داخلي (${match.quantity} ${match.unit || selectedProduct.unit}) من ${tr.fromWarehouseName} إلى ${tr.toWarehouseName}`,
+            sortKey: getTimestamp(dateVal, 8000 + trIdx * 10 + itemIdx),
+          });
+        } else if (selectedWarehouseId === tr.fromWarehouseId) {
+          ledger.push({
+            id: `trans-out-${tr.id}-${itemIdx}`,
+            date: dateVal || '2026-01-01',
+            type: 'تحويل مخزني صادر',
+            reference: tr.transferNumber,
+            warehouseName: tr.fromWarehouseName || 'المستودع',
+            warehouseId: tr.fromWarehouseId,
+            qtyIn: 0,
+            qtyOut: match.quantity,
+            notes: `تحويل صادر إلى: ${tr.toWarehouseName}`,
+            sortKey: getTimestamp(dateVal, 8000 + trIdx * 10 + itemIdx),
+          });
+        } else if (selectedWarehouseId === tr.toWarehouseId) {
+          ledger.push({
+            id: `trans-in-${tr.id}-${itemIdx}`,
+            date: dateVal || '2026-01-01',
+            type: 'تحويل مخزني وارد',
+            reference: tr.transferNumber,
+            warehouseName: tr.toWarehouseName || 'المستودع',
+            warehouseId: tr.toWarehouseId,
+            qtyIn: match.quantity,
+            qtyOut: 0,
+            notes: `تحويل وارد من: ${tr.fromWarehouseName}`,
+            sortKey: getTimestamp(dateVal, 8000 + trIdx * 10 + itemIdx),
+          });
+        }
+      });
+    });
+
+    // Deduplicate by unique ID
     const seen = new Set<string>();
     const unique = ledger.filter((item) => {
       if (seen.has(item.id)) return false;
@@ -396,19 +642,106 @@ export const InventoryReportsView: React.FC = () => {
       return true;
     });
 
-    // Sort ascending by date
-    unique.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Sort chronologically ascending
+    unique.sort((a, b) => a.sortKey - b.sortKey);
 
-    // Calculate running balance
+    // Target quantity for current warehouse filter
+    let targetWhQuantity = selectedProduct.stockQuantity;
+    if (selectedWarehouseId !== 'all') {
+      const ws = selectedProduct.warehouseStocks?.find((w) => w.warehouseId === selectedWarehouseId);
+      targetWhQuantity = ws ? ws.quantity : 0;
+    }
+
+    // Check if initial balance row is needed
+    const hasInitialEntry = unique.some((m) => m.type.includes('افتتاحي') || m.reference === 'رصيد افتتاحي');
+    const netTransactions = unique.reduce((sum, m) => sum + m.qtyIn - m.qtyOut, 0);
+
+    if (!hasInitialEntry && unique.length === 0 && targetWhQuantity > 0) {
+      unique.unshift({
+        id: `init-opening-${targetProductId}`,
+        date: (selectedProduct as any).createdAt ? (selectedProduct as any).createdAt.split('T')[0] : '2026-01-01',
+        type: 'رصيد أول المدة (افتتاحي)',
+        reference: 'رصيد سابق',
+        warehouseName: warehouses.find((w) => w.id === selectedProduct.warehouseId)?.name || 'المستودع الرئيسي',
+        warehouseId: selectedProduct.warehouseId,
+        qtyIn: targetWhQuantity,
+        qtyOut: 0,
+        notes: 'الرصيد الافتتاحي المسجل عند تعريف بطاقة الصنف',
+        sortKey: 0,
+      });
+    } else if (!hasInitialEntry && targetWhQuantity !== netTransactions) {
+      const openingDiff = targetWhQuantity - netTransactions;
+      if (openingDiff !== 0) {
+        unique.unshift({
+          id: `init-opening-${targetProductId}`,
+          date: unique[0]?.date || '2026-01-01',
+          type: 'رصيد أول المدة (افتتاحي)',
+          reference: 'رصيد سابق',
+          warehouseName: warehouses.find((w) => w.id === selectedProduct.warehouseId)?.name || 'المستودع الرئيسي',
+          warehouseId: selectedProduct.warehouseId,
+          qtyIn: Math.max(0, openingDiff),
+          qtyOut: openingDiff < 0 ? Math.abs(openingDiff) : 0,
+          notes: 'الرصيد الافتتاحي الأولي لتطابق بطاقة الصنف',
+          sortKey: 0,
+        });
+      }
+    }
+
+    // Calculate running cumulative balance
     let currentBal = 0;
-    return unique.map((m) => {
+    const resultWithBalance = unique.map((m) => {
       currentBal = currentBal + m.qtyIn - m.qtyOut;
       return {
         ...m,
         balance: currentBal,
       };
     });
-  }, [selectedProduct, stockMovements, salesInvoices, purchases, stockAdjustments, scrapVouchers]);
+
+    // Reconcile manual stock changes if final balance differs from actual warehouse balance
+    if (resultWithBalance.length > 0 && currentBal !== targetWhQuantity && selectedWarehouseId === 'all') {
+      const directAdjustment = targetWhQuantity - currentBal;
+      const isPos = directAdjustment > 0;
+      const finalBal = currentBal + directAdjustment;
+      resultWithBalance.push({
+        id: `manual-sync-${targetProductId}`,
+        date: new Date().toISOString().split('T')[0],
+        type: isPos ? 'تسوية رصيد مخزني (إضافة)' : 'تسوية رصيد مخزني (خصم)',
+        reference: 'تسوية تطابق لحظي',
+        warehouseName: 'المستودع الرئيسي',
+        qtyIn: isPos ? directAdjustment : 0,
+        qtyOut: isPos ? 0 : Math.abs(directAdjustment),
+        balance: finalBal,
+        notes: 'تسوية لتطابق كارت الصنف مع الرصيد اللحظي الفعلي بالمستودعات',
+        sortKey: Date.now(),
+      });
+    }
+
+    return resultWithBalance;
+  }, [
+    selectedProduct,
+    selectedWarehouseId,
+    stockMovements,
+    purchaseInvoices,
+    goodsReceipts,
+    salesInvoices,
+    salesReturns,
+    purchaseReturns,
+    stockAdjustments,
+    scrapVouchers,
+    stockTransfers,
+    warehouses,
+  ]);
+
+  // Movement Ledger Summary (In / Out / Net Balance)
+  const ledgerSummary = useMemo(() => {
+    const totalIn = movementLedger.reduce((sum, m) => sum + m.qtyIn, 0);
+    const totalOut = movementLedger.reduce((sum, m) => sum + m.qtyOut, 0);
+    const endBalance =
+      movementLedger.length > 0
+        ? (movementLedger[movementLedger.length - 1].balance ?? selectedProduct?.stockQuantity ?? 0)
+        : selectedProduct?.stockQuantity ?? 0;
+    return { totalIn, totalOut, endBalance };
+  }, [movementLedger, selectedProduct]);
 
   // 5. Variance and Stocktaking Calculations
   const varianceMetrics = useMemo(() => {
@@ -418,33 +751,95 @@ export const InventoryReportsView: React.FC = () => {
     let overageQty = 0;
 
     const adjustments = stockAdjustments.filter((adj) => {
+      if (adj.status === 'cancelled') return false;
       if (selectedWarehouseId !== 'all' && adj.warehouseId !== selectedWarehouseId) return false;
       return true;
     });
 
+    const flatItems: {
+      id: string;
+      adjustmentNumber: string;
+      date: string;
+      warehouseName: string;
+      productId: string;
+      productName: string;
+      type: 'increase' | 'decrease';
+      quantity: number;
+      costPrice: number;
+      totalCost: number;
+      notes: string;
+    }[] = [];
+
     adjustments.forEach((adj) => {
-      const prod = products.find((p) => p.id === adj.productId);
-      const cost = prod?.costPrice || 0;
-      const val = adj.quantity * cost;
-      if (adj.type === 'OUT') {
-        shortageQty += adj.quantity;
-        totalShortageValue += val;
+      if (adj.items && Array.isArray(adj.items)) {
+        adj.items.forEach((item, itemIdx) => {
+          const prod = products.find((p) => p.id === item.productId);
+          const cost = item.costPrice || prod?.costPrice || 0;
+          const qty = Math.abs(item.deltaQuantity || 0);
+          const isDecrease = item.type === 'decrease' || item.deltaQuantity < 0;
+          const val = qty * cost;
+          if (isDecrease) {
+            shortageQty += qty;
+            totalShortageValue += val;
+          } else {
+            overageQty += qty;
+            totalOverageValue += val;
+          }
+          flatItems.push({
+            id: `${adj.id}-${item.productId}-${itemIdx}`,
+            adjustmentNumber: adj.adjustmentNumber || adj.id,
+            date: adj.date,
+            warehouseName: adj.warehouseName || warehouses.find((w) => w.id === adj.warehouseId)?.name || 'المستودع الرئيسي',
+            productId: item.productId,
+            productName: item.productName || prod?.name || 'صنف',
+            type: isDecrease ? 'decrease' : 'increase',
+            quantity: qty,
+            costPrice: cost,
+            totalCost: val,
+            notes: item.reason || adj.reasonLabel || adj.notes || '',
+          });
+        });
       } else {
-        overageQty += adj.quantity;
-        totalOverageValue += val;
+        const legacyAdj = adj as any;
+        const prod = products.find((p) => p.id === legacyAdj.productId);
+        const cost = prod?.costPrice || 0;
+        const qty = legacyAdj.quantity || 0;
+        const isDecrease = legacyAdj.type === 'OUT' || legacyAdj.type === 'decrease';
+        const val = qty * cost;
+        if (isDecrease) {
+          shortageQty += qty;
+          totalShortageValue += val;
+        } else {
+          overageQty += qty;
+          totalOverageValue += val;
+        }
+        flatItems.push({
+          id: legacyAdj.id,
+          adjustmentNumber: legacyAdj.adjustmentNumber || legacyAdj.id,
+          date: legacyAdj.date,
+          warehouseName: legacyAdj.warehouseName || warehouses.find((w) => w.id === legacyAdj.warehouseId)?.name || 'المستودع الرئيسي',
+          productId: legacyAdj.productId,
+          productName: legacyAdj.productName || prod?.name || 'صنف',
+          type: isDecrease ? 'decrease' : 'increase',
+          quantity: qty,
+          costPrice: cost,
+          totalCost: val,
+          notes: legacyAdj.notes || legacyAdj.reason || '',
+        });
       }
     });
 
     const netVariance = totalOverageValue - totalShortageValue;
     return {
       adjustments,
+      flatItems,
       totalShortageValue,
       totalOverageValue,
       shortageQty,
       overageQty,
       netVariance,
     };
-  }, [stockAdjustments, products, selectedWarehouseId]);
+  }, [stockAdjustments, products, selectedWarehouseId, warehouses]);
 
   // 6. Expiry and Batches
   const expiryMetrics = useMemo(() => {
@@ -586,21 +981,17 @@ export const InventoryReportsView: React.FC = () => {
       ]);
     } else if (selectedReport === 'inventory_variance') {
       headers = ['رقم السند', 'التاريخ', 'المستودع', 'اسم الصنف', 'نوع الحركة', 'الكمية', 'التكلفة', 'القيمة الإجمالية', 'السبب والملاحظات'];
-      rows = varianceMetrics.adjustments.map((adj) => {
-        const prod = products.find((p) => p.id === adj.productId);
-        const cost = prod?.costPrice || 0;
-        return [
-          adj.id,
-          adj.date,
-          adj.warehouseName || '-',
-          adj.productName || prod?.name || '-',
-          adj.type === 'IN' ? 'زيادة' : 'عجز/نقص',
-          adj.quantity,
-          cost,
-          adj.quantity * cost,
-          adj.notes || adj.reason,
-        ];
-      });
+      rows = varianceMetrics.flatItems.map((item) => [
+        item.adjustmentNumber,
+        item.date,
+        item.warehouseName,
+        item.productName,
+        item.type === 'increase' ? 'زيادة' : 'عجز/نقص',
+        item.quantity,
+        item.costPrice,
+        item.totalCost,
+        item.notes,
+      ]);
     } else if (selectedReport === 'inventory_expiry') {
       headers = ['رقم التشغيلة', 'اسم الصنف', 'المستودع', 'تاريخ الإنتاج', 'تاريخ الانتهاء', 'الكمية', 'الحالة'];
       rows = expiryMetrics.batches.map((b) => [
@@ -837,46 +1228,90 @@ export const InventoryReportsView: React.FC = () => {
       {selectedReport === 'inventory_movement' && (
         <div className="space-y-4">
           {/* Select Product */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center gap-3">
-            <span className="text-xs font-bold text-slate-700">اختر الصنف لعرض كارت الحركة التفصيلي:</span>
-            <select
-              value={selectedProductId}
-              onChange={(e) => setSelectedProductId(e.target.value)}
-              className="flex-1 min-w-[280px] bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-hidden focus:border-emerald-500"
-            >
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.sku} - {p.name} (الرصيد الحالي: {p.stockQuantity} {p.unit})
-                </option>
-              ))}
-            </select>
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+              <span className="text-xs font-bold text-slate-700 shrink-0">اختر الصنف لعرض كارت الحركة التفصيلي:</span>
+              <select
+                value={selectedProductId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedProductId(val);
+                  try {
+                    sessionStorage.setItem('orbix_selected_product_id', val);
+                  } catch {
+                    // ignore
+                  }
+                }}
+                className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-hidden focus:border-emerald-500"
+              >
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.sku} - {p.name} (الرصيد اللحظي: {p.stockQuantity} {p.unit})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedWarehouseId !== 'all' && (
+              <div className="text-xs px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 font-medium">
+                مفلتر بحسب المستودع:{' '}
+                <span className="font-bold">
+                  {warehouses.find((w) => w.id === selectedWarehouseId)?.name || selectedWarehouseId}
+                </span>
+              </div>
+            )}
           </div>
 
           {selectedProduct && (
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {/* Card 1: Product Specs */}
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-xs text-slate-500 font-medium">الصنف المحدد</span>
-                <div className="text-sm font-bold text-slate-900 mt-1">{selectedProduct.name}</div>
-                <div className="text-[11px] text-slate-400 font-mono mt-0.5">SKU: {selectedProduct.sku}</div>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-xs text-slate-500 font-medium">سعر التكلفة / البيع</span>
-                <div className="text-sm font-bold text-slate-900 mt-1">
-                  {formatMoney(selectedProduct.costPrice)} / <span className="text-emerald-600">{formatMoney(selectedProduct.sellingPrice)}</span>
+                <span className="text-xs text-slate-500 font-medium">الصنف والتسعير</span>
+                <div className="text-sm font-bold text-slate-900 mt-1 truncate" title={selectedProduct.name}>
+                  {selectedProduct.name}
                 </div>
-                <div className="text-[11px] text-slate-400 mt-0.5">الوحدة: {selectedProduct.unit}</div>
+                <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                  SKU: {selectedProduct.sku} | {selectedProduct.unit}
+                </div>
+                <div className="text-[11px] text-slate-600 mt-1 font-semibold">
+                  شراء: {formatMoney(selectedProduct.costPrice)} | بيع: {formatMoney(selectedProduct.sellingPrice)}
+                </div>
               </div>
+
+              {/* Card 2: Operations Count */}
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
                 <span className="text-xs text-slate-500 font-medium">إجمالي الحركات المسجلة</span>
-                <div className="text-lg font-bold text-indigo-600 mt-1">{movementLedger.length} حركة</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">شامل المشتريات والمبيعات والتسويات</div>
+                <div className="text-xl font-bold text-indigo-600 mt-1">{movementLedger.length} حركة</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">شامل التوريدات والمبيعات والتحويلات</div>
               </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-xs text-slate-500 font-medium">الرصيد اللحظي بالمستودعات</span>
-                <div className="text-lg font-bold text-emerald-600 mt-1">
-                  {selectedProduct.stockQuantity} <span className="text-xs">{selectedProduct.unit}</span>
+
+              {/* Card 3: Total In */}
+              <div className="bg-white p-4 rounded-2xl border border-emerald-100 bg-emerald-50/20 shadow-xs">
+                <span className="text-xs text-emerald-700 font-bold">إجمالي الكميات الواردة (+)</span>
+                <div className="text-xl font-bold text-emerald-600 mt-1">
+                  +{ledgerSummary.totalIn} <span className="text-xs font-normal text-emerald-700">{selectedProduct.unit}</span>
                 </div>
-                <div className="text-[11px] text-slate-400 mt-0.5">حد الأمان: {selectedProduct.minStockAlert}</div>
+                <div className="text-[11px] text-emerald-600/70 mt-0.5">فواتير شراء واستلامات ومردودات</div>
+              </div>
+
+              {/* Card 4: Total Out */}
+              <div className="bg-white p-4 rounded-2xl border border-rose-100 bg-rose-50/20 shadow-xs">
+                <span className="text-xs text-rose-700 font-bold">إجمالي الكميات المنصرفة (-)</span>
+                <div className="text-xl font-bold text-rose-600 mt-1">
+                  -{ledgerSummary.totalOut} <span className="text-xs font-normal text-rose-700">{selectedProduct.unit}</span>
+                </div>
+                <div className="text-[11px] text-rose-600/70 mt-0.5">مبيعات ونقاط بيع وهوالك</div>
+              </div>
+
+              {/* Card 5: Real-time Balance */}
+              <div className="bg-white p-4 rounded-2xl border border-blue-200 bg-blue-50/30 shadow-xs">
+                <span className="text-xs text-blue-700 font-bold">الرصيد اللحظي بالمستودعات</span>
+                <div className="text-xl font-black text-blue-800 mt-1">
+                  {ledgerSummary.endBalance} <span className="text-xs font-normal text-blue-700">{selectedProduct.unit}</span>
+                </div>
+                <div className="text-[11px] text-blue-600 mt-0.5 font-medium">
+                  {selectedWarehouseId === 'all' ? 'مطابق للرصيد الفعلي الإجمالي' : 'رصيد المستودع المحدد'}
+                </div>
               </div>
             </div>
           )}
@@ -884,7 +1319,15 @@ export const InventoryReportsView: React.FC = () => {
           {/* Ledger Table */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-800">سجل كارت حركة الصنف الزمني (Stock Ledger)</h3>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">سجل كارت حركة الصنف الزمني (Stock Ledger)</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  كشف تفصيلي شامل لكافة القيود المخزنية، أذونات التوريد، فواتير المشتريات، المبيعات، ومحاضر التسوية
+                </p>
+              </div>
+              <div className="text-xs text-slate-500 font-mono">
+                {movementLedger.length} قيد مسجل
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-right text-xs">
@@ -896,8 +1339,8 @@ export const InventoryReportsView: React.FC = () => {
                     <th className="p-3">المستودع</th>
                     <th className="p-3 text-emerald-700">وارد (+)</th>
                     <th className="p-3 text-rose-700">منصرف (-)</th>
-                    <th className="p-3">الرصيد التراكمي</th>
-                    <th className="p-3">ملاحظات وبيان</th>
+                    <th className="p-3 text-center">الرصيد التراكمي</th>
+                    <th className="p-3">ملاحظات وبيان العملية</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -908,28 +1351,73 @@ export const InventoryReportsView: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    movementLedger.map((m) => (
-                      <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-3 text-slate-600 font-mono">{m.date}</td>
-                        <td className="p-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
-                              m.qtyIn > 0
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}
-                          >
-                            {m.type}
-                          </span>
-                        </td>
-                        <td className="p-3 font-mono font-semibold text-slate-700">{m.reference}</td>
-                        <td className="p-3 text-slate-600">{m.warehouseName}</td>
-                        <td className="p-3 font-bold text-emerald-600">{m.qtyIn > 0 ? `+${m.qtyIn}` : '-'}</td>
-                        <td className="p-3 font-bold text-rose-600">{m.qtyOut > 0 ? `-${m.qtyOut}` : '-'}</td>
-                        <td className="p-3 font-bold text-slate-900 bg-slate-50/50">{m.balance}</td>
-                        <td className="p-3 text-slate-500">{m.notes || '-'}</td>
-                      </tr>
-                    ))
+                    movementLedger.map((m) => {
+                      const getBadgeClass = () => {
+                        const t = m.type;
+                        if (t.includes('افتتاحي') || t.includes('أول المدة')) {
+                          return 'bg-blue-50 text-blue-700 border-blue-200';
+                        }
+                        if (t.includes('شراء') || t.includes('GRN') || t.includes('استلام')) {
+                          return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                        }
+                        if (t.includes('POS') || t.includes('فاتورة بيع') || t.includes('بيع')) {
+                          return 'bg-purple-50 text-purple-700 border-purple-200';
+                        }
+                        if (t.includes('مرتجع مبيعات')) {
+                          return 'bg-teal-50 text-teal-700 border-teal-200';
+                        }
+                        if (t.includes('مردودات مشتريات')) {
+                          return 'bg-amber-50 text-amber-700 border-amber-200';
+                        }
+                        if (t.includes('تحويل')) {
+                          return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+                        }
+                        if (t.includes('إتلاف') || t.includes('توالف') || t.includes('عجز') || t.includes('خصم')) {
+                          return 'bg-rose-50 text-rose-700 border-rose-200';
+                        }
+                        if (t.includes('زيادة') || t.includes('إضافة')) {
+                          return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                        }
+                        return m.qtyIn > 0
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-rose-50 text-rose-700 border-rose-200';
+                      };
+
+                      const isNeg = (m.balance ?? 0) < 0;
+
+                      return (
+                        <tr key={m.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-3 text-slate-600 font-mono">{m.date}</td>
+                          <td className="p-3">
+                            <span
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border inline-block ${getBadgeClass()}`}
+                            >
+                              {m.type}
+                            </span>
+                          </td>
+                          <td className="p-3 font-mono font-bold text-slate-800">{m.reference}</td>
+                          <td className="p-3 text-slate-600">{m.warehouseName}</td>
+                          <td className="p-3 font-bold text-emerald-600 font-mono">
+                            {m.qtyIn > 0 ? `+${m.qtyIn}` : <span className="text-slate-300 font-normal">-</span>}
+                          </td>
+                          <td className="p-3 font-bold text-rose-600 font-mono">
+                            {m.qtyOut > 0 ? `-${m.qtyOut}` : <span className="text-slate-300 font-normal">-</span>}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span
+                              className={`px-2.5 py-1 rounded-lg font-mono font-bold text-xs inline-block ${
+                                isNeg
+                                  ? 'bg-rose-100 text-rose-800 font-black'
+                                  : 'bg-slate-100 text-slate-900'
+                              }`}
+                            >
+                              {m.balance}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-600 max-w-xs">{m.notes || '-'}</td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1233,36 +1721,35 @@ export const InventoryReportsView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {varianceMetrics.adjustments.length === 0 ? (
+                  {varianceMetrics.flatItems.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="p-8 text-center text-slate-400">
                         لا توجد قيود تسوية جردية مسجلة
                       </td>
                     </tr>
                   ) : (
-                    varianceMetrics.adjustments.map((adj) => {
-                      const prod = products.find((p) => p.id === adj.productId);
-                      const cost = prod?.costPrice || 0;
+                    varianceMetrics.flatItems.map((item) => {
+                      const isInc = item.type === 'increase';
                       return (
-                        <tr key={adj.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-3 font-mono font-semibold text-slate-600">{adj.id}</td>
-                          <td className="p-3 text-slate-600 font-mono">{adj.date}</td>
-                          <td className="p-3 text-slate-700">{adj.warehouseName || '-'}</td>
-                          <td className="p-3 font-bold text-slate-900">{adj.productName || prod?.name}</td>
+                        <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-3 font-mono font-semibold text-slate-600">{item.adjustmentNumber}</td>
+                          <td className="p-3 text-slate-600 font-mono">{item.date}</td>
+                          <td className="p-3 text-slate-700">{item.warehouseName || '-'}</td>
+                          <td className="p-3 font-bold text-slate-900">{item.productName}</td>
                           <td className="p-3">
                             <span
                               className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
-                                adj.type === 'IN'
+                                isInc
                                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                   : 'bg-rose-50 text-rose-700 border border-rose-200'
                               }`}
                             >
-                              {adj.type === 'IN' ? 'تسوية بالزيادة (+)' : 'تسوية بالعجز (-)'}
+                              {isInc ? 'تسوية بالزيادة (+)' : 'تسوية بالعجز (-)'}
                             </span>
                           </td>
-                          <td className="p-3 font-bold text-slate-800">{adj.quantity}</td>
-                          <td className="p-3 font-bold text-slate-900">{formatMoney(adj.quantity * cost)}</td>
-                          <td className="p-3 text-slate-500">{adj.notes || adj.reason}</td>
+                          <td className="p-3 font-bold text-slate-800">{item.quantity}</td>
+                          <td className="p-3 font-bold text-slate-900">{formatMoney(item.totalCost)}</td>
+                          <td className="p-3 text-slate-500">{item.notes || '-'}</td>
                         </tr>
                       );
                     })

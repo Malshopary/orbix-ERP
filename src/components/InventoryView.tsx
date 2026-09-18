@@ -762,6 +762,23 @@ export const InventoryView: React.FC = () => {
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1.5">
                         <button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              sessionStorage.setItem('orbix_selected_product_id', p.id);
+                            } catch {
+                              // ignore
+                            }
+                            setActiveSubTab('inventory_movement');
+                          }}
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold px-2 py-1 rounded-lg transition-all text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                          title="عرض كارت حركة الصنف وكشف الحساب التفصيلي"
+                        >
+                          <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                          كارت الحركة
+                        </button>
+
+                        <button
                           onClick={() => {
                             setSelectedProduct(p);
                             setShowAdjustModal(true);
