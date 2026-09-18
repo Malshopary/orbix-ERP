@@ -4115,6 +4115,59 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []); // Run once on startup to heal any existing state discrepancies
 
+  // Heal any historical duplicate stock from GRN-linked purchase invoices
+  useEffect(() => {
+    try {
+      const billsFromGrn = purchaseInvoices.filter(
+        (b) =>
+          !b.skipStockUpdate &&
+          (b.originGrnId || (b.notes && (b.notes.includes('GRN-') || b.notes.includes('إذن استلام مخزني'))))
+      );
+
+      if (billsFromGrn.length > 0) {
+        billsFromGrn.forEach((bill) => {
+          bill.items.forEach((item) => {
+            const itemWhId = item.warehouseId || bill.warehouseId;
+            updateProductStock(item.productId, -item.quantity, undefined, itemWhId);
+          });
+        });
+
+        setPurchaseInvoices((prev) =>
+          prev.map((inv) => {
+            const match = billsFromGrn.find((b) => b.id === inv.id);
+            if (!match) return inv;
+            const grnMatch = goodsReceipts.find((g) => inv.notes && inv.notes.includes(g.grnNumber));
+            return {
+              ...inv,
+              skipStockUpdate: true,
+              originGrnId: inv.originGrnId || grnMatch?.id,
+              originGrnNumber: inv.originGrnNumber || grnMatch?.grnNumber,
+            };
+          })
+        );
+
+        setGoodsReceipts((prev) =>
+          prev.map((g) => {
+            const linkedBill = billsFromGrn.find(
+              (b) => b.originGrnId === g.id || (b.notes && b.notes.includes(g.grnNumber))
+            );
+            return linkedBill
+              ? {
+                  ...g,
+                  isBilled: true,
+                  status: 'stored',
+                  invoiceId: linkedBill.id,
+                  invoiceNumber: linkedBill.invoiceNumber,
+                }
+              : g;
+          })
+        );
+      }
+    } catch (err) {
+      console.error('Error reconciling GRN bills:', err);
+    }
+  }, []);
+
   const adjustProductWarehouseStock = (
     productId: string,
     warehouseId: string,
@@ -6925,53 +6978,83 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const targetWhId = purchaseData.warehouseId || warehouses[0]?.id || 'wh-1';
 
-    purchaseData.items.forEach((item) => {
-      const itemWhId = item.warehouseId || targetWhId;
-      updateProductStock(item.productId, item.quantity, item.unitPrice, itemWhId);
+    // Check if this invoice originated from a GRN (goods receipt note) where stock was already received
+    const isAlreadyReceived =
+      Boolean(purchaseData.skipStockUpdate) ||
+      Boolean(purchaseData.originGrnId) ||
+      Boolean(purchaseData.notes && (purchaseData.notes.includes('GRN-') || purchaseData.notes.includes('إذن استلام مخزني')));
 
-      const prod = products.find((p) => p.id === item.productId);
-      // Auto-register batch if specified or if product has expiry tracking
-      if (item.batchNumber || item.expiryDate || prod?.hasExpiry) {
-        const batchNum = item.batchNumber || prod?.batchNumber || `LOT-${invoiceNumber.slice(-4)}-${item.productId.slice(-4)}`;
-        const expDate = item.expiryDate || prod?.expiryDate || '';
-        const prodDate = item.productionDate || prod?.productionDate || purchaseData.date;
+    // ONLY increment warehouse physical stock if this is a direct purchase without a preceding GRN
+    if (!isAlreadyReceived) {
+      purchaseData.items.forEach((item) => {
+        const itemWhId = item.warehouseId || targetWhId;
+        updateProductStock(item.productId, item.quantity, item.unitPrice, itemWhId);
 
-        if (expDate || item.batchNumber) {
-          const days = expDate ? Math.ceil((new Date(expDate).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24)) : 999;
-          const status: ProductBatch['status'] = days < 0 ? 'expired' : days <= 60 ? 'near_expiry' : 'valid';
+        const prod = products.find((p) => p.id === item.productId);
+        // Auto-register batch if specified or if product has expiry tracking
+        if (item.batchNumber || item.expiryDate || prod?.hasExpiry) {
+          const batchNum = item.batchNumber || prod?.batchNumber || `LOT-${invoiceNumber.slice(-4)}-${item.productId.slice(-4)}`;
+          const expDate = item.expiryDate || prod?.expiryDate || '';
+          const prodDate = item.productionDate || prod?.productionDate || purchaseData.date;
 
-          const newBatch: ProductBatch = {
-            id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            batchNumber: batchNum,
-            productId: item.productId,
-            productName: prod?.name || item.productName,
-            sku: prod?.sku,
-            warehouseId: itemWhId,
-            warehouseName: warehouses.find((w) => w.id === itemWhId)?.name,
-            productionDate: prodDate,
-            expiryDate: expDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            quantity: item.quantity,
-            initialQuantity: item.quantity,
-            costPrice: item.unitPrice,
-            sellingPrice: prod?.sellingPrice,
-            status,
-            notes: `توريد بموجب فاتورة مشتريات ${invoiceNumber} من المورد ${purchaseData.vendorName}`,
-          };
+          if (expDate || item.batchNumber) {
+            const days = expDate ? Math.ceil((new Date(expDate).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24)) : 999;
+            const status: ProductBatch['status'] = days < 0 ? 'expired' : days <= 60 ? 'near_expiry' : 'valid';
 
-          setProductBatches((prev) => [...prev, newBatch]);
-
-          // Also make sure the product reflects hasExpiry and batchNumber if not already
-          if (!prod?.hasExpiry && expDate) {
-            updateProduct(item.productId, {
-              hasExpiry: true,
-              expiryDate: expDate,
-              productionDate: prodDate,
+            const newBatch: ProductBatch = {
+              id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
               batchNumber: batchNum,
-            });
+              productId: item.productId,
+              productName: prod?.name || item.productName,
+              sku: prod?.sku,
+              warehouseId: itemWhId,
+              warehouseName: warehouses.find((w) => w.id === itemWhId)?.name,
+              productionDate: prodDate,
+              expiryDate: expDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              quantity: item.quantity,
+              initialQuantity: item.quantity,
+              costPrice: item.unitPrice,
+              sellingPrice: prod?.sellingPrice,
+              status,
+              notes: `توريد بموجب فاتورة مشتريات ${invoiceNumber} من المورد ${purchaseData.vendorName}`,
+            };
+
+            setProductBatches((prev) => [...prev, newBatch]);
+
+            // Also make sure the product reflects hasExpiry and batchNumber if not already
+            if (!prod?.hasExpiry && expDate) {
+              updateProduct(item.productId, {
+                hasExpiry: true,
+                expiryDate: expDate,
+                productionDate: prodDate,
+                batchNumber: batchNum,
+              });
+            }
           }
         }
-      }
-    });
+      });
+    }
+
+    // Link and update GRN status if this invoice is linked to an existing GRN
+    const grnIdToLink =
+      purchaseData.originGrnId ||
+      goodsReceipts.find((g) => purchaseData.notes && purchaseData.notes.includes(g.grnNumber))?.id;
+
+    if (grnIdToLink) {
+      setGoodsReceipts((prev) =>
+        prev.map((g) =>
+          g.id === grnIdToLink
+            ? {
+                ...g,
+                status: 'stored',
+                isBilled: true,
+                invoiceId: newPurchase.id,
+                invoiceNumber,
+              }
+            : g
+        )
+      );
+    }
 
     addJournalEntry({
       entryNumber: `JE-PUR-${new Date().getFullYear()}-${String(journalEntries.length + 1).padStart(4, '0')}`,
@@ -7017,7 +7100,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const oldBill = purchaseInvoices.find((b) => b.id === id);
     if (!oldBill) return;
 
-    if (data.items) {
+    const isAlreadyReceived =
+      Boolean(oldBill.skipStockUpdate) ||
+      Boolean(oldBill.originGrnId) ||
+      Boolean(oldBill.notes && (oldBill.notes.includes('GRN-') || oldBill.notes.includes('إذن استلام مخزني')));
+
+    if (data.items && !isAlreadyReceived) {
       oldBill.items.forEach((item) => {
         updateProductStock(item.productId, -item.quantity); // revert old received
       });
@@ -7058,10 +7146,31 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    // Deduct stock that was brought in
-    target.items.forEach((item) => {
-      updateProductStock(item.productId, -item.quantity);
-    });
+    const isAlreadyReceived =
+      Boolean(target.skipStockUpdate) ||
+      Boolean(target.originGrnId) ||
+      Boolean(target.notes && (target.notes.includes('GRN-') || target.notes.includes('إذن استلام مخزني')));
+
+    // Only deduct stock that was brought in by this invoice if it was NOT already received via GRN
+    if (!isAlreadyReceived) {
+      target.items.forEach((item) => {
+        updateProductStock(item.productId, -item.quantity);
+      });
+    } else {
+      // Revert GRN billed state if linked
+      const linkedGrnId =
+        target.originGrnId ||
+        goodsReceipts.find((g) => target.notes && target.notes.includes(g.grnNumber))?.id;
+      if (linkedGrnId) {
+        setGoodsReceipts((prev) =>
+          prev.map((g) =>
+            g.id === linkedGrnId
+              ? { ...g, status: 'stored', isBilled: false, invoiceId: undefined, invoiceNumber: undefined }
+              : g
+          )
+        );
+      }
+    }
 
     // Revert vendor debt
     if (target.remainingAmount > 0) {

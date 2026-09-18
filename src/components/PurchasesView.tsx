@@ -63,6 +63,7 @@ export const PurchasesView: React.FC = () => {
     purchaseOrders = [],
     updatePurchaseOrder,
     goodsReceipts = [],
+    updateGoodsReceipt,
     landedCosts = [],
     purchaseReturns = [],
     hasPermission,
@@ -672,6 +673,9 @@ export const PurchasesView: React.FC = () => {
       return;
     }
 
+    const isFromGrn = Boolean(originGrnIdForBill);
+    const linkedGrn = originGrnIdForBill ? goodsReceipts.find((g) => g.id === originGrnIdForBill) : null;
+
     addPurchaseInvoice({
       vendorId: selectedVendor.id,
       vendorName: selectedVendor.name,
@@ -682,7 +686,16 @@ export const PurchasesView: React.FC = () => {
       vatTotal: billVat,
       grandTotal: billGrandTotal,
       notes: billNotes,
+      warehouseId: billWarehouseId || undefined,
+      originPoId: originPoIdForBill || undefined,
+      originGrnId: originGrnIdForBill || undefined,
+      originGrnNumber: linkedGrn?.grnNumber || undefined,
+      skipStockUpdate: isFromGrn, // Prevents duplicate warehouse stock addition
     });
+
+    if (originGrnIdForBill && updateGoodsReceipt) {
+      updateGoodsReceipt(originGrnIdForBill, { status: 'stored', isBilled: true });
+    }
 
     if (originPoIdForBill && updatePurchaseOrder) {
       updatePurchaseOrder(originPoIdForBill, { status: 'billed' });
@@ -1179,8 +1192,13 @@ export const PurchasesView: React.FC = () => {
                   ) : (
                     filteredBills.map((bill) => (
                       <tr key={bill.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-slate-800">
-                          {bill.invoiceNumber}
+                        <td className="py-3 px-4">
+                          <div className="font-mono font-bold text-slate-800">{bill.invoiceNumber}</div>
+                          {(bill.originGrnNumber || bill.originGrnId || bill.skipStockUpdate || (bill.notes && (bill.notes.includes('GRN-') || bill.notes.includes('إذن استلام')))) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded font-medium mt-0.5" title="هذه الفاتورة مبنية على إذن استلام مخزني مسبق">
+                              إذن استلام: {bill.originGrnNumber || (bill.notes?.match(/GRN-[\w-]+/)?.[0] ?? 'GRN')}
+                            </span>
+                          )}
                         </td>
                         <td className="py-3 px-4 font-bold text-slate-900">{bill.vendorName}</td>
                         <td className="py-3 px-4 text-slate-600">{bill.date}</td>
@@ -1816,18 +1834,23 @@ export const PurchasesView: React.FC = () => {
             )}
 
             {originGrnIdForBill && (
-              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 font-bold">
-                  <PackageCheck className="w-4 h-4 text-emerald-700" />
-                  <span>
-                    فاتورة مشتريات مرتبطة بإذن الاستلام المخزني رقم{' '}
-                    <span className="font-mono underline">
-                      {goodsReceipts.find((g) => g.id === originGrnIdForBill)?.grnNumber}
-                    </span>
-                  </span>
+              <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-start gap-2.5">
+                  <PackageCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-emerald-900 flex items-center gap-1.5">
+                      <span>فاتورة مشتريات مرتبطة بإذن الاستلام المخزني رقم</span>
+                      <span className="font-mono font-black underline">
+                        {goodsReceipts.find((g) => g.id === originGrnIdForBill)?.grnNumber}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-emerald-700 mt-0.5 leading-relaxed">
+                      💡 <strong>تنبيه رقابي لمنع التكرار (No Double-Counting):</strong> تم استلام هذه البضاعة وإدخالها للمستودع مسبقاً بموجب إذن الاستلام. حفظ هذه الفاتورة سيكون قيداً مالياً وضريبياً واستحقاقاً للمورد فقط ولن يكرر زيادة رصيد المخزون.
+                    </p>
+                  </div>
                 </div>
-                <span className="text-[11px] bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold">
-                  تم سحب الأصناف والكميات المقبولة فحصياً
+                <span className="text-[11px] bg-emerald-100 text-emerald-900 border border-emerald-300 px-3 py-1 rounded-full font-bold self-start sm:self-center shrink-0">
+                  تم الاستلام المخزني مسبقاً
                 </span>
               </div>
             )}

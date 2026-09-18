@@ -37,6 +37,7 @@ export const GoodsReceiptsSection: React.FC<GoodsReceiptsSectionProps> = ({
   const {
     goodsReceipts = [],
     purchaseOrders = [],
+    purchaseInvoices = [],
     vendors = [],
     products = [],
     warehouses = [],
@@ -414,8 +415,13 @@ export const GoodsReceiptsSection: React.FC<GoodsReceiptsSectionProps> = ({
                       key={grn.id}
                       className="hover:bg-slate-50/70 transition-colors"
                     >
-                      <td className="py-3 px-4 font-mono font-bold text-emerald-600">
-                        {grn.grnNumber}
+                      <td className="py-3 px-4">
+                        <div className="font-mono font-bold text-emerald-600">{grn.grnNumber}</div>
+                        {(grn.isBilled || grn.invoiceNumber || purchaseInvoices.some((inv) => inv.originGrnId === grn.id || (inv.notes && inv.notes.includes(grn.grnNumber)))) && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded font-medium mt-0.5" title="تم تحويل هذا الإذن إلى فاتورة مشتريات">
+                            تمت الفوترة
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         {grn.poNumber ? (
@@ -459,8 +465,10 @@ export const GoodsReceiptsSection: React.FC<GoodsReceiptsSectionProps> = ({
                           {onConvertToBill && (
                             <button
                               onClick={() => onConvertToBill(grn)}
-                              title="تحويل إذن الاستلام إلى فاتورة مشتريات"
-                              className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                              title={grn.isBilled ? "تمت فوترة هذا الإذن مسبقاً (انقر للفوترة مجدداً أو إنشاء فاتورة أخرى)" : "تحويل إذن الاستلام إلى فاتورة مشتريات"}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                grn.isBilled ? "text-slate-400 hover:bg-slate-100" : "text-purple-600 hover:bg-purple-50"
+                              }`}
                             >
                               <FileText className="w-4 h-4" />
                             </button>

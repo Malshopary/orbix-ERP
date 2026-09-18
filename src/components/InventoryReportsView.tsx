@@ -404,22 +404,31 @@ export const InventoryReportsView: React.FC = () => {
     purchaseInvoices.forEach((inv, invIdx) => {
       if (inv.status === 'cancelled') return;
       const matchingItems = inv.items?.filter((i: any) => i.productId === targetProductId) || [];
+      const isFromGrn =
+        Boolean(inv.skipStockUpdate) ||
+        Boolean(inv.originGrnId) ||
+        Boolean(inv.notes && (inv.notes.includes('GRN-') || inv.notes.includes('إذن استلام مخزني')));
+
       matchingItems.forEach((match: any, itemIdx: number) => {
         const itemWhId = match.warehouseId || inv.warehouseId;
         if (!isWhMatch(itemWhId)) return;
 
         const dateVal = inv.date || (inv as any).issueDate || (inv.createdAt ? inv.createdAt.split('T')[0] : '');
         const whName = warehouses.find((w) => w.id === itemWhId)?.name || inv.warehouseName || 'المستودع الرئيسي';
+        const grnRef = inv.originGrnNumber || inv.notes?.match(/GRN-[\w-]+/)?.[0] || '';
+
         ledger.push({
           id: `purch-${inv.id}-${itemIdx}`,
           date: dateVal || '2026-01-01',
-          type: 'فاتورة شراء',
+          type: isFromGrn ? 'فاتورة شراء (فوترة مالية)' : 'فاتورة شراء مباشر',
           reference: inv.invoiceNumber || inv.id,
           warehouseName: whName,
           warehouseId: itemWhId,
-          qtyIn: match.quantity || 0,
+          qtyIn: isFromGrn ? 0 : (match.quantity || 0),
           qtyOut: 0,
-          notes: `توريد بموجب فاتورة مشتريات من المورد: ${inv.vendorName || 'المورد'}${match.batchNumber ? ` [تشغيلة: ${match.batchNumber}]` : ''}`,
+          notes: isFromGrn
+            ? `فوترة واعتماد مالي لإذن الاستلام المخزني (${grnRef || 'GRN'}) - المورد: ${inv.vendorName || 'المورد'}`
+            : `توريد بموجب فاتورة مشتريات من المورد: ${inv.vendorName || 'المورد'}${match.batchNumber ? ` [تشغيلة: ${match.batchNumber}]` : ''}`,
           sortKey: getTimestamp(dateVal, 1000 + invIdx * 10 + itemIdx),
           docType: 'purchase',
           rawDoc: inv,
@@ -427,21 +436,8 @@ export const InventoryReportsView: React.FC = () => {
       });
     });
 
-    // C) From goodsReceipts (أذونات الاستلام المخزني GRN - غير المفوترة)
-    const billedGrnNumbers = new Set(
-      purchaseInvoices
-        .filter((inv) => inv.notes && inv.notes.includes('GRN-'))
-        .map((inv) => {
-          const match = inv.notes?.match(/GRN-[\w-]+/);
-          return match ? match[0] : '';
-        })
-        .filter(Boolean)
-    );
-
+    // C) From goodsReceipts (أذونات الاستلام المخزني GRN - الاستلام الفيزيائي الفعلي)
     goodsReceipts.forEach((grn, grnIdx) => {
-      // Avoid double-counting physical receipt if already billed under purchase invoice
-      if (billedGrnNumbers.has(grn.grnNumber)) return;
-
       const matchingItems = grn.items?.filter((i: any) => i.productId === targetProductId && (i.acceptedQuantity || 0) > 0) || [];
       matchingItems.forEach((match: any, itemIdx: number) => {
         if (!isWhMatch(grn.warehouseId)) return;

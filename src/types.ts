@@ -669,6 +669,10 @@ export interface PurchaseInvoice {
   remainingAmount: number;
   status: 'unpaid' | 'partially_paid' | 'paid';
   notes?: string;
+  originPoId?: string;
+  originGrnId?: string;
+  originGrnNumber?: string;
+  skipStockUpdate?: boolean; // When true, inventory was already received via GRN and shouldn't be incremented again
 }
 
 export type PaymentMethod = 'cash' | 'bank_transfer' | 'cheque' | 'card' | 'credit';
@@ -1272,9 +1276,12 @@ export interface GoodsReceiptNote {
   date: string;
   receivedBy: string;
   items: GoodsReceiptItem[];
-  status: 'inspected' | 'accepted' | 'stored';
+  status: 'inspected' | 'accepted' | 'stored' | 'billed';
   notes?: string;
   createdAt?: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  isBilled?: boolean;
 }
 
 export interface LandedCostExpenseItem {
