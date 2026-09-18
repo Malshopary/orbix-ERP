@@ -636,6 +636,8 @@ export const PurchaseOrdersSection: React.FC<PurchaseOrdersSectionProps> = ({
                 {/* Add product select */}
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <ProductSelectSearch
+                    mode="add"
+                    priceType="cost"
                     products={products}
                     onSelect={(p) => handleAddItem(p.id)}
                     placeholder="ابحث عن صنف بالاسم أو الباركود أو الرمز لإضافته لأمر الشراء..."
@@ -857,6 +859,46 @@ export const PurchaseOrdersSection: React.FC<PurchaseOrdersSectionProps> = ({
               <div className="p-3 bg-slate-50 rounded text-xs">
                 <span className="font-bold block mb-1">ملاحظات:</span>
                 <p>{printPo.notes}</p>
+              </div>
+            )}
+
+            {/* Quick Workflow Action Shortcuts */}
+            {(onConvertToGrn || onConvertToBill) && (
+              <div className="p-3.5 bg-blue-50/70 rounded-xl border border-blue-200 flex flex-wrap items-center justify-between gap-3 not-printable">
+                <div className="flex items-center gap-2 text-xs text-blue-950 font-bold">
+                  <FileCheck2 className="w-4 h-4 text-blue-700" />
+                  <span>الإجراء التالي في دورة المشتريات:</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {onConvertToGrn && printPo.status !== 'received' && printPo.status !== 'cancelled' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = printPo;
+                        setPrintPo(null);
+                        onConvertToGrn(target);
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <PackageCheck className="w-3.5 h-3.5" />
+                      توليد إذن استلام (GRN)
+                    </button>
+                  )}
+                  {onConvertToBill && printPo.status !== 'billed' && printPo.status !== 'cancelled' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = printPo;
+                        setPrintPo(null);
+                        onConvertToBill(target);
+                      }}
+                      className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      تحويل إلى فاتورة مشتريات
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

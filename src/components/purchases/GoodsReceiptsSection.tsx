@@ -26,11 +26,13 @@ import {
 interface GoodsReceiptsSectionProps {
   initialPoForGrn?: PurchaseOrder | null;
   onClearInitialPo?: () => void;
+  onConvertToBill?: (grn: GoodsReceiptNote) => void;
 }
 
 export const GoodsReceiptsSection: React.FC<GoodsReceiptsSectionProps> = ({
   initialPoForGrn,
   onClearInitialPo,
+  onConvertToBill,
 }) => {
   const {
     goodsReceipts = [],
@@ -454,6 +456,15 @@ export const GoodsReceiptsSection: React.FC<GoodsReceiptsSectionProps> = ({
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center justify-center gap-1.5">
+                          {onConvertToBill && (
+                            <button
+                              onClick={() => onConvertToBill(grn)}
+                              title="تحويل إذن الاستلام إلى فاتورة مشتريات"
+                              className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => setPrintGrn(grn)}
                             title="طباعة إذن الاستلام ومحضر الفحص"
@@ -610,9 +621,11 @@ export const GoodsReceiptsSection: React.FC<GoodsReceiptsSectionProps> = ({
                 {/* Add product select if not from PO */}
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <ProductSelectSearch
+                    mode="add"
+                    priceType="cost"
                     products={products}
                     onSelect={(p) => handleAddItem(p.id)}
-                    placeholder="إضافة صنف للاستلام المخزني..."
+                    placeholder="ابحث عن صنف بالاسم أو الباركود لإضافته للاستلام المخزني..."
                   />
                 </div>
 
@@ -830,6 +843,27 @@ export const GoodsReceiptsSection: React.FC<GoodsReceiptsSectionProps> = ({
                 <span>................................................</span>
               </div>
             </div>
+
+            {onConvertToBill && (
+              <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 flex items-center justify-between gap-3 not-printable">
+                <div className="flex items-center gap-2 text-xs text-purple-900 font-bold">
+                  <FileText className="w-4 h-4 text-purple-700" />
+                  <span>هل ترغب في إنشاء فاتورة مشتريات من الكميات المقبولة بهذا الإذن؟</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = printGrn;
+                    setPrintGrn(null);
+                    onConvertToBill(target);
+                  }}
+                  className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  تحويل إلى فاتورة مشتريات
+                </button>
+              </div>
+            )}
 
             <PrintFooter />
           </div>

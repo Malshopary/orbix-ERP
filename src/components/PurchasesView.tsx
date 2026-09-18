@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useErp } from '../context/ErpContext';
-import { PaymentReceipt, PurchaseInvoice, Vendor } from '../types';
+import { PaymentReceipt, PurchaseInvoice, Vendor, PurchaseOrder, GoodsReceiptNote } from '../types';
 import { ProductSelectSearch } from './ProductSelectSearch';
 import { MathQuantityInput } from './MathQuantityInput';
 import { PrintPreviewModal } from './PrintPreviewModal';
@@ -14,7 +14,6 @@ import { LandedCostSection } from './purchases/LandedCostSection';
 import { PurchaseReturnsSection } from './purchases/PurchaseReturnsSection';
 import { VendorAgingSection } from './purchases/VendorAgingSection';
 import { PurchasesReportsView } from './PurchasesReportsView';
-import { PurchaseOrder } from '../types';
 import {
   ShoppingCart,
   PlusCircle,
@@ -61,6 +60,11 @@ export const PurchasesView: React.FC = () => {
     editPurchaseInvoice,
     deletePurchaseInvoice,
     recordVendorPayment,
+    purchaseOrders = [],
+    updatePurchaseOrder,
+    goodsReceipts = [],
+    landedCosts = [],
+    purchaseReturns = [],
     hasPermission,
     activeSubTab: globalSubTab,
     setActiveSubTab: setGlobalSubTab,
@@ -240,6 +244,146 @@ export const PurchasesView: React.FC = () => {
   const [editBillVatRate, setEditBillVatRate] = useState<number>(companyProfile.defaultVatRate ?? 15);
   const [editBillNotes, setEditBillNotes] = useState('');
   const [editBillItems, setEditBillItems] = useState<any[]>([]);
+
+  // Workflow Linkage States (PO / GRN -> Bill)
+  const [originPoIdForBill, setOriginPoIdForBill] = useState<string | null>(null);
+  const [originGrnIdForBill, setOriginGrnIdForBill] = useState<string | null>(null);
+
+  const resetCreateBillForm = () => {
+    setBillVendorId(vendors[0]?.id || '');
+    setBillWarehouseId(warehouses[0]?.id || '');
+    setBillDate(new Date().toISOString().split('T')[0]);
+    setBillDueDate(
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    );
+    setBillVatRate(companyProfile.defaultVatRate ?? 15);
+    setBillNotes('');
+    setOriginPoIdForBill(null);
+    setOriginGrnIdForBill(null);
+    const defaultProd = products[0];
+    const unitPrice = defaultProd?.costPrice || defaultProd?.purchasePrice || 100;
+    setBillItems([
+      {
+        productId: defaultProd?.id || '',
+        productName: defaultProd?.name || '',
+        quantity: 1,
+        unitPrice,
+        total: unitPrice,
+        batchNumber: defaultProd?.batchNumber || '',
+        productionDate: defaultProd?.productionDate || '',
+        expiryDate: defaultProd?.expiryDate || '',
+        warehouseId: warehouses[0]?.id || '',
+      },
+    ]);
+  };
+
+  const handleConvertPoToBill = (po: PurchaseOrder) => {
+    setBillVendorId(po.vendorId);
+    setBillWarehouseId(po.warehouseId || warehouses[0]?.id || '');
+    setBillDate(new Date().toISOString().split('T')[0]);
+    setBillNotes(`بناءً على أمر شراء معتمد رقم: ${po.poNumber}${po.notes ? ` - ${po.notes}` : ''}`);
+
+    const mappedItems = po.items.map((item) => {
+      const remainingQty = Math.max(1, item.quantity - (item.receivedQuantity || 0));
+      return {
+        productId: item.productId,
+        productName: item.productName,
+        quantity: remainingQty,
+        unitPrice: item.unitPrice,
+        total: remainingQty * item.unitPrice,
+        batchNumber: '',
+        productionDate: '',
+        expiryDate: '',
+        warehouseId: po.warehouseId || warehouses[0]?.id || '',
+      };
+    });
+
+    setBillItems(
+      mappedItems.length > 0
+        ? mappedItems
+        : [
+            {
+              productId: products[0]?.id || '',
+              productName: products[0]?.name || '',
+              quantity: 1,
+              unitPrice: 100,
+              total: 100,
+              batchNumber: '',
+              productionDate: '',
+              expiryDate: '',
+              warehouseId: warehouses[0]?.id || '',
+            },
+          ]
+    );
+    setOriginPoIdForBill(po.id);
+    setOriginGrnIdForBill(null);
+    setActiveSubTab('bills');
+    setShowCreateBillModal(true);
+    showAlert({
+      title: 'تحويل أمر الشراء إلى فاتورة',
+      message: `تم سحب بيانات الأصناف والأسعار المعتمدة من أمر الشراء ${po.poNumber} بنجاح. راجع التفاصيل ثم اضغط حفظ الفاتورة.`,
+      type: 'info',
+    });
+  };
+
+  const handleConvertGrnToBill = (grn: GoodsReceiptNote) => {
+    setBillVendorId(grn.vendorId);
+    setBillWarehouseId(grn.warehouseId || warehouses[0]?.id || '');
+    setBillDate(grn.date || new Date().toISOString().split('T')[0]);
+    setBillNotes(
+      `بناءً على إذن استلام مخزني معتمد رقم: ${grn.grnNumber}${
+        grn.poNumber ? ` (أمر شراء: ${grn.poNumber})` : ''
+      }${grn.deliveryNoteNumber ? ` (إذن تسليم: ${grn.deliveryNoteNumber})` : ''}`
+    );
+
+    const acceptedItems = grn.items.filter((i) => i.acceptedQuantity > 0);
+    const mappedItems = acceptedItems.map((item) => {
+      const prod = products.find((p) => p.id === item.productId);
+      const unitPrice = item.unitPrice || prod?.costPrice || prod?.purchasePrice || 100;
+      return {
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.acceptedQuantity,
+        unitPrice,
+        total: item.acceptedQuantity * unitPrice,
+        batchNumber: item.batchNumber || '',
+        productionDate: grn.date,
+        expiryDate: item.expiryDate || '',
+        warehouseId: grn.warehouseId || warehouses[0]?.id || '',
+      };
+    });
+
+    setBillItems(
+      mappedItems.length > 0
+        ? mappedItems
+        : [
+            {
+              productId: products[0]?.id || '',
+              productName: products[0]?.name || '',
+              quantity: 1,
+              unitPrice: 100,
+              total: 100,
+              batchNumber: '',
+              productionDate: '',
+              expiryDate: '',
+              warehouseId: warehouses[0]?.id || '',
+            },
+          ]
+    );
+    if (grn.poId) {
+      setOriginPoIdForBill(grn.poId);
+    } else {
+      setOriginPoIdForBill(null);
+    }
+    setOriginGrnIdForBill(grn.id);
+    setActiveSubTab('bills');
+    setShowCreateBillModal(true);
+    showAlert({
+      title: 'تحويل إذن الاستلام إلى فاتورة',
+      message: `تم سحب الأصناف المقبولة فحصياً من إذن الاستلام ${grn.grnNumber} وتجهيز الفاتورة للاعتماد المالي بنجاح.`,
+      type: 'info',
+    });
+  };
 
   // Payment Form
   const [payAmount, setPayAmount] = useState(0);
@@ -540,6 +684,12 @@ export const PurchasesView: React.FC = () => {
       notes: billNotes,
     });
 
+    if (originPoIdForBill && updatePurchaseOrder) {
+      updatePurchaseOrder(originPoIdForBill, { status: 'billed' });
+      setOriginPoIdForBill(null);
+    }
+    setOriginGrnIdForBill(null);
+
     setShowCreateBillModal(false);
     setBillNotes('');
   };
@@ -580,20 +730,69 @@ export const PurchasesView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header - displayed for bills and vendors views */}
-      {['bills', 'vendors'].includes(activeSubTab) && (
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Universal Purchases Department Header & Workflow Nav */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
               <ShoppingCart className="w-5 h-5 text-emerald-600" />
               المشتريات وإدارة الموردين وحسابات الدائنين
             </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              إثبات فواتير التوريد، وأوامر الشراء، وأذونات الاستلام، وتكاليف الشحن، وأعمار الديون
-            </p>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 mt-1">
+              <span className="font-semibold text-slate-700">دورة المشتريات:</span>
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('purchase_orders')}
+                className={`font-semibold hover:underline cursor-pointer ${
+                  activeSubTab === 'purchase_orders' ? 'text-blue-700 font-bold underline' : 'text-blue-600'
+                }`}
+              >
+                أمر شراء (PO)
+              </button>
+              <span>➔</span>
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('goods_receipts')}
+                className={`font-semibold hover:underline cursor-pointer ${
+                  activeSubTab === 'goods_receipts' ? 'text-emerald-700 font-bold underline' : 'text-emerald-600'
+                }`}
+              >
+                إذن استلام وفحص (GRN)
+              </button>
+              <span>➔</span>
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('bills')}
+                className={`font-semibold hover:underline cursor-pointer ${
+                  activeSubTab === 'bills' ? 'text-purple-700 font-bold underline' : 'text-purple-600'
+                }`}
+              >
+                فاتورة مشتريات
+              </button>
+              <span>➔</span>
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('landed_costs')}
+                className={`font-semibold hover:underline cursor-pointer ${
+                  activeSubTab === 'landed_costs' ? 'text-amber-700 font-bold underline' : 'text-amber-600'
+                }`}
+              >
+                تكاليف الشحن
+              </button>
+              <span>➔</span>
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('returns')}
+                className={`font-semibold hover:underline cursor-pointer ${
+                  activeSubTab === 'returns' ? 'text-rose-700 font-bold underline' : 'text-rose-600'
+                }`}
+              >
+                مردودات
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => {
@@ -621,15 +820,113 @@ export const PurchasesView: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setShowCreateBillModal(true)}
-              className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs"
+              onClick={() => {
+                resetCreateBillForm();
+                setActiveSubTab('bills');
+                setShowCreateBillModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
               فاتورة مشتريات
             </button>
           </div>
         </div>
-      )}
+
+        {/* Workflow Tabs Navigation */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 border-t border-slate-100 pt-3 text-xs">
+          {[
+            {
+              id: 'bills' as const,
+              label: 'فواتير المشتريات',
+              icon: FileSpreadsheet,
+              count: purchaseInvoices.length,
+            },
+            {
+              id: 'purchase_orders' as const,
+              label: 'أوامر الشراء (PO)',
+              icon: FileCheck2,
+              count: purchaseOrders.length,
+            },
+            {
+              id: 'goods_receipts' as const,
+              label: 'أذونات الاستلام (GRN)',
+              icon: PackageCheck,
+              count: goodsReceipts.length,
+            },
+            {
+              id: 'landed_costs' as const,
+              label: 'تكاليف الشحن والجمارك',
+              icon: Ship,
+              count: landedCosts.length,
+            },
+            {
+              id: 'returns' as const,
+              label: 'مردودات المشتريات',
+              icon: RotateCcw,
+              count: purchaseReturns.length,
+            },
+            {
+              id: 'vendor_aging' as const,
+              label: 'أعمار ديون الموردين',
+              icon: Clock,
+            },
+            {
+              id: 'vendors' as const,
+              label: 'دليل الموردين',
+              icon: Building,
+              count: vendors.length,
+            },
+            {
+              id: 'reports' as const,
+              label: 'التقارير والتحليلات',
+              icon: BarChart3,
+            },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive =
+              activeSubTab === tab.id ||
+              (tab.id === 'reports' &&
+                [
+                  'reports',
+                  'purchases_reports',
+                  'purchases_summary',
+                  'purchases_by_payment',
+                  'purchases_vat_report',
+                  'purchases_top_vendors',
+                  'purchases_ap_aging',
+                  'purchases_top_items',
+                  'purchases_price_variance',
+                  'purchases_returns_analysis',
+                ].includes(activeSubTab));
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveSubTab(tab.id as PurchasesSubTab)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
+                <span>{tab.label}</span>
+                {typeof tab.count === 'number' && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Subtab: Purchase Orders */}
       {activeSubTab === 'purchase_orders' && (
@@ -639,7 +936,7 @@ export const PurchasesView: React.FC = () => {
             setActiveSubTab('goods_receipts');
           }}
           onConvertToBill={(po) => {
-            setShowCreateBillModal(true);
+            handleConvertPoToBill(po);
           }}
         />
       )}
@@ -649,6 +946,9 @@ export const PurchasesView: React.FC = () => {
         <GoodsReceiptsSection
           initialPoForGrn={selectedPoForGrn}
           onClearInitialPo={() => setSelectedPoForGrn(null)}
+          onConvertToBill={(grn) => {
+            handleConvertGrnToBill(grn);
+          }}
         />
       )}
 
@@ -1497,6 +1797,40 @@ export const PurchasesView: React.FC = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {originPoIdForBill && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-bold">
+                  <FileCheck2 className="w-4 h-4 text-blue-700" />
+                  <span>
+                    فاتورة مشتريات مرتبطة بأمر الشراء رقم{' '}
+                    <span className="font-mono underline">
+                      {purchaseOrders.find((p) => p.id === originPoIdForBill)?.poNumber}
+                    </span>
+                  </span>
+                </div>
+                <span className="text-[11px] bg-blue-100 text-blue-900 px-2.5 py-0.5 rounded-full font-bold">
+                  سيتم تحويل حالة أمر الشراء إلى "تمت الفوترة" آلياً عند الحفظ
+                </span>
+              </div>
+            )}
+
+            {originGrnIdForBill && (
+              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-bold">
+                  <PackageCheck className="w-4 h-4 text-emerald-700" />
+                  <span>
+                    فاتورة مشتريات مرتبطة بإذن الاستلام المخزني رقم{' '}
+                    <span className="font-mono underline">
+                      {goodsReceipts.find((g) => g.id === originGrnIdForBill)?.grnNumber}
+                    </span>
+                  </span>
+                </div>
+                <span className="text-[11px] bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold">
+                  تم سحب الأصناف والكميات المقبولة فحصياً
+                </span>
+              </div>
+            )}
 
             <form onSubmit={handleCreateBill} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">

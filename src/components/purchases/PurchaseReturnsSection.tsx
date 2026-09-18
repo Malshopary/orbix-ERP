@@ -507,9 +507,11 @@ export const PurchaseReturnsSection: React.FC = () => {
                 {/* Add product */}
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <ProductSelectSearch
+                    mode="add"
+                    priceType="cost"
                     products={products}
                     onSelect={(p) => handleAddItem(p.id)}
-                    placeholder="ابحث عن صنف لإضافته إلى قائمة المردودات..."
+                    placeholder="ابحث عن صنف بالاسم أو الباركود لإضافته لقائمة المردودات..."
                   />
                 </div>
 
